@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Open Workbook AI</title>
+
+    <script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <link rel="stylesheet" href="https://res-1.cdn.office.net/files/fabric-cdn-prod_20230815.002/office-ui-fabric-core/11.1.0/css/fabric.min.css"/>
+    <link href="./taskpane.css" rel="stylesheet" type="text/css" />
+    <link href="./pages/openrouter-auth/openrouter-auth-page.css" rel="stylesheet" type="text/css" />
+    <link href="./pages/chat/chat-page.css" rel="stylesheet" type="text/css" />
+</head>
+
+<body class="ms-font-m ms-Fabric">
+    <main id="app-body" class="pane assistant-chat" hidden>
+        <section id="openrouter-auth-page" class="auth-view" data-taskpane-page="openrouter-auth"></section>
+
+        <section id="chat-view" class="chat-view" data-taskpane-page="chat" hidden></section>
+    </main>
+    <script type="module" src="./taskpane.ts"></script>
+</body>
+</html>

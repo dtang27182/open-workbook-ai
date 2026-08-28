@@ -1,0 +1,9 @@
+node_modules/*
+dist/*
+.live-test-build/*
+.unit-test-build/*
+experiment-harness/.build/*
+experiment-harness/runs/*
+.vscode
+.DS_Store
+.benchmark/

@@ -1,0 +1,19 @@
+.auth-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-view[hidden] {
+  display: none;
+}
+
+.auth-view h2,
+.auth-view p {
+  margin: 0;
+}
+
+.auth-note {
+  color: #605E5C;
+  font-size: 12px;
+}

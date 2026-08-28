@@ -1,0 +1,49 @@
+{
+  "name": "open-workbook-ai",
+  "version": "0.0.1",
+  "description": "An open-source AI assistant for the active Excel worksheet.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dtang27182/open-workbook-ai.git"
+  },
+  "license": "MIT",
+  "config": {
+    "app_to_debug": "excel",
+    "app_type_to_debug": "desktop",
+    "dev_server_port": 3000
+  },
+  "scripts": {
+    "build": "vite build",
+    "build:dev": "vite build --mode development",
+    "start": "vite --mode development",
+    "lint": "office-addin-lint check",
+    "lint:fix": "office-addin-lint fix",
+    "prettier": "office-addin-lint prettier",
+    "signin": "office-addin-dev-settings m365-account login",
+    "signout": "office-addin-dev-settings m365-account logout",
+    "test:live": "tsc --project tests/tsconfig.live.json && node --test --test-concurrency=100 .live-test-build/tests/integration.test.js",
+    "test:unit": "tsc --project tests/tsconfig.unit.json && node --test .unit-test-build/tests/unit.test.js",
+    "validate": "office-addin-manifest validate manifest.xml",
+    "watch": "vite build --mode development --watch"
+  },
+  "dependencies": {
+    "dompurify": "^3.4.12",
+    "eventsource-parser": "^3.1.0",
+    "marked": "^18.0.6",
+    "quickjs-emscripten": "^0.32.0"
+  },
+  "devDependencies": {
+    "@types/office-js": "^1.0.377",
+    "@types/office-runtime": "^1.0.35",
+    "eslint-plugin-office-addins": "^4.0.3",
+    "office-addin-cli": "^2.0.3",
+    "office-addin-debugging": "^6.0.3",
+    "office-addin-dev-certs": "^2.0.3",
+    "office-addin-lint": "^3.0.3",
+    "office-addin-manifest": "^2.0.3",
+    "office-addin-prettier-config": "^2.0.1",
+    "typescript": "^5.4.2",
+    "vite": "^8.2.2"
+  },
+  "prettier": "office-addin-prettier-config"
+}
