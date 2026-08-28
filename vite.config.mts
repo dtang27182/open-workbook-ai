@@ -8,6 +8,7 @@ import { defineConfig, type Plugin } from "vite";
 const ROOT_DIRECTORY = fileURLToPath(new URL("./", import.meta.url));
 const DEVELOPMENT_URL = "https://localhost:3000/";
 const PRODUCTION_URL = "https://open-workbook-ai-addin.pages.dev/";
+const TASKPANE_IMPLEMENTATION: "current" | "taskpane-fsm" = "taskpane-fsm";
 
 const HTML_ENTRIES = {
   taskpane: resolve(ROOT_DIRECTORY, "src/taskpane/taskpane.html"),
@@ -22,6 +23,9 @@ export default defineConfig(async ({ command, mode }) => ({
     rollupOptions: {
       input: HTML_ENTRIES,
     },
+  },
+  define: {
+    TASKPANE_IMPLEMENTATION: JSON.stringify(TASKPANE_IMPLEMENTATION),
   },
   plugins: [copyOfficeFiles(mode === "development")],
   server: {

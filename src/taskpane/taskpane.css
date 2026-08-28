@@ -19,6 +19,13 @@ html, body {
   display: none;
 }
 
+#taskpane-app {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .btn {
   padding: 8px 12px;
   background: #0078D4;

@@ -10,6 +10,21 @@
   min-height: 0;
 }
 
+.chat-header {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat-transcript {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
 .chat-heading {
   display: flex;
   flex: 0 0 auto;
