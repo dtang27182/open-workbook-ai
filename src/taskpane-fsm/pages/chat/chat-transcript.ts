@@ -1,4 +1,4 @@
-/* global console, document, Excel, HTMLButtonElement, HTMLFormElement, HTMLInputElement, HTMLElement, structuredClone */
+/* global console, document, HTMLButtonElement, HTMLFormElement, HTMLInputElement, HTMLElement, structuredClone */
 
 import { Component, ComponentView } from "../../component";
 import {
@@ -63,8 +63,8 @@ export class ChatTranscript implements Component<void, never, never, ChatTranscr
   private nextWorkflowId = 1;
   private nextRestorePointId = 1;
 
-  constructor() {
-    this.excelApi = Excel;
+  constructor(excelApi?: ExcelApi) {
+    this.excelApi = excelApi;
     this.element = this.createElement();
     this.legacyChatRendering = new LegacyChatRendering(this.element, {
       onAccept: () => {

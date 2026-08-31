@@ -1,4 +1,4 @@
-declare const TASKPANE_IMPLEMENTATION: "current" | "taskpane-fsm";
+/* global TASKPANE_IMPLEMENTATION */
 
 if (TASKPANE_IMPLEMENTATION === "current") {
   void import("./taskpane");
