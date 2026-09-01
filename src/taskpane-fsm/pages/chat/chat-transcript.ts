@@ -28,14 +28,16 @@ import {
   ChatWorkingTranscriptItem,
   ComparisonRange,
   ExcelApi,
-  FormulaInferenceDetectionEvent,
-  FormulaInferenceRegionEvent,
   LlmConversationHistory,
   PendingEdit,
   RestorePoint,
   SheetSnapshot,
   SpreadsheetPromptCompletionEvent,
 } from "../../../taskpane/pages/chat/chat-state-machine/chat-types";
+import {
+  formatFormulaInferencePlan,
+  formatFormulaInferenceRegionResult,
+} from "../../../taskpane/pages/chat/chat-state-machine/preprocess-formula-inference";
 import {
   ChatTranscriptDomHandlers,
   configChatControls,
@@ -382,9 +384,13 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
     let cellEdits: CellEdit[] | undefined;
     for await (const event of runPreprocessPrompt(originalSheet)) {
       if (event.type === "detection_complete") {
-        this.appendMessage("system", formatFormulaInferencePlan(event), workflowId);
+        this.appendMessage("system", formatFormulaInferencePlan(event.plan), workflowId);
       } else if (event.type === "region_complete") {
-        this.appendMessage("system", formatFormulaInferenceRegionResult(event), workflowId);
+        this.appendMessage(
+          "system",
+          formatFormulaInferenceRegionResult(event.region, event.cellEditCount),
+          workflowId
+        );
       } else if (event.type === "complete") {
         cellEdits = event.cellEdits;
       }
@@ -854,25 +860,4 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
       columnCount: sheet.columnCount,
     };
   }
-}
-
-function formatFormulaInferencePlan(event: FormulaInferenceDetectionEvent): string {
-  let message = `**Formula inference:** ${
-    event.plan.shouldInferFormulas ? "Required" : "Not required"
-  }\n\n${event.plan.summary}\n\n**Confidence:** ${event.plan.confidence}`;
-  if (event.plan.regions.length > 0) {
-    message += `\n\n**Inference plan**\n\n${event.plan.regions
-      .map(
-        (region) =>
-          `- \`${region.targetRange}\` — ${region.relationship}\n  - Structure: ${region.structure}\n  - Sources: ${region.sourceRanges.join(", ")}\n  - Evidence: ${region.evidenceCells.join(", ")}`
-      )
-      .join("\n")}`;
-  }
-  return message;
-}
-
-function formatFormulaInferenceRegionResult(event: FormulaInferenceRegionEvent): string {
-  return `**Formula inference complete: \`${event.region.targetRange}\`**
-
-Generated ${event.cellEditCount} formula edits.`;
 }

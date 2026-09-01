@@ -1,6 +1,6 @@
 # Chat Transcript Pure Helper Extraction Plan
 
-Status: DOM helper extraction implemented. The formatting and state-helper extractions remain proposed for review.
+Status: DOM and formula-formatting extractions implemented. The state-helper extraction remains proposed for review.
 
 ## Behavior
 
@@ -8,10 +8,10 @@ Preserve the current transcript FSM, DOM, handlers, LLM and Excel workflows, and
 
 ## Scope
 
-Change `src/taskpane-fsm/pages/chat/chat-transcript.ts` and add three focused modules beside it:
+Change `src/taskpane-fsm/pages/chat/chat-transcript.ts` and use these focused modules:
 
 - `chat-transcript-dom.ts` for explicit DOM updates and detached element factories;
-- `chat-transcript-formatting.ts` for formula-result text formatting; and
+- the existing `preprocess-formula-inference.ts` for formula-result text formatting; and
 - `chat-transcript-state.ts` for pure state copies, queries, and validation.
 
 Do not change `ChatPage`, shared chat types, HTML, CSS, workflows, services, component interfaces, dependencies, or tests.
@@ -39,12 +39,12 @@ Move the `DOMPurify` and `marked` imports to this module because only message-el
 
 ### Formula-result formatting
 
-Move the existing file-level functions to `chat-transcript-formatting.ts`:
+Move the existing file-level functions to `preprocess-formula-inference.ts`:
 
 - `formatFormulaInferencePlan()`; and
 - `formatFormulaInferenceRegionResult()`.
 
-Export them and import them into `ChatTranscript` without changing their inputs or output text.
+Export them and import them into `ChatTranscript` without changing their output text. Accept `FormulaInferencePlan` and `FormulaInferenceRegion` values directly so the preprocessing module does not depend on chat event types.
 
 ### Pure state helpers
 
