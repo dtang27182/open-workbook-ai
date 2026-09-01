@@ -1,9 +1,12 @@
-/* global document */
+/* global document, HTMLElement */
 
-import { Component, ComponentView } from "./component";
+import { Component } from "./component-v2";
+import { LegacyComponentAdapter } from "./legacy-component-adapter";
 import { ChatPage } from "./pages/chat/chat-page";
-import { OpenRouterAuthPage } from "./pages/openrouter-auth/openrouter-auth-page";
-import { render } from "./render";
+import {
+  OpenRouterAuthPage,
+  OpenRouterAuthUpdateEvent,
+} from "./pages/openrouter-auth/openrouter-auth-page";
 import { OpenrouterKeyStore } from "../taskpane/pages/openrouter-auth/openrouter-api-key";
 import { acquireOpenRouterApiKey } from "../taskpane/pages/openrouter-auth/openrouter-key-exchange";
 import { configureOpenRouterClient } from "../taskpane/pages/chat/chat-state-machine/openrouter-client";
@@ -16,71 +19,95 @@ export type TaskpaneState = {
 
 export type TaskpaneUpdateEvent = { type: "sign_in" } | { type: "sign_out" };
 
-export class TaskpaneComponent implements Component<void, never, never, TaskpaneUpdateEvent> {
-  readonly componentId = "taskpane-app";
-
+export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
+  private mount: HTMLElement;
+  private readonly rootElement: HTMLElement;
   private readonly openrouterKeyStore: OpenrouterKeyStore;
-  private readonly openRouterAuthPage: OpenRouterAuthPage;
-  private readonly chatPage: ChatPage;
+  private readonly openRouterAuthPage: LegacyComponentAdapter<OpenRouterAuthUpdateEvent>;
+  private readonly chatPage: LegacyComponentAdapter<never>;
   private state: TaskpaneState;
 
-  constructor() {
+  constructor(mount: HTMLElement) {
+    this.mount = mount;
     this.openrouterKeyStore = new OpenrouterKeyStore();
     configureOpenRouterClient(this.openrouterKeyStore);
-    this.openRouterAuthPage = new OpenRouterAuthPage(this.handleSignIn);
-    this.chatPage = new ChatPage(this.handleSignOut);
     this.state = {
       activePage: this.openrouterKeyStore.hasKey() ? "chat" : "openrouter-auth",
     };
+    const initialDom = this.createInitialDom();
+    this.rootElement = initialDom.rootElement;
+    this.mount.replaceChildren(initialDom.rootElement);
+    this.openRouterAuthPage = new LegacyComponentAdapter(
+      initialDom.openRouterAuthMount,
+      new OpenRouterAuthPage(this.handleSignIn)
+    );
+    this.chatPage = new LegacyComponentAdapter(
+      initialDom.chatMount,
+      new ChatPage(this.handleSignOut)
+    );
   }
 
-  genView(): ComponentView {
-    const element = document.createElement("div");
-
-    element.id = this.componentId;
-    if (this.state.activePage === "openrouter-auth") {
-      element.append(this.openRouterAuthPage.genView().element);
-    } else if (this.state.activePage === "chat") {
-      element.append(this.chatPage.genView().element);
-    }
-
-    return {
-      componentId: this.componentId,
-      element,
-    };
+  getMount(): HTMLElement {
+    return this.mount;
   }
 
-  updateState(event: TaskpaneUpdateEvent): void {
+  setMount(mount: HTMLElement): void {
+    this.mount = mount;
+  }
+
+  async updateState(event: TaskpaneUpdateEvent): Promise<void> {
     if (event.type === "sign_in") {
-      this.openRouterAuthPage.updateState({ type: "sign_in_succeeded" });
-      this.state.activePage = "chat";
+      await this.openRouterAuthPage.updateState({ type: "sign_in_started" });
+      try {
+        this.openrouterKeyStore.set(await acquireOpenRouterApiKey());
+        await this.openRouterAuthPage.updateState({ type: "sign_in_succeeded" });
+        this.state.activePage = "chat";
+        this.rootElement.replaceChildren(this.chatPage.getMount());
+      } catch (error) {
+        await this.openRouterAuthPage.updateState({
+          type: "sign_in_failed",
+          message:
+            error instanceof Error ? error.message : "Could not sign in to OpenRouter. Try again.",
+        });
+      }
     } else if (event.type === "sign_out") {
-      this.openRouterAuthPage.updateState({ type: "reset" });
+      this.openrouterKeyStore.clear();
+      await this.openRouterAuthPage.updateState({ type: "reset" });
       this.state.activePage = "openrouter-auth";
+      this.rootElement.replaceChildren(this.openRouterAuthPage.getMount());
     }
   }
 
   private handleSignIn = async (): Promise<void> => {
-    this.openRouterAuthPage.updateState({ type: "sign_in_started" });
-    render(this.openRouterAuthPage.genView());
-
-    try {
-      this.openrouterKeyStore.set(await acquireOpenRouterApiKey());
-      this.updateState({ type: "sign_in" });
-    } catch (error) {
-      this.openRouterAuthPage.updateState({
-        type: "sign_in_failed",
-        message:
-          error instanceof Error ? error.message : "Could not sign in to OpenRouter. Try again.",
-      });
-    } finally {
-      render(this.genView());
-    }
+    await this.updateState({ type: "sign_in" });
   };
 
   private handleSignOut = (): void => {
-    this.openrouterKeyStore.clear();
-    this.updateState({ type: "sign_out" });
-    render(this.genView());
+    void this.updateState({ type: "sign_out" });
   };
+
+  private createInitialDom(): {
+    rootElement: HTMLElement;
+    openRouterAuthMount: HTMLElement;
+    chatMount: HTMLElement;
+  } {
+    const rootElement = document.createElement("div");
+    const openRouterAuthMount = document.createElement("div");
+    const chatMount = document.createElement("div");
+
+    rootElement.id = "taskpane-app";
+    openRouterAuthMount.style.display = "contents";
+    chatMount.style.display = "contents";
+    if (this.state.activePage === "openrouter-auth") {
+      rootElement.append(openRouterAuthMount);
+    } else if (this.state.activePage === "chat") {
+      rootElement.append(chatMount);
+    }
+
+    return {
+      rootElement,
+      openRouterAuthMount,
+      chatMount,
+    };
+  }
 }
