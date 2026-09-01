@@ -2,6 +2,8 @@
 
 Status: proposed for review. This document describes the target architecture and does not authorize runtime changes yet.
 
+Implementation guidance: [Component FSM Architecture V2 Implementation Guide](./component-fsm-architecture-v2-implementation-guide.md).
+
 ## Architecture
 
 The taskpane is a tree of state-machine components:

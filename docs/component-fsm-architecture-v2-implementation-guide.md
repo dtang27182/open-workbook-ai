@@ -4,7 +4,7 @@ Status: recommended implementation guidance. The Component FSM Architecture V2 c
 
 ## Purpose
 
-This guide recommends a consistent way to organize components that implement Component FSM Architecture V2. The architecture still requires constructors, mounts, and `updateState()` to behave as defined in `taskpane-component-fsm-architecture-v2.md`. The recommendations below concern internal class structure and naming only.
+This guide recommends a consistent way to organize components that implement Component FSM Architecture V2. The architecture still requires constructors, mounts, and `updateState()` to behave as defined in the [Taskpane Component FSM Architecture V2](./taskpane-component-fsm-architecture-v2.md). The recommendations below concern internal class structure and naming only.
 
 Use a simpler structure when it makes a component clearer. In particular, a small leaf component may not need a stable root field, an initialization helper, or child-component coordination.
 
