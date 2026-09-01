@@ -1,7 +1,6 @@
 /* global document, HTMLElement */
 
 import { Component } from "./component-v2";
-import { LegacyComponentAdapter } from "./legacy-component-adapter";
 import { ChatPage } from "./pages/chat/chat-page";
 import { OpenRouterAuthPage } from "./pages/openrouter-auth/openrouter-auth-page";
 import { OpenrouterKeyStore } from "../taskpane/pages/openrouter-auth/openrouter-api-key";
@@ -20,7 +19,7 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
   private readonly mount: HTMLElement;
   private readonly openrouterKeyStore: OpenrouterKeyStore;
   private readonly openRouterAuthPage: OpenRouterAuthPage;
-  private readonly chatPage: LegacyComponentAdapter<never>;
+  private readonly chatPage: ChatPage;
   private state: TaskpaneState;
 
   constructor(mount: HTMLElement) {
@@ -35,10 +34,7 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
       initialDom.openRouterAuthMount,
       this.handleSignIn
     );
-    this.chatPage = new LegacyComponentAdapter(
-      initialDom.chatMount,
-      new ChatPage(this.handleSignOut)
-    );
+    this.chatPage = new ChatPage(initialDom.chatMount, this.handleSignOut);
   }
 
   getMount(): HTMLElement {

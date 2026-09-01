@@ -1,32 +1,49 @@
-/* global document */
+/* global document, HTMLElement */
 
-import { Component, ComponentView } from "../../component";
+import { Component } from "../../component-v2";
+import { LegacyComponentAdapter } from "../../legacy-component-adapter";
 import { ChatHeader } from "./chat-header";
-import { ChatTranscript } from "./chat-transcript";
+import { ChatTranscript, ChatTranscriptUpdateEvent } from "./chat-transcript";
 
-export class ChatPage implements Component<void, never, never, never> {
-  readonly componentId = "chat-page";
-
+export class ChatPage implements Component<never> {
+  private readonly mount: HTMLElement;
   private readonly chatHeader: ChatHeader;
-  private readonly chatTranscript: ChatTranscript;
+  private readonly chatTranscript: LegacyComponentAdapter<ChatTranscriptUpdateEvent>;
 
-  constructor(onSignOut: () => void) {
-    this.chatHeader = new ChatHeader(onSignOut);
-    this.chatTranscript = new ChatTranscript();
+  constructor(mount: HTMLElement, onSignOut: () => void) {
+    this.mount = mount;
+    const initialDom = this.createInitialDom();
+    this.chatHeader = new ChatHeader(initialDom.chatHeaderMount, onSignOut);
+    this.chatTranscript = new LegacyComponentAdapter(
+      initialDom.chatTranscriptMount,
+      new ChatTranscript()
+    );
   }
 
-  genView(): ComponentView {
-    const element = document.createElement("section");
-
-    element.id = this.componentId;
-    element.className = "chat-view";
-    element.append(this.chatHeader.genView().element, this.chatTranscript.genView().element);
-
-    return {
-      componentId: this.componentId,
-      element,
-    };
+  getMount(): HTMLElement {
+    return this.mount;
   }
 
   updateState(): void {}
+
+  private createInitialDom(): {
+    chatHeaderMount: HTMLElement;
+    chatTranscriptMount: HTMLElement;
+  } {
+    const element = document.createElement("section");
+    const chatHeaderMount = document.createElement("div");
+    const chatTranscriptMount = document.createElement("div");
+
+    element.id = "chat-page";
+    element.className = "chat-view";
+    chatHeaderMount.style.display = "contents";
+    chatTranscriptMount.style.display = "contents";
+    element.append(chatHeaderMount, chatTranscriptMount);
+    this.mount.replaceChildren(element);
+
+    return {
+      chatHeaderMount,
+      chatTranscriptMount,
+    };
+  }
 }

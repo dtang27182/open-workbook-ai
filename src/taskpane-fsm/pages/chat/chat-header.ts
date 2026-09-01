@@ -1,21 +1,33 @@
-/* global document, HTMLAnchorElement, HTMLButtonElement, HTMLDivElement */
+/* global document, HTMLAnchorElement, HTMLButtonElement, HTMLDivElement, HTMLElement */
 
-import { Component, ComponentView } from "../../component";
+import { Component } from "../../component-v2";
 import { cloneChatPageElement } from "./chat-page-template";
 
-export class ChatHeader implements Component<void, never, never, never> {
-  readonly componentId = "chat-header";
+export class ChatHeader implements Component<never> {
+  private readonly mount: HTMLElement;
 
-  constructor(private readonly onSignOut: () => void) {}
+  constructor(
+    mount: HTMLElement,
+    private readonly onSignOut: () => void
+  ) {
+    this.mount = mount;
+    this.createInitialDom();
+  }
 
-  genView(): ComponentView {
+  getMount(): HTMLElement {
+    return this.mount;
+  }
+
+  updateState(): void {}
+
+  private createInitialDom(): void {
     const element = document.createElement("div");
     const heading = cloneChatPageElement<HTMLDivElement>(".chat-heading");
     const providerDetails = cloneChatPageElement<HTMLDivElement>(".provider-link-details");
     const manageKeyLink =
       providerDetails.querySelector<HTMLAnchorElement>("#openrouter-manage-key")!;
 
-    element.id = this.componentId;
+    element.id = "chat-header";
     element.className = "chat-header";
     heading.querySelector<HTMLButtonElement>("#chat-clear")!.remove();
     heading.querySelector<HTMLButtonElement>("#openrouter-sign-out")!.onclick = this.onSignOut;
@@ -23,11 +35,6 @@ export class ChatHeader implements Component<void, never, never, never> {
     manageKeyLink.removeAttribute("href");
     element.append(heading, providerDetails);
 
-    return {
-      componentId: this.componentId,
-      element,
-    };
+    this.mount.replaceChildren(element);
   }
-
-  updateState(): void {}
 }
