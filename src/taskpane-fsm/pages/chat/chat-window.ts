@@ -1,4 +1,4 @@
-/* global console, HTMLInputElement, HTMLElement, structuredClone */
+/* global console, HTMLInputElement, HTMLElement */
 
 import { Component } from "../../component-v2";
 import {
@@ -54,6 +54,7 @@ import {
   updateWorkingTranscriptItemAndRender,
   upsertTranscriptMessageAndRender,
 } from "./chat-window-transcript-helpers";
+import { copyChatState, createRestorePoint } from "./chat-window-restore-point-helpers";
 
 const preprocessingEnabled = true;
 
@@ -733,7 +734,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
 
     await writeSheetFormulas(this.excelApi, restorePoint.sheet);
     this.potentialRestorePoints.clear();
-    this.chatState = this.copyChatState(restorePoint.chatState);
+    this.chatState = copyChatState(restorePoint.chatState);
     this.restorePoints.length = restorePointIndex;
   }
 
@@ -905,47 +906,9 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
     ).text;
   }
 
-  private createRestorePoint(sheet: SheetSnapshot): RestorePoint {
-    const restorePoint: RestorePoint = {
-      id: this.nextRestorePointId,
-      chatState: this.copyChatState(this.chatState),
-      sheet: this.copySheetSnapshot(sheet),
-    };
-    this.nextRestorePointId++;
-    return restorePoint;
-  }
-
   private createPotentialRestorePoint(workflowId: number, sheet: SheetSnapshot): void {
-    this.potentialRestorePoints.set(workflowId, this.createRestorePoint(sheet));
-  }
-
-  private copyChatState(chatState: ChatState): ChatState {
-    return {
-      transcript: structuredClone(chatState.transcript),
-      llmConversationMessages: [...chatState.llmConversationMessages],
-      fsmState: chatState.fsmState,
-      pendingEdit: chatState.pendingEdit ? this.copyPendingEdit(chatState.pendingEdit) : undefined,
-      preprocessedSheetNames: [...chatState.preprocessedSheetNames],
-    };
-  }
-
-  private copyPendingEdit(pendingEdit: PendingEdit): PendingEdit {
-    return {
-      sourceSheetName: pendingEdit.sourceSheetName,
-      diffSheetName: pendingEdit.diffSheetName,
-      workflowId: pendingEdit.workflowId,
-    };
-  }
-
-  private copySheetSnapshot(sheet: SheetSnapshot): SheetSnapshot {
-    return {
-      name: sheet.name,
-      values: sheet.values.map((row) => [...row]),
-      formulas: sheet.formulas.map((row) => [...row]),
-      rowIndex: sheet.rowIndex,
-      columnIndex: sheet.columnIndex,
-      rowCount: sheet.rowCount,
-      columnCount: sheet.columnCount,
-    };
+    const restorePoint = createRestorePoint(this.nextRestorePointId, this.chatState, sheet);
+    this.nextRestorePointId++;
+    this.potentialRestorePoints.set(workflowId, restorePoint);
   }
 }
