@@ -17,7 +17,7 @@
   gap: 8px;
 }
 
-.chat-transcript {
+.chat-window {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;

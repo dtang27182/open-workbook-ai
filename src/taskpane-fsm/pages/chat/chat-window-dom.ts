@@ -9,7 +9,7 @@ import {
 } from "../../../taskpane/pages/chat/chat-state-machine/chat-types";
 import { cloneChatPageElement } from "./chat-page-template";
 
-export type ChatTranscriptDomHandlers = {
+export type ChatWindowDomHandlers = {
   onClear: () => void;
   onSubmit: (message: string) => void;
   onAccept: () => void;
@@ -17,15 +17,15 @@ export type ChatTranscriptDomHandlers = {
   onRestore: (restorePointId: number) => void;
 };
 
-export function createInitialDom(mount: HTMLElement, handlers: ChatTranscriptDomHandlers): void {
+export function createInitialDom(mount: HTMLElement, handlers: ChatWindowDomHandlers): void {
   const element = document.createElement("div");
   const messages = cloneChatPageElement<HTMLElement>("#chat-messages");
   const form = cloneChatPageElement<HTMLFormElement>("#chat-form");
   const clearButton = cloneChatPageElement<HTMLButtonElement>("#chat-clear");
   const input = form.querySelector<HTMLInputElement>("#chat-input")!;
 
-  element.id = "chat-transcript";
-  element.className = "chat-transcript";
+  element.id = "chat-window";
+  element.className = "chat-window";
   clearButton.onclick = handlers.onClear;
   form.onsubmit = (event) => {
     event.preventDefault();
@@ -39,7 +39,7 @@ export function createInitialDom(mount: HTMLElement, handlers: ChatTranscriptDom
 export function renderChatTranscript(
   mount: HTMLElement,
   entries: readonly ChatTranscriptEntry[],
-  handlers: ChatTranscriptDomHandlers
+  handlers: ChatWindowDomHandlers
 ): void {
   const messages = mount.querySelector<HTMLElement>("#chat-messages")!;
 
@@ -64,7 +64,7 @@ export function renderChatTranscript(
 export function disableChatControls(
   mount: HTMLElement,
   entries: ChatTranscriptEntry[],
-  handlers: ChatTranscriptDomHandlers
+  handlers: ChatWindowDomHandlers
 ): void {
   entries.forEach((entry) => {
     if (entry.kind === "restore" || entry.kind === "diff_review") {
@@ -80,7 +80,7 @@ export function configChatControls(
   mount: HTMLElement,
   entries: ChatTranscriptEntry[],
   state: ChatFsmState,
-  handlers: ChatTranscriptDomHandlers
+  handlers: ChatWindowDomHandlers
 ): void {
   entries.forEach((entry) => {
     if (entry.kind === "restore" || entry.kind === "diff_review") {
@@ -141,7 +141,7 @@ function createWorkingMessage(
 function createRestoreDivider(
   restorePointId: number,
   disabled: boolean,
-  handlers: ChatTranscriptDomHandlers
+  handlers: ChatWindowDomHandlers
 ): HTMLElement {
   const divider = document.createElement("div");
   const line = document.createElement("div");
@@ -161,10 +161,7 @@ function createRestoreDivider(
   return divider;
 }
 
-function createDiffReviewDivider(
-  disabled: boolean,
-  handlers: ChatTranscriptDomHandlers
-): HTMLElement {
+function createDiffReviewDivider(disabled: boolean, handlers: ChatWindowDomHandlers): HTMLElement {
   const divider = document.createElement("div");
   const line = document.createElement("div");
   const acceptButton = document.createElement("button");

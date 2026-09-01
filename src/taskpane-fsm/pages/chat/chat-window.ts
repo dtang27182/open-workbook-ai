@@ -39,21 +39,21 @@ import {
   formatFormulaInferenceRegionResult,
 } from "../../../taskpane/pages/chat/chat-state-machine/preprocess-formula-inference";
 import {
-  ChatTranscriptDomHandlers,
+  ChatWindowDomHandlers,
   configChatControls,
   createInitialDom,
   disableChatControls,
   renderChatTranscript,
-} from "./chat-transcript-dom";
+} from "./chat-window-dom";
 
 const preprocessingEnabled = true;
 
-export type ChatTranscriptUpdateEvent = { type: "clear" } | ChatStateMachineInput;
+export type ChatWindowUpdateEvent = { type: "clear" } | ChatStateMachineInput;
 
-export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
+export class ChatWindow implements Component<ChatWindowUpdateEvent> {
   private readonly mount: HTMLElement;
   private readonly excelApi: ExcelApi;
-  private readonly domHandlers: ChatTranscriptDomHandlers = {
+  private readonly domHandlers: ChatWindowDomHandlers = {
     onClear: () => {
       void this.updateState({ type: "clear" });
     },
@@ -120,7 +120,7 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
     );
   }
 
-  async updateState(event: ChatTranscriptUpdateEvent): Promise<void> {
+  async updateState(event: ChatWindowUpdateEvent): Promise<void> {
     if (event.type === "clear") {
       this.reset();
     } else if (

@@ -13,7 +13,7 @@ TaskpaneComponent
 |-- OpenRouterAuthPage
 `-- ChatPage
     |-- ChatHeader
-    `-- ChatTranscript
+    `-- ChatWindow
 ```
 
 Each component owns its state and the live DOM below a mount element supplied at construction and stored by the component. State transitions and UI updates happen together: after changing its state, a component creates, replaces, or edits the DOM under its mount so that the DOM represents the new state. Components do not return detached views for their parents to compose.
@@ -65,13 +65,13 @@ constructor(mount: HTMLElement, config: ChatPageConfig) {
 
   const element = document.createElement("section");
   const headerMount = document.createElement("div");
-  const transcriptMount = document.createElement("div");
+  const chatWindowMount = document.createElement("div");
 
-  element.append(headerMount, transcriptMount);
+  element.append(headerMount, chatWindowMount);
   this.getMount().replaceChildren(element);
 
   this.chatHeader = new ChatHeader(headerMount, config.header);
-  this.chatTranscript = new ChatTranscript(transcriptMount, config.transcript);
+  this.chatWindow = new ChatWindow(chatWindowMount, config.transcript);
 }
 ```
 
@@ -103,7 +103,7 @@ Every input event handler is defined on the highest component whose state is aff
 
 The handler calls `updateState()` on that highest affected component. The component already knows its mount, so the handler does not need DOM context. The component handles its part of the event and delegates through its subtree, where each parent performs the required child state changes and DOM updates. Handlers do not separately call child `updateState()`, generate child views, or invoke a renderer.
 
-For example, `ChatTranscript` defines its submit handler and calls its own `updateState()` because submitting a message affects state owned by `ChatTranscript`:
+For example, `ChatWindow` defines its submit handler and calls its own `updateState()` because submitting a message affects state owned by `ChatWindow`:
 
 ```ts
 private handleSubmit = async (message: string): Promise<void> => {
@@ -117,9 +117,9 @@ private handleSubmit = async (message: string): Promise<void> => {
 
 ### Chat events
 
-`ChatTranscript` owns the handlers for submit message, clear conversation, accept pending diff, reject pending diff, and restore to point because those operations affect state owned by `ChatTranscript`. It also owns the corresponding controls and binds the handlers when it creates their DOM elements.
+`ChatWindow` owns the handlers for submit message, clear conversation, accept pending diff, reject pending diff, and restore to point because those operations affect state owned by `ChatWindow`. It also owns the corresponding controls and binds the handlers when it creates their DOM elements.
 
-`ChatHeader` owns only the sign-out button DOM. It binds the sign-out handler supplied by `TaskpaneComponent` through `ChatPage`, because signing out affects taskpane-owned state. The copy-Markdown handler is owned by `ChatTranscript` because copying and any visible "Copied" state are local to that component.
+`ChatHeader` owns only the sign-out button DOM. It binds the sign-out handler supplied by `TaskpaneComponent` through `ChatPage`, because signing out affects taskpane-owned state. The copy-Markdown handler is owned by `ChatWindow` because copying and any visible "Copied" state are local to that component.
 
 There is no global render function. Application initialization constructs the top-level component with the application mount, and the constructor builds the initial component tree:
 

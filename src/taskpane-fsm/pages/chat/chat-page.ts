@@ -2,18 +2,18 @@
 
 import { Component } from "../../component-v2";
 import { ChatHeader } from "./chat-header";
-import { ChatTranscript } from "./chat-transcript";
+import { ChatWindow } from "./chat-window";
 
 export class ChatPage implements Component<never> {
   private readonly mount: HTMLElement;
   private readonly chatHeader: ChatHeader;
-  private readonly chatTranscript: ChatTranscript;
+  private readonly chatWindow: ChatWindow;
 
   constructor(mount: HTMLElement, onSignOut: () => void) {
     this.mount = mount;
     const initialDom = this.createInitialDom();
     this.chatHeader = new ChatHeader(initialDom.chatHeaderMount, onSignOut);
-    this.chatTranscript = new ChatTranscript(initialDom.chatTranscriptMount);
+    this.chatWindow = new ChatWindow(initialDom.chatWindowMount);
   }
 
   getMount(): HTMLElement {
@@ -24,22 +24,22 @@ export class ChatPage implements Component<never> {
 
   private createInitialDom(): {
     chatHeaderMount: HTMLElement;
-    chatTranscriptMount: HTMLElement;
+    chatWindowMount: HTMLElement;
   } {
     const element = document.createElement("section");
     const chatHeaderMount = document.createElement("div");
-    const chatTranscriptMount = document.createElement("div");
+    const chatWindowMount = document.createElement("div");
 
     element.id = "chat-page";
     element.className = "chat-view";
     chatHeaderMount.style.display = "contents";
-    chatTranscriptMount.style.display = "contents";
-    element.append(chatHeaderMount, chatTranscriptMount);
+    chatWindowMount.style.display = "contents";
+    element.append(chatHeaderMount, chatWindowMount);
     this.mount.replaceChildren(element);
 
     return {
       chatHeaderMount,
-      chatTranscriptMount,
+      chatWindowMount,
     };
   }
 }
