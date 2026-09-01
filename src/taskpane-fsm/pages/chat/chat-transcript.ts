@@ -1,6 +1,6 @@
 /* global console, document, HTMLButtonElement, HTMLFormElement, HTMLInputElement, HTMLElement, structuredClone */
 
-import { Component, ComponentView } from "../../component";
+import { Component } from "../../component-v2";
 import {
   applyCellEditsToSheet,
   createDiffSheet,
@@ -44,10 +44,9 @@ const preprocessingEnabled = true;
 
 export type ChatTranscriptUpdateEvent = { type: "clear" } | ChatStateMachineInput;
 
-export class ChatTranscript implements Component<void, never, never, ChatTranscriptUpdateEvent> {
-  readonly componentId = "chat-transcript";
-
-  private readonly element: HTMLElement;
+export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
+  private readonly mount: HTMLElement;
+  private readonly rootElement: HTMLElement;
   private readonly excelApi: ExcelApi;
   private readonly legacyChatRendering: LegacyChatRendering;
   private chatState: ChatState = {
@@ -63,10 +62,11 @@ export class ChatTranscript implements Component<void, never, never, ChatTranscr
   private nextWorkflowId = 1;
   private nextRestorePointId = 1;
 
-  constructor(excelApi?: ExcelApi) {
+  constructor(mount: HTMLElement, excelApi?: ExcelApi) {
+    this.mount = mount;
     this.excelApi = excelApi;
-    this.element = this.createElement();
-    this.legacyChatRendering = new LegacyChatRendering(this.element, {
+    this.rootElement = this.createInitialDom();
+    this.legacyChatRendering = new LegacyChatRendering(this.rootElement, {
       onAccept: () => {
         void this.updateState({ type: "accept_pending_diff" });
       },
@@ -81,11 +81,8 @@ export class ChatTranscript implements Component<void, never, never, ChatTranscr
     this.reset();
   }
 
-  genView(): ComponentView {
-    return {
-      componentId: this.componentId,
-      element: this.element,
-    };
+  getMount(): HTMLElement {
+    return this.mount;
   }
 
   private reset(): void {
@@ -209,6 +206,7 @@ export class ChatTranscript implements Component<void, never, never, ChatTranscr
   }
 
   private async submitMessage(message: string): Promise<void> {
+    this.rootElement.querySelector<HTMLInputElement>("#chat-input")!.value = "";
     if (this.chatState.fsmState === "awaiting_clarification") {
       await this.continueClarification(message);
       return;
@@ -876,14 +874,14 @@ export class ChatTranscript implements Component<void, never, never, ChatTranscr
     };
   }
 
-  private createElement(): HTMLElement {
+  private createInitialDom(): HTMLElement {
     const element = document.createElement("div");
     const messages = cloneChatPageElement<HTMLElement>("#chat-messages");
     const form = cloneChatPageElement<HTMLFormElement>("#chat-form");
     const clearButton = cloneChatPageElement<HTMLButtonElement>("#chat-clear");
     const input = form.querySelector<HTMLInputElement>("#chat-input")!;
 
-    element.id = this.componentId;
+    element.id = "chat-transcript";
     element.className = "chat-transcript";
     clearButton.onclick = () => {
       void this.updateState({ type: "clear" });
@@ -892,11 +890,11 @@ export class ChatTranscript implements Component<void, never, never, ChatTranscr
       event.preventDefault();
       const message = input.value;
 
-      input.value = "";
       void this.updateState({ type: "submit_message", message });
     };
     form.prepend(clearButton);
     element.append(messages, form);
+    this.mount.replaceChildren(element);
 
     return element;
   }

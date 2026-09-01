@@ -33,9 +33,15 @@ Keep the constructor focused on initialization order:
 3. call a private helper that creates and attaches the initial DOM; and
 4. construct child components with the mounts returned by that helper.
 
-The helper can be named `createInitialDom()` and should return the DOM elements the constructor needs for later initialization. It is part of constructor initialization and may create and attach DOM. It should not be called as an alternative update path after construction; later DOM changes belong in `updateState()`.
+The helper can be named `createInitialDom()` and should return the DOM elements the constructor needs for later initialization. It is part of constructor initialization and may create and attach DOM. It should not be called as an alternative update path after construction; later DOM changes must be initiated by `updateState()`, either directly or through helpers that it calls.
 
 This helper is recommended when construction requires several related elements. A leaf that creates one simple element can keep that work directly in its constructor if extracting it would make the implementation harder to read.
+
+### Delegate transition work to private helpers
+
+State and DOM mutation statements do not have to appear literally inside the `updateState()` method. `updateState()` is the required entry point for post-construction mutations, and it can delegate transition work to private helpers that update component state, edit component-owned DOM, perform external effects, or coordinate children.
+
+Prefer focused helpers when they keep `updateState()` at the level of event dispatch and transition orchestration. A mutating helper remains part of the `updateState()` call path and should not be called directly by input handlers, parents, or public read-only methods.
 
 ### Do not duplicate child mount references
 
@@ -127,4 +133,4 @@ These recommendations do not add requirements to the Component FSM Architecture 
 - a parent can store a child mount when there is a concrete reason; and
 - components can use other private helpers appropriate to their implementation.
 
-Regardless of internal structure, every component receives its permanent mount during construction. Construction remains the initialization exception. After construction, component state and component-owned DOM are modified only through `updateState()`. Read-only helpers exposed to parent components may inspect current state or derive values, but they must not mutate state or DOM.
+Regardless of internal structure, every component receives its permanent mount during construction. Construction remains the initialization exception. After construction, component state and component-owned DOM are modified only through the `updateState()` call path, including private helpers invoked by `updateState()`. Read-only helpers exposed to parent components may inspect current state or derive values, but they must not mutate state or DOM.

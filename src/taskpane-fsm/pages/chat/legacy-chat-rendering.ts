@@ -1,4 +1,4 @@
-/* global document, HTMLButtonElement, HTMLElement, HTMLInputElement, navigator */
+/* global document, HTMLButtonElement, HTMLElement, HTMLInputElement */
 
 import DOMPurify from "dompurify";
 import { marked } from "marked";
@@ -71,9 +71,6 @@ export class LegacyChatRendering implements ChatStateMachineUI {
       });
     }
     message.appendChild(label);
-    if (entry.source === "system") {
-      message.appendChild(this.createCopyMarkdownButton(entry.text));
-    }
     message.appendChild(body);
     return message;
   }
@@ -96,19 +93,6 @@ export class LegacyChatRendering implements ChatStateMachineUI {
     message.appendChild(label);
     message.appendChild(body);
     return message;
-  }
-
-  private createCopyMarkdownButton(markdown: string) {
-    const copyButton = document.createElement("button");
-
-    copyButton.type = "button";
-    copyButton.className = "chat-message-copy";
-    copyButton.textContent = "Copy Markdown";
-    copyButton.onclick = async () => {
-      await navigator.clipboard.writeText(markdown);
-      copyButton.textContent = "Copied";
-    };
-    return copyButton;
   }
 
   private createRestoreDivider(restorePointId: number, disabled: boolean) {

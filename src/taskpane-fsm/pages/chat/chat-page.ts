@@ -1,23 +1,19 @@
 /* global document, HTMLElement */
 
 import { Component } from "../../component-v2";
-import { LegacyComponentAdapter } from "../../legacy-component-adapter";
 import { ChatHeader } from "./chat-header";
-import { ChatTranscript, ChatTranscriptUpdateEvent } from "./chat-transcript";
+import { ChatTranscript } from "./chat-transcript";
 
 export class ChatPage implements Component<never> {
   private readonly mount: HTMLElement;
   private readonly chatHeader: ChatHeader;
-  private readonly chatTranscript: LegacyComponentAdapter<ChatTranscriptUpdateEvent>;
+  private readonly chatTranscript: ChatTranscript;
 
   constructor(mount: HTMLElement, onSignOut: () => void) {
     this.mount = mount;
     const initialDom = this.createInitialDom();
     this.chatHeader = new ChatHeader(initialDom.chatHeaderMount, onSignOut);
-    this.chatTranscript = new LegacyComponentAdapter(
-      initialDom.chatTranscriptMount,
-      new ChatTranscript()
-    );
+    this.chatTranscript = new ChatTranscript(initialDom.chatTranscriptMount);
   }
 
   getMount(): HTMLElement {
