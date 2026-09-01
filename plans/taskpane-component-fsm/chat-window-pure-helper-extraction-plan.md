@@ -1,6 +1,6 @@
 # Chat Window Pure Helper Extraction Plan
 
-Status: DOM and formula-formatting extractions implemented. The state-helper extraction remains proposed for review.
+Status: DOM, formula-formatting, and transcript-helper extractions implemented. The state-helper extraction remains proposed for review.
 
 ## Behavior
 
@@ -11,6 +11,7 @@ Preserve the current transcript FSM, DOM, handlers, LLM and Excel workflows, and
 Change `src/taskpane-fsm/pages/chat/chat-window.ts` and use these focused modules:
 
 - `chat-window-dom.ts` for explicit DOM updates and detached element factories;
+- `chat-window-transcript-helpers.ts` for transcript mutations and their associated rendering;
 - the existing `preprocess-formula-inference.ts` for formula-result text formatting; and
 - `chat-window-state.ts` for pure state copies, queries, and validation.
 
@@ -37,6 +38,21 @@ These helpers may update the supplied mount and transcript entries, but they do 
 
 Move the `DOMPurify` and `marked` imports to this module because only message-element creation uses them.
 
+### Transcript helpers
+
+Move these functions to `chat-window-transcript-helpers.ts`:
+
+- `appendMessageAndRender()`;
+- `upsertTranscriptMessageAndRender()`;
+- `insertRestoreTranscriptItemAndRender()`;
+- `appendDiffReviewTranscriptItemAndRender()`;
+- `removeDiffReviewTranscriptItem()`;
+- `appendWorkingTranscriptItem()`;
+- `removeWorkingTranscriptItem()`; and
+- `updateWorkingTranscriptItemAndRender()`.
+
+Pass the transcript array explicitly to every helper rather than accessing `ChatWindow` state. Helpers that call `renderChatTranscript()` also receive the mount and DOM handlers and use the `AndRender` suffix. `hasTranscriptMessage()` remains internal to this module.
+
 ### Formula-result formatting
 
 Move the existing file-level functions to `preprocess-formula-inference.ts`:
@@ -54,7 +70,6 @@ Move or convert these methods in `chat-window-state.ts`:
 - `getErrorMessage()`;
 - `isTerminalTurnState()`;
 - `isPendingEditState()`;
-- `hasTranscriptMessage()` becomes a function receiving the transcript and target entry;
 - `getWorkflowHumanMessage()` becomes a function receiving the transcript and workflow ID;
 - `copyChatState()`;
 - `copyPendingEdit()` as an internal helper used by `copyChatState()`;
@@ -68,7 +83,7 @@ These functions must not modify their inputs. Keep their current behavior, inclu
 Keep all remaining methods that own or coordinate component behavior:
 
 - `updateState()`, `reset()`, and all async workflow methods;
-- transcript mutation methods such as append, upsert, insert, remove, and update;
+- methods that coordinate transcript mutations with workflows;
 - restore-point creation and counter management; and
 - methods that invoke LLM, Excel, key, or sheet services.
 
@@ -82,7 +97,7 @@ Call the extracted helpers with explicit component state and callbacks. Do not i
 - Verify validation, error messages, restore snapshots, and transcript cloning remain unchanged.
 - Verify extracted state helpers do not mutate their inputs and DOM helpers access only their explicit arguments.
 - Verify `ChatWindow` remains the owner of its state, counters, permanent mount, and live DOM, with mutations initiated through its constructor or `updateState()` call paths.
-- Verify no files outside the four listed in scope are changed by implementation.
+- Verify no files outside the five listed in scope are changed by implementation.
 - Run `git diff --check`.
 
 Do not add or change tests as part of this narrowly scoped extraction.
