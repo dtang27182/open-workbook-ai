@@ -1,7 +1,5 @@
-/* global console, document, HTMLButtonElement, HTMLFormElement, HTMLInputElement, HTMLElement, structuredClone */
+/* global console, HTMLInputElement, HTMLElement, structuredClone */
 
-import DOMPurify from "dompurify";
-import { marked } from "marked";
 import { Component } from "../../component-v2";
 import {
   applyCellEditsToSheet,
@@ -27,7 +25,6 @@ import {
   ChatMessageTranscriptItem,
   ChatState,
   ChatStateMachineInput,
-  ChatTranscriptEntry,
   ChatWorkingTranscriptItem,
   ComparisonRange,
   ExcelApi,
@@ -39,7 +36,13 @@ import {
   SheetSnapshot,
   SpreadsheetPromptCompletionEvent,
 } from "../../../taskpane/pages/chat/chat-state-machine/chat-types";
-import { cloneChatPageElement } from "./chat-page-template";
+import {
+  ChatTranscriptDomHandlers,
+  configChatControls,
+  createInitialDom,
+  disableChatControls,
+  renderChatTranscript,
+} from "./chat-transcript-dom";
 
 const preprocessingEnabled = true;
 
@@ -47,8 +50,24 @@ export type ChatTranscriptUpdateEvent = { type: "clear" } | ChatStateMachineInpu
 
 export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
   private readonly mount: HTMLElement;
-  private readonly rootElement: HTMLElement;
   private readonly excelApi: ExcelApi;
+  private readonly domHandlers: ChatTranscriptDomHandlers = {
+    onClear: () => {
+      void this.updateState({ type: "clear" });
+    },
+    onSubmit: (message) => {
+      void this.updateState({ type: "submit_message", message });
+    },
+    onAccept: () => {
+      void this.updateState({ type: "accept_pending_diff" });
+    },
+    onReject: () => {
+      void this.updateState({ type: "reject_pending_diff" });
+    },
+    onRestore: (restorePointId) => {
+      void this.updateState({ type: "restore_to_point", restorePointId });
+    },
+  };
   private chatState: ChatState = {
     transcript: [],
     llmConversationMessages: [],
@@ -65,7 +84,7 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
   constructor(mount: HTMLElement, excelApi?: ExcelApi) {
     this.mount = mount;
     this.excelApi = excelApi;
-    this.rootElement = this.createInitialDom();
+    createInitialDom(this.mount, this.domHandlers);
     this.reset();
   }
 
@@ -91,7 +110,12 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
     this.potentialRestorePoints.clear();
     this.nextDiffSheetNumber = 1;
     this.nextScenarioSheetNumber = 1;
-    this.configChatControls();
+    configChatControls(
+      this.mount,
+      this.chatState.transcript,
+      this.chatState.fsmState,
+      this.domHandlers
+    );
   }
 
   async updateState(event: ChatTranscriptUpdateEvent): Promise<void> {
@@ -103,7 +127,7 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
       event.type === "reject_pending_diff" ||
       event.type === "restore_to_point"
     ) {
-      this.disableChatControls();
+      disableChatControls(this.mount, this.chatState.transcript, this.domHandlers);
       try {
         this.validateInputForCurrentState(event);
 
@@ -120,7 +144,12 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
         console.debug(err);
         this.appendErrorMessage(this.getErrorMessage(event));
       } finally {
-        this.configChatControls();
+        configChatControls(
+          this.mount,
+          this.chatState.transcript,
+          this.chatState.fsmState,
+          this.domHandlers
+        );
       }
     }
   }
@@ -151,7 +180,7 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
   ): ChatMessageTranscriptItem {
     this.appendMessage("human", answer, workflowId);
     this.appendWorkingTranscriptItem("Working...", workflowId);
-    this.renderChatTranscript();
+    renderChatTranscript(this.mount, this.chatState.transcript, this.domHandlers);
     return {
       kind: "message",
       source: "system",
@@ -194,7 +223,7 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
   }
 
   private async submitMessage(message: string): Promise<void> {
-    this.rootElement.querySelector<HTMLInputElement>("#chat-input")!.value = "";
+    this.mount.querySelector<HTMLInputElement>("#chat-input")!.value = "";
     if (this.chatState.fsmState === "awaiting_clarification") {
       await this.continueClarification(message);
       return;
@@ -256,7 +285,7 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
       this.appendMessage("human", message, workflowId);
     }
     this.appendWorkingTranscriptItem("Working...", workflowId);
-    this.renderChatTranscript();
+    renderChatTranscript(this.mount, this.chatState.transcript, this.domHandlers);
     return {
       kind: "message",
       source: "system",
@@ -373,7 +402,7 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
     this.appendMessage("human", message, workflowId);
     this.appendWorkingTranscriptItem("Analyzing worksheet..", workflowId);
     this.chatState.preprocessedSheetNames.push(originalSheet.name);
-    this.renderChatTranscript();
+    renderChatTranscript(this.mount, this.chatState.transcript, this.domHandlers);
   }
 
   private async finalizePreprocessTransition(
@@ -411,7 +440,7 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
     updatedSheetName: string
   ): Promise<void> {
     this.appendWorkingTranscriptItem("Analyzing accepted changes...", workflowId);
-    this.renderChatTranscript();
+    renderChatTranscript(this.mount, this.chatState.transcript, this.domHandlers);
     try {
       const updatedSheet = await readSheet(this.excelApi, updatedSheetName);
       const analysis = await runUpdateAnalysisPrompt(
@@ -426,7 +455,7 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
     } catch (err) {
       console.debug("OpenRouter update analysis request failed.", err);
       this.removeWorkingTranscriptItem(workflowId);
-      this.renderChatTranscript();
+      renderChatTranscript(this.mount, this.chatState.transcript, this.domHandlers);
     }
   }
 
@@ -451,7 +480,7 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
   private async setupAcceptPendingDiff(pendingEdit: PendingEdit): Promise<void> {
     this.removeDiffReviewTranscriptItem(pendingEdit.workflowId);
     this.appendWorkingTranscriptItem("Applying changes...", pendingEdit.workflowId);
-    this.renderChatTranscript();
+    renderChatTranscript(this.mount, this.chatState.transcript, this.domHandlers);
   }
 
   private async performAcceptPendingDiffActions(pendingEdit: PendingEdit): Promise<void> {
@@ -496,7 +525,7 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
   private async setupRejectPendingDiff(pendingEdit: PendingEdit): Promise<void> {
     this.removeDiffReviewTranscriptItem(pendingEdit.workflowId);
     this.appendWorkingTranscriptItem("Rejecting changes...", pendingEdit.workflowId);
-    this.renderChatTranscript();
+    renderChatTranscript(this.mount, this.chatState.transcript, this.domHandlers);
   }
 
   private async performRejectPendingDiffActions(pendingEdit: PendingEdit): Promise<void> {
@@ -584,7 +613,7 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
       "Creating comparison between new scenario against baseline...",
       workflowId
     );
-    this.renderChatTranscript();
+    renderChatTranscript(this.mount, this.chatState.transcript, this.domHandlers);
     const comparison = await runScenarioComparisonPrompt(
       userRequest,
       originalSheet,
@@ -596,148 +625,6 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
     this.removeWorkingTranscriptItem(workflowId);
     this.appendMessage("system", comparison.analysis, workflowId);
     this.appendAssistantLlmMessage(comparison.analysis, workflowId);
-  }
-
-  private disableChatControls(): void {
-    this.chatState.transcript.forEach((entry) => {
-      if (entry.kind === "restore" || entry.kind === "diff_review") {
-        entry.disabled = true;
-      }
-    });
-    this.rootElement.querySelector<HTMLInputElement>("#chat-input")!.disabled = true;
-    this.rootElement.querySelector<HTMLButtonElement>("#chat-send")!.disabled = true;
-    this.renderChatTranscript();
-  }
-
-  private configChatControls(): void {
-    this.chatState.transcript.forEach((entry) => {
-      if (entry.kind === "restore" || entry.kind === "diff_review") {
-        entry.disabled = false;
-      }
-    });
-    this.renderChatTranscript();
-    const isPendingEdit =
-      this.chatState.fsmState === "pending_edit" ||
-      this.chatState.fsmState === "pending_edit_preprocessed";
-
-    this.rootElement.querySelector<HTMLInputElement>("#chat-input")!.disabled = isPendingEdit;
-    this.rootElement.querySelector<HTMLButtonElement>("#chat-send")!.disabled = isPendingEdit;
-  }
-
-  private renderChatTranscript(): void {
-    const messages = this.rootElement.querySelector<HTMLElement>("#chat-messages")!;
-
-    messages.innerHTML = "";
-    this.buildChatTranscript().forEach((entry) => {
-      if (entry.kind === "restore") {
-        messages.appendChild(this.createRestoreDivider(entry.restorePointId, entry.disabled));
-      }
-      if (entry.kind === "message") {
-        messages.appendChild(this.createChatMessage(entry));
-      }
-      if (entry.kind === "diff_review") {
-        messages.appendChild(this.createDiffReviewDivider(entry.disabled));
-      }
-      if (entry.kind === "working") {
-        messages.appendChild(this.createWorkingMessage(entry));
-      }
-    });
-    messages.scrollTop = messages.scrollHeight;
-  }
-
-  private buildChatTranscript(): ChatTranscriptEntry[] {
-    return structuredClone(this.chatState.transcript);
-  }
-
-  private createChatMessage(entry: ChatMessageTranscriptItem): HTMLElement {
-    const message = document.createElement("div");
-    const label = document.createElement("div");
-    const body = document.createElement("div");
-
-    message.className = `chat-message ${entry.source}`;
-    label.className = "chat-message-source";
-    label.textContent = entry.source;
-    body.className = "chat-message-text";
-    if (entry.source === "human") {
-      body.textContent = entry.text;
-    }
-    if (entry.source === "system") {
-      body.innerHTML = DOMPurify.sanitize(marked.parse(entry.text, { async: false }), {
-        USE_PROFILES: { html: true },
-      });
-    }
-    message.appendChild(label);
-    message.appendChild(body);
-    return message;
-  }
-
-  private createWorkingMessage(
-    entry: Extract<ChatTranscriptEntry, { kind: "working" }>
-  ): HTMLElement {
-    const message = document.createElement("div");
-    const label = document.createElement("div");
-    const body = document.createElement("div");
-    const indicator = document.createElement("span");
-
-    message.className = `chat-message ${entry.source}`;
-    label.className = "chat-message-source";
-    label.textContent = entry.source;
-    body.className = "chat-message-text chat-working";
-    body.textContent = entry.text;
-    body.setAttribute("role", "status");
-    indicator.className = "chat-working-indicator";
-    indicator.setAttribute("aria-hidden", "true");
-    body.prepend(indicator);
-    message.appendChild(label);
-    message.appendChild(body);
-    return message;
-  }
-
-  private createRestoreDivider(restorePointId: number, disabled: boolean): HTMLElement {
-    const divider = document.createElement("div");
-    const line = document.createElement("div");
-    const restoreButton = document.createElement("button");
-
-    divider.className = "chat-restore-divider";
-    line.className = "chat-restore-line";
-    restoreButton.className = "btn btn-secondary btn-compact chat-message-restore";
-    restoreButton.type = "button";
-    restoreButton.disabled = disabled;
-    restoreButton.textContent = "Restore";
-    restoreButton.onclick = () => {
-      void this.updateState({ type: "restore_to_point", restorePointId });
-    };
-    divider.appendChild(line);
-    divider.appendChild(restoreButton);
-    return divider;
-  }
-
-  private createDiffReviewDivider(disabled: boolean): HTMLElement {
-    const divider = document.createElement("div");
-    const line = document.createElement("div");
-    const acceptButton = document.createElement("button");
-    const rejectButton = document.createElement("button");
-
-    divider.className = "chat-restore-divider";
-    line.className = "chat-restore-line";
-    acceptButton.className = "btn btn-secondary btn-compact chat-diff-action";
-    acceptButton.type = "button";
-    acceptButton.disabled = disabled;
-    acceptButton.textContent = "Accept";
-    acceptButton.onclick = () => {
-      void this.updateState({ type: "accept_pending_diff" });
-    };
-    rejectButton.className = "btn btn-secondary btn-compact chat-diff-action";
-    rejectButton.type = "button";
-    rejectButton.disabled = disabled;
-    rejectButton.textContent = "Reject";
-    rejectButton.onclick = () => {
-      void this.updateState({ type: "reject_pending_diff" });
-    };
-    divider.appendChild(line);
-    divider.appendChild(acceptButton);
-    divider.appendChild(rejectButton);
-    return divider;
   }
 
   private appendErrorMessage(message: string) {
@@ -826,7 +713,7 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
       workflowId,
     };
     this.chatState.transcript.push(entry);
-    this.renderChatTranscript();
+    renderChatTranscript(this.mount, this.chatState.transcript, this.domHandlers);
     return entry;
   }
 
@@ -838,7 +725,7 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
       this.chatState.transcript.push(entry);
     }
     Object.assign(entry, update);
-    this.renderChatTranscript();
+    renderChatTranscript(this.mount, this.chatState.transcript, this.domHandlers);
   }
 
   private hasTranscriptMessage(entry: ChatMessageTranscriptItem): boolean {
@@ -857,7 +744,7 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
       workflowId,
       disabled: true,
     });
-    this.renderChatTranscript();
+    renderChatTranscript(this.mount, this.chatState.transcript, this.domHandlers);
   }
 
   private appendDiffReviewTranscriptItem(workflowId: number) {
@@ -866,7 +753,7 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
       workflowId,
       disabled: true,
     });
-    this.renderChatTranscript();
+    renderChatTranscript(this.mount, this.chatState.transcript, this.domHandlers);
   }
 
   private removeDiffReviewTranscriptItem(workflowId: number) {
@@ -898,7 +785,7 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
     const [entry] = this.chatState.transcript.splice(entryIndex, 1) as ChatWorkingTranscriptItem[];
     entry.text = text;
     this.chatState.transcript.push(entry);
-    this.renderChatTranscript();
+    renderChatTranscript(this.mount, this.chatState.transcript, this.domHandlers);
   }
 
   private appendUserDecisionLlmMessage(text: string, workflowId: number) {
@@ -966,31 +853,6 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
       rowCount: sheet.rowCount,
       columnCount: sheet.columnCount,
     };
-  }
-
-  private createInitialDom(): HTMLElement {
-    const element = document.createElement("div");
-    const messages = cloneChatPageElement<HTMLElement>("#chat-messages");
-    const form = cloneChatPageElement<HTMLFormElement>("#chat-form");
-    const clearButton = cloneChatPageElement<HTMLButtonElement>("#chat-clear");
-    const input = form.querySelector<HTMLInputElement>("#chat-input")!;
-
-    element.id = "chat-transcript";
-    element.className = "chat-transcript";
-    clearButton.onclick = () => {
-      void this.updateState({ type: "clear" });
-    };
-    form.onsubmit = (event) => {
-      event.preventDefault();
-      const message = input.value;
-
-      void this.updateState({ type: "submit_message", message });
-    };
-    form.prepend(clearButton);
-    element.append(messages, form);
-    this.mount.replaceChildren(element);
-
-    return element;
   }
 }
 
