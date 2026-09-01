@@ -23,7 +23,6 @@ Services such as OpenRouter key storage, LLM workflows, and Excel operations rem
 ```ts
 export interface Component<UpdateEvent> {
   getMount(): HTMLElement;
-  setMount(mount: HTMLElement): void;
 
   updateState(event: UpdateEvent): void | Promise<void>;
 }
@@ -42,25 +41,21 @@ After construction, `updateState()` is the only place where a component's state 
 - prepares the mount elements required by its children; and
 - calls child `updateState()` methods with the appropriate child events.
 
-A parent can update its own state and DOM before or after updating its children, according to the needs of the transition. When an event changes the component tree, the parent creates or replaces the required child mounts, passes each new mount to the child's `setMount()` method, and then calls the affected children.
+A parent can update its own state and DOM before or after updating its children, according to the needs of the transition. Parent components normally create their child mounts once and reuse them for the lifetime of the child instances.
 
 ## Construction and Initialization
 
 A component constructor always receives its mount element, followed by any real initial values, stable dependencies, or ancestor-owned handlers. Construction is the initial transition: it stores the mount, initializes state, and immediately creates the component's initial DOM below the mount.
 
-`getMount()` returns the component's current DOM boundary. `setMount()` changes the boundary used by subsequent UI updates. The stored mount reference is lifecycle configuration rather than FSM state. Setting a new mount does not change FSM state or create DOM; after replacing a child mount, the parent calls `setMount()` and then calls the child's `updateState()` to populate it. Mount changes should be infrequent.
+`getMount()` returns the component's DOM boundary. The mount is fixed when the component is constructed and cannot be changed later. If a parent must replace a child's mount, which should be extremely rare, it constructs a new child instance with the new mount and replaces its reference to the old child.
 
 For a parent component, construction also creates the mount elements for its children and then constructs each child with its mount. Regular `updateState()` calls use the stored mounts and reuse existing child instances.
 
 ```ts
-private mountElement: HTMLElement;
+private readonly mountElement: HTMLElement;
 
 getMount(): HTMLElement {
   return this.mountElement;
-}
-
-setMount(mount: HTMLElement): void {
-  this.mountElement = mount;
 }
 
 constructor(mount: HTMLElement, config: ChatPageConfig) {
@@ -82,22 +77,12 @@ Do not add empty configuration objects merely to make constructors uniform. A le
 
 ## Parent Composition and Update Flow
 
-Parents compose the application by owning child instances and creating their mount elements, not by collecting child views. Most updates reuse the mounts assigned during construction. Regenerating child mounts and calling `setMount()` should be rare and is needed only when a structural update replaces those mount elements.
+Parents compose the application by owning child instances and creating their mount elements, not by collecting child views. Updates reuse the mounts assigned during construction. If replacing a child mount is needed, then a new child component instance should be created. This should be extremely rare.
 
-A simplified parent update makes that distinction explicit:
 
 ```ts
 async updateState(event: ParentEvent): Promise<void> {
-  if (event.type === "layout_changed") {
-    this.state = applyParentChange(this.state, event);
-    updateParentDom(this.getMount(), this.state);
-
-    this.firstChild.setMount(getFirstChildMount(this.getMount()));
-    this.secondChild.setMount(getSecondChildMount(this.getMount()));
-
-    await this.firstChild.updateState({ type: "refresh" });
-    await this.secondChild.updateState({ type: "refresh" });
-  } else if (event.type === "parent_and_child_changed") {
+  if (event.type === "parent_and_child_changed") {
     this.state = applyParentChange(this.state, event);
     updateParentElements(this.getMount(), this.state);
     await this.firstChild.updateState(event.childEvent);

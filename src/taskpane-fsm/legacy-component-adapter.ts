@@ -4,7 +4,7 @@ import { Component as LegacyComponent } from "./component";
 import { Component } from "./component-v2";
 
 export class LegacyComponentAdapter<UpdateEvent> implements Component<UpdateEvent> {
-  private mount: HTMLElement;
+  private readonly mount: HTMLElement;
 
   constructor(
     mount: HTMLElement,
@@ -16,10 +16,6 @@ export class LegacyComponentAdapter<UpdateEvent> implements Component<UpdateEven
 
   getMount(): HTMLElement {
     return this.mount;
-  }
-
-  setMount(mount: HTMLElement): void {
-    this.mount = mount;
   }
 
   async updateState(event: UpdateEvent): Promise<void> {

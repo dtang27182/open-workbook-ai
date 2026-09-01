@@ -47,7 +47,7 @@ During construction, keep each child mount local long enough to pass it to the c
 this.rootElement.replaceChildren(this.chatPage.getMount());
 ```
 
-If a structural update creates a new mount for a child, call `child.setMount(newMount)`. Do not update a second parent-owned mount field in parallel. This avoids duplicated references that can disagree after a remount.
+If a structural update creates a new mount for a child, construct a new child component with that mount and replace the parent's reference to the old child. A component's mount cannot be changed after construction. Replacing a child instance for this reason should be extremely rare.
 
 Keeping a separate child mount field is acceptable when the parent has a real need for that element independent of the child. It should not be stored merely as a shortcut for `child.getMount()`.
 
@@ -65,7 +65,7 @@ type ParentUpdateEvent =
   | { type: "show_second" };
 
 class ParentComponent implements Component<ParentUpdateEvent> {
-  private mount: HTMLElement;
+  private readonly mount: HTMLElement;
   private readonly rootElement: HTMLElement;
   private readonly firstChild: FirstChild;
   private readonly secondChild: SecondChild;
@@ -83,10 +83,6 @@ class ParentComponent implements Component<ParentUpdateEvent> {
 
   getMount(): HTMLElement {
     return this.mount;
-  }
-
-  setMount(mount: HTMLElement): void {
-    this.mount = mount;
   }
 
   updateState(event: ParentUpdateEvent): void {
@@ -131,4 +127,4 @@ These recommendations do not add requirements to the Component FSM Architecture 
 - a parent can store a child mount when there is a concrete reason; and
 - components can use other private helpers appropriate to their implementation.
 
-Regardless of internal structure, construction remains the initialization exception. After construction, component state and component-owned DOM are modified only through `updateState()`. Read-only helpers exposed to parent components may inspect current state or derive values, but they must not mutate state or DOM.
+Regardless of internal structure, every component receives its permanent mount during construction. Construction remains the initialization exception. After construction, component state and component-owned DOM are modified only through `updateState()`. Read-only helpers exposed to parent components may inspect current state or derive values, but they must not mutate state or DOM.
