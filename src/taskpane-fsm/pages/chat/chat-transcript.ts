@@ -1,5 +1,7 @@
 /* global console, document, HTMLButtonElement, HTMLFormElement, HTMLInputElement, HTMLElement, structuredClone */
 
+import DOMPurify from "dompurify";
+import { marked } from "marked";
 import { Component } from "../../component-v2";
 import {
   applyCellEditsToSheet,
@@ -38,7 +40,6 @@ import {
   SpreadsheetPromptCompletionEvent,
 } from "../../../taskpane/pages/chat/chat-state-machine/chat-types";
 import { cloneChatPageElement } from "./chat-page-template";
-import { LegacyChatRendering } from "./legacy-chat-rendering";
 
 const preprocessingEnabled = true;
 
@@ -48,7 +49,6 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
   private readonly mount: HTMLElement;
   private readonly rootElement: HTMLElement;
   private readonly excelApi: ExcelApi;
-  private readonly legacyChatRendering: LegacyChatRendering;
   private chatState: ChatState = {
     transcript: [],
     llmConversationMessages: [],
@@ -66,18 +66,6 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
     this.mount = mount;
     this.excelApi = excelApi;
     this.rootElement = this.createInitialDom();
-    this.legacyChatRendering = new LegacyChatRendering(this.rootElement, {
-      onAccept: () => {
-        void this.updateState({ type: "accept_pending_diff" });
-      },
-      onReject: () => {
-        void this.updateState({ type: "reject_pending_diff" });
-      },
-      onRestore: (restorePointId) => {
-        void this.updateState({ type: "restore_to_point", restorePointId });
-      },
-    });
-
     this.reset();
   }
 
@@ -616,7 +604,8 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
         entry.disabled = true;
       }
     });
-    this.legacyChatRendering.disableChatInputControls();
+    this.rootElement.querySelector<HTMLInputElement>("#chat-input")!.disabled = true;
+    this.rootElement.querySelector<HTMLButtonElement>("#chat-send")!.disabled = true;
     this.renderChatTranscript();
   }
 
@@ -627,15 +616,128 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
       }
     });
     this.renderChatTranscript();
-    this.legacyChatRendering.configChatControls(this.chatState.fsmState);
+    const isPendingEdit =
+      this.chatState.fsmState === "pending_edit" ||
+      this.chatState.fsmState === "pending_edit_preprocessed";
+
+    this.rootElement.querySelector<HTMLInputElement>("#chat-input")!.disabled = isPendingEdit;
+    this.rootElement.querySelector<HTMLButtonElement>("#chat-send")!.disabled = isPendingEdit;
   }
 
   private renderChatTranscript(): void {
-    this.legacyChatRendering.renderTranscript(this.buildChatTranscript());
+    const messages = this.rootElement.querySelector<HTMLElement>("#chat-messages")!;
+
+    messages.innerHTML = "";
+    this.buildChatTranscript().forEach((entry) => {
+      if (entry.kind === "restore") {
+        messages.appendChild(this.createRestoreDivider(entry.restorePointId, entry.disabled));
+      }
+      if (entry.kind === "message") {
+        messages.appendChild(this.createChatMessage(entry));
+      }
+      if (entry.kind === "diff_review") {
+        messages.appendChild(this.createDiffReviewDivider(entry.disabled));
+      }
+      if (entry.kind === "working") {
+        messages.appendChild(this.createWorkingMessage(entry));
+      }
+    });
+    messages.scrollTop = messages.scrollHeight;
   }
 
   private buildChatTranscript(): ChatTranscriptEntry[] {
     return structuredClone(this.chatState.transcript);
+  }
+
+  private createChatMessage(entry: ChatMessageTranscriptItem): HTMLElement {
+    const message = document.createElement("div");
+    const label = document.createElement("div");
+    const body = document.createElement("div");
+
+    message.className = `chat-message ${entry.source}`;
+    label.className = "chat-message-source";
+    label.textContent = entry.source;
+    body.className = "chat-message-text";
+    if (entry.source === "human") {
+      body.textContent = entry.text;
+    }
+    if (entry.source === "system") {
+      body.innerHTML = DOMPurify.sanitize(marked.parse(entry.text, { async: false }), {
+        USE_PROFILES: { html: true },
+      });
+    }
+    message.appendChild(label);
+    message.appendChild(body);
+    return message;
+  }
+
+  private createWorkingMessage(
+    entry: Extract<ChatTranscriptEntry, { kind: "working" }>
+  ): HTMLElement {
+    const message = document.createElement("div");
+    const label = document.createElement("div");
+    const body = document.createElement("div");
+    const indicator = document.createElement("span");
+
+    message.className = `chat-message ${entry.source}`;
+    label.className = "chat-message-source";
+    label.textContent = entry.source;
+    body.className = "chat-message-text chat-working";
+    body.textContent = entry.text;
+    body.setAttribute("role", "status");
+    indicator.className = "chat-working-indicator";
+    indicator.setAttribute("aria-hidden", "true");
+    body.prepend(indicator);
+    message.appendChild(label);
+    message.appendChild(body);
+    return message;
+  }
+
+  private createRestoreDivider(restorePointId: number, disabled: boolean): HTMLElement {
+    const divider = document.createElement("div");
+    const line = document.createElement("div");
+    const restoreButton = document.createElement("button");
+
+    divider.className = "chat-restore-divider";
+    line.className = "chat-restore-line";
+    restoreButton.className = "btn btn-secondary btn-compact chat-message-restore";
+    restoreButton.type = "button";
+    restoreButton.disabled = disabled;
+    restoreButton.textContent = "Restore";
+    restoreButton.onclick = () => {
+      void this.updateState({ type: "restore_to_point", restorePointId });
+    };
+    divider.appendChild(line);
+    divider.appendChild(restoreButton);
+    return divider;
+  }
+
+  private createDiffReviewDivider(disabled: boolean): HTMLElement {
+    const divider = document.createElement("div");
+    const line = document.createElement("div");
+    const acceptButton = document.createElement("button");
+    const rejectButton = document.createElement("button");
+
+    divider.className = "chat-restore-divider";
+    line.className = "chat-restore-line";
+    acceptButton.className = "btn btn-secondary btn-compact chat-diff-action";
+    acceptButton.type = "button";
+    acceptButton.disabled = disabled;
+    acceptButton.textContent = "Accept";
+    acceptButton.onclick = () => {
+      void this.updateState({ type: "accept_pending_diff" });
+    };
+    rejectButton.className = "btn btn-secondary btn-compact chat-diff-action";
+    rejectButton.type = "button";
+    rejectButton.disabled = disabled;
+    rejectButton.textContent = "Reject";
+    rejectButton.onclick = () => {
+      void this.updateState({ type: "reject_pending_diff" });
+    };
+    divider.appendChild(line);
+    divider.appendChild(acceptButton);
+    divider.appendChild(rejectButton);
+    return divider;
   }
 
   private appendErrorMessage(message: string) {
@@ -851,14 +953,6 @@ export class ChatTranscript implements Component<ChatTranscriptUpdateEvent> {
       sourceSheetName: pendingEdit.sourceSheetName,
       diffSheetName: pendingEdit.diffSheetName,
       workflowId: pendingEdit.workflowId,
-    };
-  }
-
-  private copyRestorePoint(restorePoint: RestorePoint): RestorePoint {
-    return {
-      id: restorePoint.id,
-      chatState: this.copyChatState(restorePoint.chatState),
-      sheet: this.copySheetSnapshot(restorePoint.sheet),
     };
   }
 
