@@ -3,10 +3,7 @@
 import { Component } from "./component-v2";
 import { LegacyComponentAdapter } from "./legacy-component-adapter";
 import { ChatPage } from "./pages/chat/chat-page";
-import {
-  OpenRouterAuthPage,
-  OpenRouterAuthUpdateEvent,
-} from "./pages/openrouter-auth/openrouter-auth-page";
+import { OpenRouterAuthPage } from "./pages/openrouter-auth/openrouter-auth-page";
 import { OpenrouterKeyStore } from "../taskpane/pages/openrouter-auth/openrouter-api-key";
 import { acquireOpenRouterApiKey } from "../taskpane/pages/openrouter-auth/openrouter-key-exchange";
 import { configureOpenRouterClient } from "../taskpane/pages/chat/chat-state-machine/openrouter-client";
@@ -22,7 +19,7 @@ export type TaskpaneUpdateEvent = { type: "sign_in" } | { type: "sign_out" };
 export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
   private readonly mount: HTMLElement;
   private readonly openrouterKeyStore: OpenrouterKeyStore;
-  private readonly openRouterAuthPage: LegacyComponentAdapter<OpenRouterAuthUpdateEvent>;
+  private readonly openRouterAuthPage: OpenRouterAuthPage;
   private readonly chatPage: LegacyComponentAdapter<never>;
   private state: TaskpaneState;
 
@@ -34,9 +31,9 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
       activePage: this.openrouterKeyStore.hasKey() ? "chat" : "openrouter-auth",
     };
     const initialDom = this.createInitialDom();
-    this.openRouterAuthPage = new LegacyComponentAdapter(
+    this.openRouterAuthPage = new OpenRouterAuthPage(
       initialDom.openRouterAuthMount,
-      new OpenRouterAuthPage(this.handleSignIn)
+      this.handleSignIn
     );
     this.chatPage = new LegacyComponentAdapter(
       initialDom.chatMount,

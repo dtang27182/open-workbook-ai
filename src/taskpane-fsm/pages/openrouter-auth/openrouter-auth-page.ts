@@ -1,7 +1,7 @@
 /* global document, HTMLButtonElement, HTMLElement */
 
 import openrouterAuthPageHtml from "../../../taskpane/pages/openrouter-auth/openrouter-auth-page.html?raw";
-import { Component, ComponentView } from "../../component";
+import { Component } from "../../component-v2";
 
 export type OpenRouterAuthState =
   | { phase: "select_provider" }
@@ -14,22 +14,38 @@ export type OpenRouterAuthUpdateEvent =
   | { type: "sign_in_failed"; message: string }
   | { type: "reset" };
 
-export class OpenRouterAuthPage implements Component<
-  void,
-  never,
-  never,
-  OpenRouterAuthUpdateEvent
-> {
-  readonly componentId = "openrouter-auth-page";
-
+export class OpenRouterAuthPage implements Component<OpenRouterAuthUpdateEvent> {
   private state: OpenRouterAuthState = { phase: "select_provider" };
 
-  constructor(private readonly onSignIn: () => Promise<void>) {}
+  constructor(
+    private readonly mount: HTMLElement,
+    private readonly onSignIn: () => Promise<void>
+  ) {
+    this.mount.replaceChildren(this.createElement());
+  }
 
-  genView(): ComponentView {
+  getMount(): HTMLElement {
+    return this.mount;
+  }
+
+  updateState(event: OpenRouterAuthUpdateEvent): void {
+    if (event.type === "sign_in_started") {
+      this.state = { phase: "signing_in" };
+    } else if (event.type === "sign_in_succeeded") {
+      this.state = { phase: "select_provider" };
+    } else if (event.type === "sign_in_failed") {
+      this.state = { phase: "error", message: event.message };
+    } else if (event.type === "reset") {
+      this.state = { phase: "select_provider" };
+    }
+
+    this.mount.replaceChildren(this.createElement());
+  }
+
+  private createElement(): HTMLElement {
     const element = document.createElement("section");
 
-    element.id = this.componentId;
+    element.id = "openrouter-auth-page";
     element.className = "auth-view";
     element.innerHTML = openrouterAuthPageHtml;
 
@@ -67,21 +83,6 @@ export class OpenRouterAuthPage implements Component<
       error.textContent = this.state.message;
     }
 
-    return {
-      componentId: this.componentId,
-      element,
-    };
-  }
-
-  updateState(event: OpenRouterAuthUpdateEvent): void {
-    if (event.type === "sign_in_started") {
-      this.state = { phase: "signing_in" };
-    } else if (event.type === "sign_in_succeeded") {
-      this.state = { phase: "select_provider" };
-    } else if (event.type === "sign_in_failed") {
-      this.state = { phase: "error", message: event.message };
-    } else if (event.type === "reset") {
-      this.state = { phase: "select_provider" };
-    }
+    return element;
   }
 }
