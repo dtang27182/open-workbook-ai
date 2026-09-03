@@ -4,7 +4,7 @@ Status: implemented.
 
 ## Goal
 
-Create one mutable `ChatWindowState` shared by every workflow class. The state makes the existing coupling explicit and allows workflow methods to move without large parameter lists. While submit logic remains in `ChatWindow`, workflows that continue into submission receive one shared callback for that operation.
+Create one mutable `ChatWindowState` shared by every workflow class. The state makes the existing coupling explicit and allows workflow methods to move without large parameter lists. Workflows that continue into submission receive one shared callback to `SubmitMessageWorkflow.run()`.
 
 Workflows run sequentially and are not interleaved. Do not add locking, workflow IDs for concurrency control, immutable state snapshots, or narrowed `Pick<ChatWindowState, ...>` types.
 

@@ -1,6 +1,6 @@
 # Chat Window Preprocess Workflow FIP
 
-Status: implemented. The submit-message logic remains in `ChatWindow`.
+Status: implemented.
 
 ## Goal
 
@@ -8,7 +8,7 @@ Move formula-preprocessing into `PreprocessWorkflow`, including its setup, strea
 
 ## Scope
 
-Add `src/taskpane-fsm/pages/chat/chat-window-preprocess-workflow.ts` and update `chat-window.ts` to construct and call the workflow. Give the workflow the complete shared state and a callback to the existing `ChatWindow.runSubmitMessageWorkflow()` method.
+Add `src/taskpane-fsm/pages/chat/chat-window-preprocess-workflow.ts` and update `chat-window.ts` to construct and call the workflow. Give the workflow the complete shared state and a callback to `SubmitMessageWorkflow.run()`.
 
 Move these methods from `ChatWindow`:
 
@@ -24,7 +24,7 @@ Continue using the existing formula-inference formatting functions and transcrip
 
 When preprocessing produces edits, the workflow creates the pending diff and stops. When it produces no edits, it calls the supplied submit callback with the original human message, existing workflow ID, and `showHumanMessage` disabled.
 
-The dependency remains one-way: preprocessing may call the submit logic retained by `ChatWindow`, while that submit logic does not call the preprocessing workflow.
+The dependency remains one-way: preprocessing may call `SubmitMessageWorkflow`, while the submit workflow does not call the preprocessing workflow.
 
 ## Verification
 

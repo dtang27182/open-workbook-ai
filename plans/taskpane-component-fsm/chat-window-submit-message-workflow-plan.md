@@ -1,6 +1,6 @@
 # Chat Window Submit Message Workflow FIP
 
-Status: proposed for review. Depends on the Chat Window State FIP and does not authorize runtime changes yet.
+Status: implemented.
 
 ## Goal
 
@@ -20,20 +20,22 @@ Move these methods from `ChatWindow`:
 - `createNextScenarioSheet()`; and
 - `createScenarioWithComparison()`.
 
-Move numbered diff-sheet creation to the shared state because both submit and preprocessing use it. Keep the scenario-sheet creation method in this workflow; it updates `nextScenarioSheetNumber` through the shared state.
+Continue using `ChatWindowState.createNextDiffSheet()` because submit and preprocessing share numbered diff-sheet creation. Keep the scenario-sheet creation method in this workflow; it updates `nextScenarioSheetNumber` through the shared state.
 
 ## Integration
 
-Construct one `SubmitMessageWorkflow` with the shared state. `ChatWindow.submitMessage()` retains top-level routing between clarification, preprocessing, and normal submission, then calls `submitMessageWorkflow.run()` for the normal path.
+Construct one `SubmitMessageWorkflow` with the shared state before constructing `PreprocessWorkflow`, `AcceptDiffWorkflow`, `RejectDiffWorkflow`, or `ClarificationWorkflow`. `ChatWindow.submitMessage()` retains top-level routing between clarification, preprocessing, and normal submission, then calls `submitMessageWorkflow.run()` for the normal path.
+
+Give `SubmitMessageWorkflow.run()` the existing `(message, workflowId, showHumanMessage)` parameters. Replace the callback that currently delegates to `ChatWindow.runSubmitMessageWorkflow()` with one that delegates to `submitMessageWorkflow.run()`, and continue supplying that callback to preprocessing and the accept/reject continuation paths.
 
 The workflow directly mutates the shared state and calls the existing transcript/DOM helpers. It must not call `ChatWindow.updateState()` or retain per-run data after `run()` completes.
 
-Expose the existing response-finalization operation to `ClarificationWorkflow` without duplicating it. Preserve the current branches for clarification requests, answers, scenario creation, and pending diffs.
+Use `state.restoreManager` to create and discard potential restore points at the same transition points as the current implementation. Expose the existing response-finalization operation to `ClarificationWorkflow` without duplicating it. Preserve the current branches for clarification requests, answers, scenario creation, and pending diffs.
 
 ## Verification
 
 - Verify streamed partial responses and working messages render in the same order.
 - Verify answer, clarification, diff, and scenario branches produce the same state.
 - Verify restore points and numbered sheets use the same IDs and names.
-- Verify the workflow can still be called by preprocessing and accept/reject continuation paths.
+- Verify preprocessing and accept/reject continuation callbacks invoke `SubmitMessageWorkflow.run()` with the same message, workflow ID, and `showHumanMessage` value as today.
 - Run lint, build, unit tests, and `git diff --check`.

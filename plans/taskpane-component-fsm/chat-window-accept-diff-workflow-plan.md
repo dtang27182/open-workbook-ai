@@ -1,6 +1,6 @@
 # Chat Window Accept Diff Workflow FIP
 
-Status: implemented. The submit-message logic remains in `ChatWindow`.
+Status: implemented.
 
 ## Goal
 
@@ -8,7 +8,7 @@ Move the complete accept-pending-diff call path into `AcceptDiffWorkflow`, inclu
 
 ## Scope
 
-Add `src/taskpane-fsm/pages/chat/chat-window-accept-diff-workflow.ts` and update `chat-window.ts` to construct and call the workflow. Give it the complete shared state and a callback to the existing `ChatWindow.runSubmitMessageWorkflow()` method.
+Add `src/taskpane-fsm/pages/chat/chat-window-accept-diff-workflow.ts` and update `chat-window.ts` to construct and call the workflow. Give it the complete shared state and a callback to `SubmitMessageWorkflow.run()`.
 
 Move these methods from `ChatWindow`:
 
