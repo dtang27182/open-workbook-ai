@@ -1,6 +1,6 @@
 # Chat Window Submit Message Workflow FIP
 
-Status: proposed for review. Depends on the Chat Window Workflow Context FIP and does not authorize runtime changes yet.
+Status: proposed for review. Depends on the Chat Window State FIP and does not authorize runtime changes yet.
 
 ## Goal
 
@@ -8,7 +8,7 @@ Move the normal submit-message call path into `SubmitMessageWorkflow` while pres
 
 ## Scope
 
-Add `src/taskpane-fsm/pages/chat/chat-window-submit-message-workflow.ts` and update `chat-window.ts` to construct and call the workflow. Use the complete `ChatWindowWorkflowContext`; do not define a narrower context type.
+Add `src/taskpane-fsm/pages/chat/chat-window-submit-message-workflow.ts` and update `chat-window.ts` to construct and call the workflow. Use the complete `ChatWindowState`; do not define a narrower state type.
 
 Move these methods from `ChatWindow`:
 
@@ -20,13 +20,13 @@ Move these methods from `ChatWindow`:
 - `createNextScenarioSheet()`; and
 - `createScenarioWithComparison()`.
 
-Move numbered diff-sheet creation to the shared context because both submit and preprocessing use it. Keep the scenario-sheet creation method in this workflow; it updates `nextScenarioSheetNumber` through the shared context.
+Move numbered diff-sheet creation to the shared state because both submit and preprocessing use it. Keep the scenario-sheet creation method in this workflow; it updates `nextScenarioSheetNumber` through the shared state.
 
 ## Integration
 
-Construct one `SubmitMessageWorkflow` with the shared context. `ChatWindow.submitMessage()` retains top-level routing between clarification, preprocessing, and normal submission, then calls `submitMessageWorkflow.run()` for the normal path.
+Construct one `SubmitMessageWorkflow` with the shared state. `ChatWindow.submitMessage()` retains top-level routing between clarification, preprocessing, and normal submission, then calls `submitMessageWorkflow.run()` for the normal path.
 
-The workflow directly mutates the shared context and calls the existing transcript/DOM helpers. It must not call `ChatWindow.updateState()` or retain per-run data after `run()` completes.
+The workflow directly mutates the shared state and calls the existing transcript/DOM helpers. It must not call `ChatWindow.updateState()` or retain per-run data after `run()` completes.
 
 Expose the existing response-finalization operation to `ClarificationWorkflow` without duplicating it. Preserve the current branches for clarification requests, answers, scenario creation, and pending diffs.
 

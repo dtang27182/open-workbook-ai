@@ -121,6 +121,18 @@ export function updateWorkingTranscriptItemAndRender(
   renderChatTranscript(mount, transcript, handlers);
 }
 
+export function getWorkflowHumanMessage(
+  transcript: readonly ChatTranscriptEntry[],
+  workflowId: number
+): string {
+  return (
+    transcript.find(
+      (entry) =>
+        entry.kind === "message" && entry.source === "human" && entry.workflowId === workflowId
+    ) as ChatMessageTranscriptItem
+  ).text;
+}
+
 function hasTranscriptMessage(
   transcript: readonly ChatTranscriptEntry[],
   entry: ChatMessageTranscriptItem

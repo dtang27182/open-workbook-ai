@@ -1,6 +1,6 @@
 # Chat Window Clarification Workflow FIP
 
-Status: proposed for review. Depends on the Workflow Context and Submit Message Workflow FIPs and does not authorize runtime changes yet.
+Status: proposed for review. Depends on the Chat Window State and Submit Message Workflow FIPs and does not authorize runtime changes yet.
 
 ## Goal
 
@@ -8,7 +8,7 @@ Move the clarification-response call path into `ClarificationWorkflow` while ret
 
 ## Scope
 
-Add `src/taskpane-fsm/pages/chat/chat-window-clarification-workflow.ts` and update `chat-window.ts` to construct and call the workflow. Give the workflow the complete shared context and the existing `SubmitMessageWorkflow` instance.
+Add `src/taskpane-fsm/pages/chat/chat-window-clarification-workflow.ts` and update `chat-window.ts` to construct and call the workflow. Give the workflow the complete shared state and the existing `SubmitMessageWorkflow` instance.
 
 Move these methods from `ChatWindow`:
 
@@ -28,4 +28,3 @@ Do not duplicate submit finalization or make `SubmitMessageWorkflow` depend on `
 - Verify streamed clarification responses and working-state changes remain unchanged.
 - Verify clarification can produce another question, a direct answer, a diff, or a scenario.
 - Run lint, build, unit tests, and `git diff --check`.
-
