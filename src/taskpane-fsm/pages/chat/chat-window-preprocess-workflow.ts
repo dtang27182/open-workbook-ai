@@ -56,7 +56,11 @@ export class PreprocessWorkflow {
   }
 
   private setupTransition(message: string, workflowId: number, originalSheet: SheetSnapshot): void {
-    this.state.createPotentialRestorePoint(workflowId, originalSheet);
+    this.state.restoreManager.createPotentialRestorePoint(
+      workflowId,
+      this.state.chatState,
+      originalSheet
+    );
     appendMessageAndRender(
       this.state.mount,
       this.state.chatState.transcript,

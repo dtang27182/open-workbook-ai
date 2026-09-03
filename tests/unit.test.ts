@@ -3,12 +3,15 @@ import test from "node:test";
 
 import { ChatStateMachine } from "../src/taskpane/pages/chat/chat-state-machine/chat-state-machine";
 import {
+  ChatState,
   ChatTranscriptEntry,
   OpenRouterRequestBody,
+  SheetSnapshot,
   SpreadsheetPromptResult,
 } from "../src/taskpane/pages/chat/chat-state-machine/chat-types";
 import { configureOpenRouterClient } from "../src/taskpane/pages/chat/chat-state-machine/openrouter-client";
 import { OpenrouterKeyStore } from "../src/taskpane/pages/openrouter-auth/openrouter-api-key";
+import { RestoreManager } from "../src/taskpane-fsm/pages/chat/chat-window-restore-manager";
 import { createExcelTestWorkbook } from "./excel-test-double";
 
 const openrouterKeyStore = new OpenrouterKeyStore();
@@ -49,6 +52,79 @@ test("Model Proposed Updates Are Reflected In The Generated Diff Sheet", async (
     mocks.restore();
   }
 });
+
+test("Restore Manager Copies Inputs When Creating Restore Point Snapshots", () => {
+  const restoreManager = new RestoreManager();
+  const chatState = createRestoreManagerChatState();
+  const sheet = createRestoreManagerSheet("Sheet1");
+
+  restoreManager.createPotentialRestorePoint(1, chatState, sheet);
+  chatState.transcript.push({
+    kind: "message",
+    source: "system",
+    text: "Later message",
+    workflowId: 1,
+  });
+  sheet.formulas[0][0] = "Changed";
+
+  const promotedRestorePoint = restoreManager.promotePotentialRestorePoint(1);
+  assert.equal(promotedRestorePoint.chatState.transcript.length, 1);
+  assert.deepEqual(promotedRestorePoint.sheet.formulas, [["Original"]]);
+
+  const storedRestorePoint = restoreManager.getRestorePoint(promotedRestorePoint.id);
+  assert.strictEqual(storedRestorePoint, promotedRestorePoint);
+});
+
+test("Restore Manager Finalizes And Clears Restore History Without Resetting IDs", () => {
+  const restoreManager = new RestoreManager();
+  const chatState = createRestoreManagerChatState();
+
+  restoreManager.createPotentialRestorePoint(1, chatState, createRestoreManagerSheet("Sheet1"));
+  const firstRestorePoint = restoreManager.promotePotentialRestorePoint(1);
+  restoreManager.createPotentialRestorePoint(2, chatState, createRestoreManagerSheet("Sheet2"));
+  const secondRestorePoint = restoreManager.promotePotentialRestorePoint(2);
+
+  restoreManager.finalizeRestore(firstRestorePoint.id);
+  assert.equal(restoreManager.getRestorePoint(firstRestorePoint.id), undefined);
+  assert.equal(restoreManager.getRestorePoint(secondRestorePoint.id), undefined);
+
+  restoreManager.createPotentialRestorePoint(3, chatState, createRestoreManagerSheet("Sheet3"));
+  const thirdRestorePoint = restoreManager.promotePotentialRestorePoint(3);
+  restoreManager.clearAllRestorePoints();
+  assert.equal(restoreManager.getRestorePoint(thirdRestorePoint.id), undefined);
+
+  restoreManager.createPotentialRestorePoint(4, chatState, createRestoreManagerSheet("Sheet4"));
+  const fourthRestorePoint = restoreManager.promotePotentialRestorePoint(4);
+  assert.equal(fourthRestorePoint.id, thirdRestorePoint.id + 1);
+});
+
+function createRestoreManagerChatState(): ChatState {
+  return {
+    transcript: [
+      {
+        kind: "message",
+        source: "system",
+        text: "Initial message",
+        workflowId: 0,
+      },
+    ],
+    llmConversationMessages: [],
+    fsmState: "answered",
+    preprocessedSheetNames: [],
+  };
+}
+
+function createRestoreManagerSheet(name: string): SheetSnapshot {
+  return {
+    name,
+    values: [["Original"]],
+    formulas: [["Original"]],
+    rowIndex: 0,
+    columnIndex: 0,
+    rowCount: 1,
+    columnCount: 1,
+  };
+}
 
 function createWorkbook() {
   return createExcelTestWorkbook({

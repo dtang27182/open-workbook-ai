@@ -16,7 +16,7 @@ Move these methods from `ChatWindow`:
 - `setupPreprocessTransition()`; and
 - `finalizePreprocessTransition()`.
 
-Continue using the existing formula-inference formatting functions and transcript helpers. Use the shared state operation for potential restore points, transcript lookup, and numbered diff-sheet creation.
+Continue using the existing formula-inference formatting functions and transcript helpers. Use the shared restore manager for potential restore points and the shared state operation for numbered diff-sheet creation.
 
 ## Integration
 

@@ -5,11 +5,10 @@ import {
   CellEdit,
   ChatState,
   ExcelApi,
-  RestorePoint,
   SheetSnapshot,
 } from "../../../taskpane/pages/chat/chat-state-machine/chat-types";
 import { ChatWindowDomHandlers } from "./chat-window-dom";
-import { createRestorePoint } from "./chat-window-restore-point-helpers";
+import { RestoreManager } from "./chat-window-restore-manager";
 
 export type RunSubmitMessageWorkflow = (
   message: string,
@@ -27,23 +26,15 @@ export class ChatWindowState {
     fsmState: "answered",
     preprocessedSheetNames: [],
   };
-  readonly restorePoints: RestorePoint[] = [];
-  readonly potentialRestorePoints = new Map<number, RestorePoint>();
+  readonly restoreManager = new RestoreManager();
   nextDiffSheetNumber = 1;
   nextScenarioSheetNumber = 1;
   nextWorkflowId = 1;
-  nextRestorePointId = 1;
 
   constructor(mount: HTMLElement, domHandlers: ChatWindowDomHandlers, excelApi: ExcelApi) {
     this.mount = mount;
     this.domHandlers = domHandlers;
     this.excelApi = excelApi;
-  }
-
-  createPotentialRestorePoint(workflowId: number, sheet: SheetSnapshot): void {
-    const restorePoint = createRestorePoint(this.nextRestorePointId, this.chatState, sheet);
-    this.nextRestorePointId++;
-    this.potentialRestorePoints.set(workflowId, restorePoint);
   }
 
   async createNextDiffSheet(originalSheet: SheetSnapshot, cellEdits: CellEdit[]) {

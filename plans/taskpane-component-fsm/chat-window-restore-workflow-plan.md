@@ -14,7 +14,7 @@ Move `restoreToPoint()` from `ChatWindow` to public `RestoreWorkflow.run(restore
 
 ## Integration
 
-`ChatWindow.updateState()` calls `restoreWorkflow.run(event.restorePointId)` for `restore_to_point`. The workflow finds the selected restore point, deletes an outstanding diff sheet when necessary, restores the saved sheet formulas, clears potential restore points, replaces `state.chatState` with a copied snapshot, and truncates later restore points.
+`ChatWindow.updateState()` calls `restoreWorkflow.run(event.restorePointId)` for `restore_to_point`. The workflow gets the selected restore point from `RestoreManager`, deletes an outstanding diff sheet when necessary, restores the saved sheet formulas, replaces `state.chatState` with the saved chat-state snapshot, and asks the manager to finalize the restore. Finalization clears potential restore points and removes the selected and later committed restore points.
 
 Because every workflow holds the same state object, replacing `state.chatState` remains visible to all workflow instances. Do not replace the state object itself.
 

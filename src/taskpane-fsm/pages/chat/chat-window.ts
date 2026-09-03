@@ -108,8 +108,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
       fsmState: "answered",
       preprocessedSheetNames: [],
     };
-    this.state.restorePoints.length = 0;
-    this.state.potentialRestorePoints.clear();
+    this.state.restoreManager.clearAllRestorePoints();
     this.state.nextDiffSheetNumber = 1;
     this.state.nextScenarioSheetNumber = 1;
     configChatControls(
@@ -313,7 +312,11 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
     showHumanMessage: boolean,
     originalSheet: SheetSnapshot
   ): ChatMessageTranscriptItem {
-    this.state.createPotentialRestorePoint(workflowId, originalSheet);
+    this.state.restoreManager.createPotentialRestorePoint(
+      workflowId,
+      this.state.chatState,
+      originalSheet
+    );
     if (showHumanMessage) {
       appendMessageAndRender(
         this.state.mount,
@@ -413,7 +416,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
         responseEntry,
         { text: result.reply.message }
       );
-      this.state.potentialRestorePoints.delete(workflowId);
+      this.state.restoreManager.discardPotentialRestorePoint(workflowId);
       this.state.chatState.fsmState = "answered";
     } else if (result.reply.createNewSheet) {
       upsertTranscriptMessageAndRender(
@@ -431,7 +434,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
         result.reply.comparisonRanges,
         this.state.chatState.llmConversationMessages
       );
-      this.state.potentialRestorePoints.delete(workflowId);
+      this.state.restoreManager.discardPotentialRestorePoint(workflowId);
       this.state.chatState.fsmState = "answered";
     } else {
       upsertTranscriptMessageAndRender(

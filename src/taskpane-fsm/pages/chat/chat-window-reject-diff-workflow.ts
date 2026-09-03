@@ -44,7 +44,7 @@ export class RejectDiffWorkflow {
   private async finalize(pendingEdit: PendingEdit): Promise<void> {
     const shouldContinueOriginalQuery =
       this.state.chatState.fsmState === "pending_edit_preprocessed";
-    this.state.potentialRestorePoints.delete(pendingEdit.workflowId);
+    this.state.restoreManager.discardPotentialRestorePoint(pendingEdit.workflowId);
     this.state.chatState.pendingEdit = undefined;
     this.state.chatState.fsmState = "answered";
 

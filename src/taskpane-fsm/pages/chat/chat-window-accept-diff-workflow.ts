@@ -9,6 +9,7 @@ import {
 import { runUpdateAnalysisPrompt } from "../../../taskpane/pages/chat/chat-state-machine/llm-model-workflow";
 import {
   PendingEdit,
+  RestorePoint,
   SheetSnapshot,
 } from "../../../taskpane/pages/chat/chat-state-machine/chat-types";
 import { renderChatTranscript } from "./chat-window-dom";
@@ -35,15 +36,14 @@ export class AcceptDiffWorkflow {
       this.state.chatState.transcript,
       pendingEdit.workflowId
     );
-    const originalSheet = this.state.potentialRestorePoints.get(pendingEdit.workflowId)!.sheet;
     await this.setup(pendingEdit);
     await this.performActions(pendingEdit);
-    await this.finalize(pendingEdit);
+    const restorePoint = await this.finalize(pendingEdit);
     if (shouldAnalyzeUpdate) {
       await this.appendUpdateAnalysis(
         userRequest,
         pendingEdit.workflowId,
-        originalSheet,
+        restorePoint.sheet,
         pendingEdit.sourceSheetName
       );
     }
@@ -72,12 +72,12 @@ export class AcceptDiffWorkflow {
     );
   }
 
-  private async finalize(pendingEdit: PendingEdit): Promise<void> {
+  private async finalize(pendingEdit: PendingEdit): Promise<RestorePoint> {
     const shouldContinueOriginalQuery =
       this.state.chatState.fsmState === "pending_edit_preprocessed";
-    const restorePoint = this.state.potentialRestorePoints.get(pendingEdit.workflowId)!;
-    this.state.potentialRestorePoints.delete(pendingEdit.workflowId);
-    this.state.restorePoints.push(restorePoint);
+    const restorePoint = this.state.restoreManager.promotePotentialRestorePoint(
+      pendingEdit.workflowId
+    );
     this.state.chatState.pendingEdit = undefined;
     this.state.chatState.fsmState = "answered";
 
@@ -114,6 +114,8 @@ export class AcceptDiffWorkflow {
         false
       );
     }
+
+    return restorePoint;
   }
 
   private async appendUpdateAnalysis(
