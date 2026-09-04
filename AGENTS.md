@@ -26,3 +26,11 @@
 ## Editing Discipline
 
 - Keep diffs narrowly scoped to the requested task. Do not make unrelated code changes, formatting churn, trailing-newline changes, indentation changes, or refactors, even when behavior-preserving. Every changed line should directly contribute to the specified task.
+
+## Feature Implementation Plans (Referred to as FIP)
+
+- Write feature implementation plans in the following order: `Behavior`, `Interface Points`, `Implementation Details`, and `Verification`.
+- In `Behavior`, describe the user-visible and simulation behavior, define formulas and terminology, and state assumptions needed to make the behavior unambiguous. Keep implementation mechanics out of this section.
+- In `Interface Points`, provide separate concise lists of the existing interface points that must change and the new interface points that must be created. Interface points include functions, methods, and classes. Give each interface point a one-sentence, high-level description of the required change or addition. Keep detailed mechanics in `Implementation Details`.
+- In `Implementation Details`, group changes by class or module. For each interface point, describe the specific state, event, calculation, and call-path changes. Identify behavior that remains unchanged and prefer the smallest number of touched or new functions.
+- In `Verification`, list behavior-focused scenarios that cover the primary behavior, boundary conditions, aggregation or sharing rules, and integration checks such as type checking and the production build.
