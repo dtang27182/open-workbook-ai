@@ -3,7 +3,6 @@ import test from "node:test";
 
 import { ChatStateMachine } from "../src/taskpane/pages/chat/chat-state-machine/chat-state-machine";
 import {
-  ChatState,
   ChatTranscriptEntry,
   OpenRouterRequestBody,
   SheetSnapshot,
@@ -12,6 +11,7 @@ import {
 import { configureOpenRouterClient } from "../src/taskpane/pages/chat/chat-state-machine/openrouter-client";
 import { OpenrouterKeyStore } from "../src/taskpane/pages/openrouter-auth/openrouter-api-key";
 import { RestoreManager } from "../src/taskpane-fsm/pages/chat/chat-window-restore-manager";
+import type { ChatState } from "../src/taskpane-fsm/pages/chat/chat-window-types";
 import { createExcelTestWorkbook } from "./excel-test-double";
 
 const openrouterKeyStore = new OpenrouterKeyStore();
@@ -65,10 +65,16 @@ test("Restore Manager Copies Inputs When Creating Restore Point Snapshots", () =
     text: "Later message",
     workflowId: 1,
   });
+  chatState.nextDiffSheetNumber++;
+  chatState.nextScenarioSheetNumber++;
+  chatState.nextWorkflowId++;
   sheet.formulas[0][0] = "Changed";
 
   const promotedRestorePoint = restoreManager.promotePotentialRestorePoint(1);
   assert.equal(promotedRestorePoint.chatState.transcript.length, 1);
+  assert.equal(promotedRestorePoint.chatState.nextDiffSheetNumber, 1);
+  assert.equal(promotedRestorePoint.chatState.nextScenarioSheetNumber, 1);
+  assert.equal(promotedRestorePoint.chatState.nextWorkflowId, 1);
   assert.deepEqual(promotedRestorePoint.sheet.formulas, [["Original"]]);
 
   const storedRestorePoint = restoreManager.getRestorePoint(promotedRestorePoint.id);
@@ -109,8 +115,11 @@ function createRestoreManagerChatState(): ChatState {
       },
     ],
     llmConversationMessages: [],
-    fsmState: "answered",
+    workflowState: "answered",
     preprocessedSheetNames: [],
+    nextDiffSheetNumber: 1,
+    nextScenarioSheetNumber: 1,
+    nextWorkflowId: 1,
   };
 }
 

@@ -3,12 +3,12 @@
 import { createDiffSheet } from "../../../taskpane/pages/chat/chat-state-machine/excel-sheet-utils";
 import {
   CellEdit,
-  ChatState,
   ExcelApi,
   SheetSnapshot,
 } from "../../../taskpane/pages/chat/chat-state-machine/chat-types";
 import { ChatWindowDomHandlers } from "./chat-window-dom";
 import { RestoreManager } from "./chat-window-restore-manager";
+import { ChatState } from "./chat-window-types";
 
 export class ChatWindowState {
   readonly mount: HTMLElement;
@@ -17,13 +17,13 @@ export class ChatWindowState {
   chatState: ChatState = {
     transcript: [],
     llmConversationMessages: [],
-    fsmState: "answered",
+    workflowState: "answered",
     preprocessedSheetNames: [],
+    nextDiffSheetNumber: 1,
+    nextScenarioSheetNumber: 1,
+    nextWorkflowId: 1,
   };
   readonly restoreManager = new RestoreManager();
-  nextDiffSheetNumber = 1;
-  nextScenarioSheetNumber = 1;
-  nextWorkflowId = 1;
 
   constructor(mount: HTMLElement, domHandlers: ChatWindowDomHandlers, excelApi: ExcelApi) {
     this.mount = mount;
@@ -34,11 +34,11 @@ export class ChatWindowState {
   async createNextDiffSheet(originalSheet: SheetSnapshot, cellEdits: CellEdit[]) {
     const diff = await createDiffSheet(
       this.excelApi,
-      this.nextDiffSheetNumber,
+      this.chatState.nextDiffSheetNumber,
       originalSheet,
       cellEdits
     );
-    this.nextDiffSheetNumber++;
+    this.chatState.nextDiffSheetNumber++;
     return diff;
   }
 

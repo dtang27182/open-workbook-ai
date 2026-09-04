@@ -9,7 +9,6 @@ import {
 import { runUpdateAnalysisPrompt } from "../../../taskpane/pages/chat/chat-state-machine/llm-model-workflow";
 import {
   PendingEdit,
-  RestorePoint,
   SheetSnapshot,
 } from "../../../taskpane/pages/chat/chat-state-machine/chat-types";
 import { renderChatTranscript } from "./chat-window-dom";
@@ -24,13 +23,14 @@ import {
 import type { ProcessModelResponse } from "./chat-window";
 import { ChatWindowState } from "./chat-window-state";
 import { runSubmitMessageWorkflow } from "./chat-window-submit-message-workflow";
+import { RestorePoint } from "./chat-window-types";
 
 export async function runAcceptDiffWorkflow(
   state: ChatWindowState,
   processModelResponse: ProcessModelResponse
 ): Promise<void> {
   const pendingEdit = state.chatState.pendingEdit!;
-  const shouldAnalyzeUpdate = state.chatState.fsmState === "pending_edit";
+  const shouldAnalyzeUpdate = state.chatState.workflowState === "pending_edit";
   const userRequest = getWorkflowHumanMessage(state.chatState.transcript, pendingEdit.workflowId);
   await setup(state, pendingEdit);
   await performActions(state, pendingEdit);
@@ -70,10 +70,10 @@ async function finalize(
   processModelResponse: ProcessModelResponse,
   pendingEdit: PendingEdit
 ): Promise<RestorePoint> {
-  const shouldContinueOriginalQuery = state.chatState.fsmState === "pending_edit_preprocessed";
+  const shouldContinueOriginalQuery = state.chatState.workflowState === "pending_edit_preprocessed";
   const restorePoint = state.restoreManager.promotePotentialRestorePoint(pendingEdit.workflowId);
   state.chatState.pendingEdit = undefined;
-  state.chatState.fsmState = "answered";
+  state.chatState.workflowState = "answered";
 
   removeWorkingTranscriptItem(state.chatState.transcript, pendingEdit.workflowId);
   insertRestoreTranscriptItemAndRender(

@@ -98,7 +98,7 @@ async function finalizeTransition(
       diffSheetName: diff.sheetName,
       workflowId,
     };
-    state.chatState.fsmState = "pending_edit_preprocessed";
+    state.chatState.workflowState = "pending_edit_preprocessed";
     appendDiffReviewTranscriptItemAndRender(
       state.mount,
       state.chatState.transcript,

@@ -94,16 +94,17 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
         },
       ],
       llmConversationMessages: [],
-      fsmState: "answered",
+      workflowState: "answered",
       preprocessedSheetNames: [],
+      nextDiffSheetNumber: 1,
+      nextScenarioSheetNumber: 1,
+      nextWorkflowId: 1,
     };
     this.state.restoreManager.clearAllRestorePoints();
-    this.state.nextDiffSheetNumber = 1;
-    this.state.nextScenarioSheetNumber = 1;
     configChatControls(
       this.state.mount,
       this.state.chatState.transcript,
-      this.state.chatState.fsmState,
+      this.state.chatState.workflowState,
       this.state.domHandlers
     );
   }
@@ -141,7 +142,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
         configChatControls(
           this.state.mount,
           this.state.chatState.transcript,
-          this.state.chatState.fsmState,
+          this.state.chatState.workflowState,
           this.state.domHandlers
         );
       }
@@ -150,13 +151,13 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
 
   private async submitMessage(message: string): Promise<void> {
     this.state.mount.querySelector<HTMLInputElement>("#chat-input")!.value = "";
-    if (this.state.chatState.fsmState === "awaiting_clarification") {
+    if (this.state.chatState.workflowState === "awaiting_clarification") {
       await runClarificationWorkflow(this.state, this.processModelResponse, message);
       return;
     }
 
     const currentSheet = await readActiveSheet(this.state.excelApi);
-    const workflowId = this.state.nextWorkflowId++;
+    const workflowId = this.state.chatState.nextWorkflowId++;
 
     if (
       preprocessingEnabled &&
@@ -191,7 +192,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
         responseEntry,
         { text: response.question }
       );
-      this.state.chatState.fsmState = "awaiting_clarification";
+      this.state.chatState.workflowState = "awaiting_clarification";
     } else if (!response.reply.shouldEditSheet) {
       upsertTranscriptMessageAndRender(
         this.state.mount,
@@ -201,7 +202,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
         { text: response.reply.message }
       );
       this.state.restoreManager.discardPotentialRestorePoint(workflowId);
-      this.state.chatState.fsmState = "answered";
+      this.state.chatState.workflowState = "answered";
     } else if (response.reply.createNewSheet) {
       upsertTranscriptMessageAndRender(
         this.state.mount,
@@ -219,7 +220,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
         this.state.chatState.llmConversationMessages
       );
       this.state.restoreManager.discardPotentialRestorePoint(workflowId);
-      this.state.chatState.fsmState = "answered";
+      this.state.chatState.workflowState = "answered";
     } else {
       upsertTranscriptMessageAndRender(
         this.state.mount,
@@ -234,7 +235,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
         diffSheetName: diff.sheetName,
         workflowId,
       };
-      this.state.chatState.fsmState = "pending_edit";
+      this.state.chatState.workflowState = "pending_edit";
       appendDiffReviewTranscriptItemAndRender(
         this.state.mount,
         this.state.chatState.transcript,
@@ -250,11 +251,11 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
   ): Promise<string> {
     const sheetName = await createScenarioSheet(
       this.state.excelApi,
-      this.state.nextScenarioSheetNumber,
+      this.state.chatState.nextScenarioSheetNumber,
       originalSheet,
       cellEdits
     );
-    this.state.nextScenarioSheetNumber++;
+    this.state.chatState.nextScenarioSheetNumber++;
     return sheetName;
   }
 
@@ -309,7 +310,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
         (entry) => entry.kind !== "working"
       );
     }
-    this.state.chatState.fsmState = "errored";
+    this.state.chatState.workflowState = "errored";
     appendMessageAndRender(
       this.state.mount,
       this.state.chatState.transcript,
@@ -323,25 +324,25 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
   private validateInputForCurrentState(input: ChatStateMachineInput) {
     if (input.type === "submit_message") {
       if (
-        !this.isTerminalTurnState(this.state.chatState.fsmState) &&
-        this.state.chatState.fsmState !== "awaiting_clarification"
+        !this.isTerminalTurnState(this.state.chatState.workflowState) &&
+        this.state.chatState.workflowState !== "awaiting_clarification"
       ) {
         throw new Error(
-          `Cannot submit a chat message while the chat state is ${this.state.chatState.fsmState}.`
+          `Cannot submit a chat message while the chat state is ${this.state.chatState.workflowState}.`
         );
       }
       return;
     }
 
     if (input.type === "accept_pending_diff") {
-      if (!this.isPendingEditState(this.state.chatState.fsmState)) {
+      if (!this.isPendingEditState(this.state.chatState.workflowState)) {
         throw new Error("Cannot accept changes unless the latest turn is pending_edit.");
       }
       return;
     }
 
     if (input.type === "reject_pending_diff") {
-      if (!this.isPendingEditState(this.state.chatState.fsmState)) {
+      if (!this.isPendingEditState(this.state.chatState.workflowState)) {
         throw new Error("Cannot reject changes unless the latest turn is pending_edit.");
       }
       return;

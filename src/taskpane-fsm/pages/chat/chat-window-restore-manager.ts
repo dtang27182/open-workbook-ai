@@ -1,11 +1,10 @@
 /* global structuredClone */
 
 import {
-  ChatState,
   PendingEdit,
-  RestorePoint,
   SheetSnapshot,
 } from "../../../taskpane/pages/chat/chat-state-machine/chat-types";
+import { ChatState, RestorePoint } from "./chat-window-types";
 
 export class RestoreManager {
   private readonly restorePoints: RestorePoint[] = [];
@@ -60,9 +59,12 @@ export class RestoreManager {
     return {
       transcript: structuredClone(chatState.transcript),
       llmConversationMessages: [...chatState.llmConversationMessages],
-      fsmState: chatState.fsmState,
+      workflowState: chatState.workflowState,
       pendingEdit: chatState.pendingEdit ? this.copyPendingEdit(chatState.pendingEdit) : undefined,
       preprocessedSheetNames: [...chatState.preprocessedSheetNames],
+      nextDiffSheetNumber: chatState.nextDiffSheetNumber,
+      nextScenarioSheetNumber: chatState.nextScenarioSheetNumber,
+      nextWorkflowId: chatState.nextWorkflowId,
     };
   }
 

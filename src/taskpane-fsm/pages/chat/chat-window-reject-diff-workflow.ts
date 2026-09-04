@@ -41,10 +41,10 @@ async function finalize(
   processModelResponse: ProcessModelResponse,
   pendingEdit: PendingEdit
 ): Promise<void> {
-  const shouldContinueOriginalQuery = state.chatState.fsmState === "pending_edit_preprocessed";
+  const shouldContinueOriginalQuery = state.chatState.workflowState === "pending_edit_preprocessed";
   state.restoreManager.discardPotentialRestorePoint(pendingEdit.workflowId);
   state.chatState.pendingEdit = undefined;
-  state.chatState.fsmState = "answered";
+  state.chatState.workflowState = "answered";
 
   removeWorkingTranscriptItem(state.chatState.transcript, pendingEdit.workflowId);
   appendMessageAndRender(
