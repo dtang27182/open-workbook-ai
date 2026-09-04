@@ -12,8 +12,6 @@ export type ChatState = {
   workflowState: ChatFsmState;
   pendingEdit?: PendingEdit;
   preprocessedSheetNames: string[];
-  nextDiffSheetNumber: number;
-  nextScenarioSheetNumber: number;
   nextWorkflowId: number;
 };
 

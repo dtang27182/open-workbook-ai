@@ -1,4 +1,3 @@
-import { readActiveSheet } from "../../../taskpane/pages/chat/chat-state-machine/excel-sheet-utils";
 import {
   getPendingClarificationToolCall,
   runClarificationResponsePrompt,
@@ -27,7 +26,7 @@ export async function runClarificationWorkflow(
 ): Promise<void> {
   const pendingToolCall = getPendingClarificationToolCall(state.chatState.llmConversationMessages);
   const workflowId = pendingToolCall.workflowId;
-  const originalSheet = await readActiveSheet(state.excelApi);
+  const originalSheet = await state.excelController.readActiveSheet();
   const responseEntry = setupTransition(state, answer, workflowId);
   const result = await performActions(
     state,

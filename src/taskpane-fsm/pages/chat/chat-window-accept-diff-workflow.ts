@@ -1,11 +1,5 @@
 /* global console */
 
-import {
-  deleteDiffSheet,
-  readSheet,
-  retargetFormulaSheetReferences,
-  writeSheetFormulas,
-} from "../../../taskpane/pages/chat/chat-state-machine/excel-sheet-utils";
 import { runUpdateAnalysisPrompt } from "../../../taskpane/pages/chat/chat-state-machine/llm-model-workflow";
 import {
   PendingEdit,
@@ -57,12 +51,14 @@ async function setup(state: ChatWindowState, pendingEdit: PendingEdit): Promise<
 }
 
 async function performActions(state: ChatWindowState, pendingEdit: PendingEdit): Promise<void> {
-  const diffSheet = await readSheet(state.excelApi, pendingEdit.diffSheetName);
-  await writeSheetFormulas(
-    state.excelApi,
-    retargetFormulaSheetReferences(diffSheet, pendingEdit.sourceSheetName)
+  const diffSheet = await state.excelController.readSheet(pendingEdit.diffSheetName);
+  await state.excelController.writeSheetFormulas(
+    state.excelController.retargetFormulaSheetReferences(diffSheet, pendingEdit.sourceSheetName)
   );
-  await deleteDiffSheet(state.excelApi, pendingEdit.sourceSheetName, pendingEdit.diffSheetName);
+  await state.excelController.deleteDiffSheet(
+    pendingEdit.sourceSheetName,
+    pendingEdit.diffSheetName
+  );
 }
 
 async function finalize(
@@ -128,7 +124,7 @@ async function appendUpdateAnalysis(
   );
   renderChatTranscript(state.mount, state.chatState.transcript, state.domHandlers);
   try {
-    const updatedSheet = await readSheet(state.excelApi, updatedSheetName);
+    const updatedSheet = await state.excelController.readSheet(updatedSheetName);
     const analysis = await runUpdateAnalysisPrompt(
       userRequest,
       originalSheet,

@@ -307,6 +307,8 @@ class ExcelTestRange {
       deltaColumns + 1
     );
   }
+
+  select() {}
 }
 
 function readRange(

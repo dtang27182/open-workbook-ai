@@ -10,6 +10,7 @@ import {
 } from "../src/taskpane/pages/chat/chat-state-machine/chat-types";
 import { configureOpenRouterClient } from "../src/taskpane/pages/chat/chat-state-machine/openrouter-client";
 import { OpenrouterKeyStore } from "../src/taskpane/pages/openrouter-auth/openrouter-api-key";
+import { ExcelController } from "../src/taskpane-fsm/pages/chat/excel-controller";
 import { RestoreManager } from "../src/taskpane-fsm/pages/chat/chat-window-restore-manager";
 import type { ChatState } from "../src/taskpane-fsm/pages/chat/chat-window-types";
 import { createExcelTestWorkbook } from "./excel-test-double";
@@ -65,20 +66,91 @@ test("Restore Manager Copies Inputs When Creating Restore Point Snapshots", () =
     text: "Later message",
     workflowId: 1,
   });
-  chatState.nextDiffSheetNumber++;
-  chatState.nextScenarioSheetNumber++;
   chatState.nextWorkflowId++;
   sheet.formulas[0][0] = "Changed";
 
   const promotedRestorePoint = restoreManager.promotePotentialRestorePoint(1);
   assert.equal(promotedRestorePoint.chatState.transcript.length, 1);
-  assert.equal(promotedRestorePoint.chatState.nextDiffSheetNumber, 1);
-  assert.equal(promotedRestorePoint.chatState.nextScenarioSheetNumber, 1);
   assert.equal(promotedRestorePoint.chatState.nextWorkflowId, 1);
   assert.deepEqual(promotedRestorePoint.sheet.formulas, [["Original"]]);
 
   const storedRestorePoint = restoreManager.getRestorePoint(promotedRestorePoint.id);
   assert.strictEqual(storedRestorePoint, promotedRestorePoint);
+});
+
+test("Excel Controller Creates Numbered Sheets And Resets Their Counters", async () => {
+  const workbook = createWorkbook();
+  const controller = new ExcelController(workbook.excelApi);
+  const originalSheet = await controller.readActiveSheet();
+
+  assert.deepEqual(await controller.readSheet("Sheet1"), originalSheet);
+
+  const firstDiff = await controller.createNextDiffSheet(originalSheet, [
+    { address: "C3", newFormula: "=1" },
+  ]);
+  const secondDiff = await controller.createNextDiffSheet(originalSheet, []);
+  const firstScenario = await controller.createNextScenarioSheet(originalSheet, []);
+  const secondScenario = await controller.createNextScenarioSheet(originalSheet, []);
+
+  assert.equal(firstDiff.sheetName, "Diff 1");
+  assert.equal(secondDiff.sheetName, "Diff 2");
+  assert.equal(firstScenario, "Scenario 1");
+  assert.equal(secondScenario, "Scenario 2");
+  assert.deepEqual(firstDiff.updatedSheet.formulas, [
+    ["PRODUCT", "UNITS", null],
+    ["Aldoxin", 1200, null],
+    [null, null, "=1"],
+  ]);
+  assert.deepEqual(firstDiff.updatedSheet.values, [
+    ["PRODUCT", "UNITS", null],
+    ["Aldoxin", 1200, null],
+    [null, null, null],
+  ]);
+
+  await controller.deleteDiffSheet("Sheet1", "Diff 1");
+  await controller.deleteDiffSheet("Sheet1", "Diff 2");
+  await controller.deleteDiffSheet("Sheet1", "Scenario 1");
+  await controller.deleteDiffSheet("Sheet1", "Scenario 2");
+  controller.resetSheetNumbers();
+
+  assert.equal((await controller.createNextDiffSheet(originalSheet, [])).sheetName, "Diff 1");
+  assert.equal(await controller.createNextScenarioSheet(originalSheet, []), "Scenario 1");
+});
+
+test("Excel Controller Writes, Applies, And Deletes Sheet Changes", async () => {
+  const workbook = createWorkbook();
+  const controller = new ExcelController(workbook.excelApi);
+  const originalSheet = await controller.readActiveSheet();
+
+  await controller.applyCellEditsToSheet(originalSheet, [
+    { address: "B2", newFormula: 2400 },
+  ]);
+  assert.equal(workbook.getSheet("Sheet1").formulas[1][1], 2400);
+  assert.equal(workbook.getCellFormat("Sheet1", "B2").fillColor, "#00B050");
+
+  await controller.writeSheetFormulas(originalSheet);
+  assert.deepEqual(workbook.getSheet("Sheet1").formulas, sheetFormulas);
+
+  const diff = await controller.createNextDiffSheet(originalSheet, []);
+  await controller.deleteDiffSheet("Sheet1", diff.sheetName);
+  assert.equal(workbook.hasSheet(diff.sheetName), false);
+  assert.equal(workbook.getActiveSheetName(), "Sheet1");
+});
+
+test("Excel Controller Retargets Escaped Sheet References", () => {
+  const controller = new ExcelController();
+  const retargetedSheet = controller.retargetFormulaSheetReferences(
+    {
+      ...createRestoreManagerSheet("O'Brien"),
+      formulas: [["='O''Brien'!A1", "Label"]],
+      values: [[1, "Label"]],
+      columnCount: 2,
+    },
+    "D'Angelo"
+  );
+
+  assert.equal(retargetedSheet.name, "D'Angelo");
+  assert.deepEqual(retargetedSheet.formulas, [["='D''Angelo'!A1", "Label"]]);
 });
 
 test("Restore Manager Finalizes And Clears Restore History Without Resetting IDs", () => {
@@ -117,8 +189,6 @@ function createRestoreManagerChatState(): ChatState {
     llmConversationMessages: [],
     workflowState: "answered",
     preprocessedSheetNames: [],
-    nextDiffSheetNumber: 1,
-    nextScenarioSheetNumber: 1,
     nextWorkflowId: 1,
   };
 }

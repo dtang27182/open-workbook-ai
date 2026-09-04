@@ -62,8 +62,6 @@ export class RestoreManager {
       workflowState: chatState.workflowState,
       pendingEdit: chatState.pendingEdit ? this.copyPendingEdit(chatState.pendingEdit) : undefined,
       preprocessedSheetNames: [...chatState.preprocessedSheetNames],
-      nextDiffSheetNumber: chatState.nextDiffSheetNumber,
-      nextScenarioSheetNumber: chatState.nextScenarioSheetNumber,
       nextWorkflowId: chatState.nextWorkflowId,
     };
   }

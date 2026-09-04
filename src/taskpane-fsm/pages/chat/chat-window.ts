@@ -1,12 +1,6 @@
 /* global console, HTMLInputElement, HTMLElement */
 
 import { Component } from "../../component-v2";
-import {
-  applyCellEditsToSheet,
-  createScenarioSheet,
-  readActiveSheet,
-  readSheet,
-} from "../../../taskpane/pages/chat/chat-state-machine/excel-sheet-utils";
 import { runScenarioComparisonPrompt } from "../../../taskpane/pages/chat/chat-state-machine/llm-model-workflow";
 import {
   CellEdit,
@@ -40,6 +34,7 @@ import { runRejectDiffWorkflow } from "./chat-window-reject-diff-workflow";
 import { runRestoreWorkflow } from "./chat-window-restore-workflow";
 import { ChatWindowState } from "./chat-window-state";
 import { runSubmitMessageWorkflow } from "./chat-window-submit-message-workflow";
+import { ExcelController } from "./excel-controller";
 
 const preprocessingEnabled = true;
 
@@ -74,7 +69,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
         void this.updateState({ type: "restore_to_point", restorePointId });
       },
     };
-    this.state = new ChatWindowState(mount, domHandlers, excelApi);
+    this.state = new ChatWindowState(mount, domHandlers, new ExcelController(excelApi));
     createInitialDom(this.state.mount, this.state.domHandlers);
     this.reset();
   }
@@ -96,11 +91,10 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
       llmConversationMessages: [],
       workflowState: "answered",
       preprocessedSheetNames: [],
-      nextDiffSheetNumber: 1,
-      nextScenarioSheetNumber: 1,
       nextWorkflowId: 1,
     };
     this.state.restoreManager.clearAllRestorePoints();
+    this.state.excelController.resetSheetNumbers();
     configChatControls(
       this.state.mount,
       this.state.chatState.transcript,
@@ -156,7 +150,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
       return;
     }
 
-    const currentSheet = await readActiveSheet(this.state.excelApi);
+    const currentSheet = await this.state.excelController.readActiveSheet();
     const workflowId = this.state.chatState.nextWorkflowId++;
 
     if (
@@ -229,7 +223,10 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
         responseEntry,
         { text: response.reply.message }
       );
-      const diff = await this.state.createNextDiffSheet(originalSheet, response.reply.cellEdits);
+      const diff = await this.state.excelController.createNextDiffSheet(
+        originalSheet,
+        response.reply.cellEdits
+      );
       this.state.chatState.pendingEdit = {
         sourceSheetName: originalSheet.name,
         diffSheetName: diff.sheetName,
@@ -245,20 +242,6 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
     }
   };
 
-  private async createNextScenarioSheet(
-    originalSheet: SheetSnapshot,
-    cellEdits: CellEdit[]
-  ): Promise<string> {
-    const sheetName = await createScenarioSheet(
-      this.state.excelApi,
-      this.state.chatState.nextScenarioSheetNumber,
-      originalSheet,
-      cellEdits
-    );
-    this.state.chatState.nextScenarioSheetNumber++;
-    return sheetName;
-  }
-
   private async createScenarioWithComparison(
     userRequest: string,
     workflowId: number,
@@ -267,11 +250,14 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
     comparisonRanges: ComparisonRange[],
     llmConversationMessages: LlmConversationHistory
   ): Promise<void> {
-    const scenarioSheetName = await this.createNextScenarioSheet(originalSheet, scenarioModelEdits);
+    const scenarioSheetName = await this.state.excelController.createNextScenarioSheet(
+      originalSheet,
+      scenarioModelEdits
+    );
     if (this.state.chatState.preprocessedSheetNames.includes(originalSheet.name)) {
       this.state.chatState.preprocessedSheetNames.push(scenarioSheetName);
     }
-    const scenarioSheet = await readSheet(this.state.excelApi, scenarioSheetName);
+    const scenarioSheet = await this.state.excelController.readSheet(scenarioSheetName);
     appendWorkingTranscriptItem(
       this.state.chatState.transcript,
       "Creating comparison between new scenario against baseline...",
@@ -285,7 +271,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
       comparisonRanges,
       llmConversationMessages
     );
-    await applyCellEditsToSheet(this.state.excelApi, scenarioSheet, comparison.cellEdits);
+    await this.state.excelController.applyCellEditsToSheet(scenarioSheet, comparison.cellEdits);
     removeWorkingTranscriptItem(this.state.chatState.transcript, workflowId);
     appendMessageAndRender(
       this.state.mount,

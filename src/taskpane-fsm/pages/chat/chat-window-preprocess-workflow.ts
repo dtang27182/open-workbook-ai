@@ -1,4 +1,3 @@
-import { readActiveSheet } from "../../../taskpane/pages/chat/chat-state-machine/excel-sheet-utils";
 import { runPreprocessPrompt } from "../../../taskpane/pages/chat/chat-state-machine/llm-model-workflow";
 import {
   CellEdit,
@@ -26,7 +25,7 @@ export async function runPreprocessWorkflow(
   message: string,
   workflowId: number
 ): Promise<void> {
-  const originalSheet = await readActiveSheet(state.excelApi);
+  const originalSheet = await state.excelController.readActiveSheet();
   setupTransition(state, message, workflowId, originalSheet);
   let cellEdits: CellEdit[] | undefined;
   for await (const event of runPreprocessPrompt(originalSheet)) {
@@ -92,7 +91,7 @@ async function finalizeTransition(
       "**Completed formula inference. Please review the inferred formulas (highlighted)**",
       workflowId
     );
-    const diff = await state.createNextDiffSheet(originalSheet, cellEdits);
+    const diff = await state.excelController.createNextDiffSheet(originalSheet, cellEdits);
     state.chatState.pendingEdit = {
       sourceSheetName: originalSheet.name,
       diffSheetName: diff.sheetName,

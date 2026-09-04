@@ -1,4 +1,3 @@
-import { readActiveSheet } from "../../../taskpane/pages/chat/chat-state-machine/excel-sheet-utils";
 import { runMainQueryPrompt } from "../../../taskpane/pages/chat/chat-state-machine/llm-model-workflow";
 import {
   ChatMessageTranscriptItem,
@@ -48,7 +47,7 @@ async function gatherInputs(state: ChatWindowState): Promise<{
   llmConversationMessages: LlmConversationHistory;
 }> {
   return {
-    originalSheet: await readActiveSheet(state.excelApi),
+    originalSheet: await state.excelController.readActiveSheet(),
     llmConversationMessages: state.chatState.llmConversationMessages,
   };
 }

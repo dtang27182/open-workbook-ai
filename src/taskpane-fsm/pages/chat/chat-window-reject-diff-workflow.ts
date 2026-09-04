@@ -1,4 +1,3 @@
-import { deleteDiffSheet } from "../../../taskpane/pages/chat/chat-state-machine/excel-sheet-utils";
 import { PendingEdit } from "../../../taskpane/pages/chat/chat-state-machine/chat-types";
 import { renderChatTranscript } from "./chat-window-dom";
 import {
@@ -33,7 +32,10 @@ async function setup(state: ChatWindowState, pendingEdit: PendingEdit): Promise<
 }
 
 async function performActions(state: ChatWindowState, pendingEdit: PendingEdit): Promise<void> {
-  await deleteDiffSheet(state.excelApi, pendingEdit.sourceSheetName, pendingEdit.diffSheetName);
+  await state.excelController.deleteDiffSheet(
+    pendingEdit.sourceSheetName,
+    pendingEdit.diffSheetName
+  );
 }
 
 async function finalize(
