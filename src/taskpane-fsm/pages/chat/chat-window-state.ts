@@ -10,12 +10,6 @@ import {
 import { ChatWindowDomHandlers } from "./chat-window-dom";
 import { RestoreManager } from "./chat-window-restore-manager";
 
-export type RunSubmitMessageWorkflow = (
-  message: string,
-  workflowId: number,
-  showHumanMessage: boolean
-) => Promise<void>;
-
 export class ChatWindowState {
   readonly mount: HTMLElement;
   readonly domHandlers: ChatWindowDomHandlers;

@@ -18,6 +18,6 @@ The future class should own or expose:
 - applying cell edits to a sheet; and
 - diff-sheet deletion.
 
-Move `excelApi` and `createNextDiffSheet()` out of `ChatWindowState` when this class is introduced. ChatWindow workflow classes should use the new class instead of directly accessing `excelApi` or importing functions from `excel-sheet-utils.ts`.
+Move `excelApi` and `createNextDiffSheet()` out of `ChatWindowState` when this class is introduced. ChatWindow workflow functions should use the new class instead of directly accessing `excelApi` or importing functions from `excel-sheet-utils.ts`.
 
 The detailed interface, class name, ownership of diff/scenario numbering counters, treatment of pure formatting functions, construction, and migration order remain to be designed before implementation.

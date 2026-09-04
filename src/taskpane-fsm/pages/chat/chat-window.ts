@@ -33,13 +33,13 @@ import {
   removeWorkingTranscriptItem,
   upsertTranscriptMessageAndRender,
 } from "./chat-window-transcript-helpers";
-import { AcceptDiffWorkflow } from "./chat-window-accept-diff-workflow";
-import { ClarificationWorkflow } from "./chat-window-clarification-workflow";
-import { PreprocessWorkflow } from "./chat-window-preprocess-workflow";
-import { RejectDiffWorkflow } from "./chat-window-reject-diff-workflow";
-import { RestoreWorkflow } from "./chat-window-restore-workflow";
+import { runAcceptDiffWorkflow } from "./chat-window-accept-diff-workflow";
+import { runClarificationWorkflow } from "./chat-window-clarification-workflow";
+import { runPreprocessWorkflow } from "./chat-window-preprocess-workflow";
+import { runRejectDiffWorkflow } from "./chat-window-reject-diff-workflow";
+import { runRestoreWorkflow } from "./chat-window-restore-workflow";
 import { ChatWindowState } from "./chat-window-state";
-import { SubmitMessageWorkflow } from "./chat-window-submit-message-workflow";
+import { runSubmitMessageWorkflow } from "./chat-window-submit-message-workflow";
 
 const preprocessingEnabled = true;
 
@@ -55,12 +55,6 @@ export type ProcessModelResponse = (
 
 export class ChatWindow implements Component<ChatWindowUpdateEvent> {
   private readonly state: ChatWindowState;
-  private readonly submitMessageWorkflow: SubmitMessageWorkflow;
-  private readonly clarificationWorkflow: ClarificationWorkflow;
-  private readonly preprocessWorkflow: PreprocessWorkflow;
-  private readonly acceptDiffWorkflow: AcceptDiffWorkflow;
-  private readonly rejectDiffWorkflow: RejectDiffWorkflow;
-  private readonly restoreWorkflow: RestoreWorkflow;
 
   constructor(mount: HTMLElement, excelApi?: ExcelApi) {
     const domHandlers: ChatWindowDomHandlers = {
@@ -81,24 +75,6 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
       },
     };
     this.state = new ChatWindowState(mount, domHandlers, excelApi);
-    const processModelResponse: ProcessModelResponse = (
-      userRequest,
-      workflowId,
-      originalSheet,
-      responseEntry,
-      response
-    ) => this.processModelResponse(userRequest, workflowId, originalSheet, responseEntry, response);
-    this.submitMessageWorkflow = new SubmitMessageWorkflow(this.state, processModelResponse);
-    const runSubmitMessageWorkflow = (
-      message: string,
-      workflowId: number,
-      showHumanMessage: boolean
-    ) => this.submitMessageWorkflow.run(message, workflowId, showHumanMessage);
-    this.preprocessWorkflow = new PreprocessWorkflow(this.state, runSubmitMessageWorkflow);
-    this.acceptDiffWorkflow = new AcceptDiffWorkflow(this.state, runSubmitMessageWorkflow);
-    this.rejectDiffWorkflow = new RejectDiffWorkflow(this.state, runSubmitMessageWorkflow);
-    this.clarificationWorkflow = new ClarificationWorkflow(this.state, processModelResponse);
-    this.restoreWorkflow = new RestoreWorkflow(this.state);
     createInitialDom(this.state.mount, this.state.domHandlers);
     this.reset();
   }
@@ -152,11 +128,11 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
         if (event.type === "submit_message") {
           await this.submitMessage(event.message);
         } else if (event.type === "accept_pending_diff") {
-          await this.acceptDiffWorkflow.run();
+          await runAcceptDiffWorkflow(this.state, this.processModelResponse);
         } else if (event.type === "reject_pending_diff") {
-          await this.rejectDiffWorkflow.run();
+          await runRejectDiffWorkflow(this.state, this.processModelResponse);
         } else if (event.type === "restore_to_point") {
-          await this.restoreWorkflow.run(event.restorePointId);
+          await runRestoreWorkflow(this.state, event.restorePointId);
         }
       } catch (err) {
         console.debug(err);
@@ -175,7 +151,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
   private async submitMessage(message: string): Promise<void> {
     this.state.mount.querySelector<HTMLInputElement>("#chat-input")!.value = "";
     if (this.state.chatState.fsmState === "awaiting_clarification") {
-      await this.clarificationWorkflow.run(message);
+      await runClarificationWorkflow(this.state, this.processModelResponse, message);
       return;
     }
 
@@ -186,19 +162,25 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
       preprocessingEnabled &&
       !this.state.chatState.preprocessedSheetNames.includes(currentSheet.name)
     ) {
-      await this.preprocessWorkflow.run(message, workflowId);
+      await runPreprocessWorkflow(this.state, this.processModelResponse, message, workflowId);
     } else {
-      await this.submitMessageWorkflow.run(message, workflowId, true);
+      await runSubmitMessageWorkflow(
+        this.state,
+        this.processModelResponse,
+        message,
+        workflowId,
+        true
+      );
     }
   }
 
-  private async processModelResponse(
+  private readonly processModelResponse: ProcessModelResponse = async (
     userRequest: string,
     workflowId: number,
     originalSheet: SheetSnapshot,
     responseEntry: ChatMessageTranscriptItem,
     response: SpreadsheetPromptCompletionEvent
-  ): Promise<void> {
+  ): Promise<void> => {
     this.state.chatState.llmConversationMessages = response.updatedLlmConversationMessages;
 
     if (response.type === "clarification_requested") {
@@ -260,7 +242,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
         workflowId
       );
     }
-  }
+  };
 
   private async createNextScenarioSheet(
     originalSheet: SheetSnapshot,

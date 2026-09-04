@@ -8,71 +8,70 @@ import {
   removeDiffReviewTranscriptItem,
   removeWorkingTranscriptItem,
 } from "./chat-window-transcript-helpers";
-import { ChatWindowState, RunSubmitMessageWorkflow } from "./chat-window-state";
+import type { ProcessModelResponse } from "./chat-window";
+import { ChatWindowState } from "./chat-window-state";
+import { runSubmitMessageWorkflow } from "./chat-window-submit-message-workflow";
 
-export class RejectDiffWorkflow {
-  constructor(
-    private readonly state: ChatWindowState,
-    private readonly runSubmitMessageWorkflow: RunSubmitMessageWorkflow
-  ) {}
+export async function runRejectDiffWorkflow(
+  state: ChatWindowState,
+  processModelResponse: ProcessModelResponse
+): Promise<void> {
+  const pendingEdit = state.chatState.pendingEdit!;
+  await setup(state, pendingEdit);
+  await performActions(state, pendingEdit);
+  await finalize(state, processModelResponse, pendingEdit);
+}
 
-  async run(): Promise<void> {
-    const pendingEdit = this.state.chatState.pendingEdit!;
-    await this.setup(pendingEdit);
-    await this.performActions(pendingEdit);
-    await this.finalize(pendingEdit);
-  }
+async function setup(state: ChatWindowState, pendingEdit: PendingEdit): Promise<void> {
+  removeDiffReviewTranscriptItem(state.chatState.transcript, pendingEdit.workflowId);
+  appendWorkingTranscriptItem(
+    state.chatState.transcript,
+    "Rejecting changes...",
+    pendingEdit.workflowId
+  );
+  renderChatTranscript(state.mount, state.chatState.transcript, state.domHandlers);
+}
 
-  private async setup(pendingEdit: PendingEdit): Promise<void> {
-    removeDiffReviewTranscriptItem(this.state.chatState.transcript, pendingEdit.workflowId);
-    appendWorkingTranscriptItem(
-      this.state.chatState.transcript,
-      "Rejecting changes...",
-      pendingEdit.workflowId
-    );
-    renderChatTranscript(this.state.mount, this.state.chatState.transcript, this.state.domHandlers);
-  }
+async function performActions(state: ChatWindowState, pendingEdit: PendingEdit): Promise<void> {
+  await deleteDiffSheet(state.excelApi, pendingEdit.sourceSheetName, pendingEdit.diffSheetName);
+}
 
-  private async performActions(pendingEdit: PendingEdit): Promise<void> {
-    await deleteDiffSheet(
-      this.state.excelApi,
-      pendingEdit.sourceSheetName,
-      pendingEdit.diffSheetName
-    );
-  }
+async function finalize(
+  state: ChatWindowState,
+  processModelResponse: ProcessModelResponse,
+  pendingEdit: PendingEdit
+): Promise<void> {
+  const shouldContinueOriginalQuery = state.chatState.fsmState === "pending_edit_preprocessed";
+  state.restoreManager.discardPotentialRestorePoint(pendingEdit.workflowId);
+  state.chatState.pendingEdit = undefined;
+  state.chatState.fsmState = "answered";
 
-  private async finalize(pendingEdit: PendingEdit): Promise<void> {
-    const shouldContinueOriginalQuery =
-      this.state.chatState.fsmState === "pending_edit_preprocessed";
-    this.state.restoreManager.discardPotentialRestorePoint(pendingEdit.workflowId);
-    this.state.chatState.pendingEdit = undefined;
-    this.state.chatState.fsmState = "answered";
+  removeWorkingTranscriptItem(state.chatState.transcript, pendingEdit.workflowId);
+  appendMessageAndRender(
+    state.mount,
+    state.chatState.transcript,
+    state.domHandlers,
+    "system",
+    "Rejected changes.",
+    pendingEdit.workflowId
+  );
+  state.appendUserDecisionLlmMessage("Rejected changes.", pendingEdit.workflowId);
 
-    removeWorkingTranscriptItem(this.state.chatState.transcript, pendingEdit.workflowId);
+  if (shouldContinueOriginalQuery) {
     appendMessageAndRender(
-      this.state.mount,
-      this.state.chatState.transcript,
-      this.state.domHandlers,
+      state.mount,
+      state.chatState.transcript,
+      state.domHandlers,
       "system",
-      "Rejected changes.",
+      "Continuing with original query.",
       pendingEdit.workflowId
     );
-    this.state.appendUserDecisionLlmMessage("Rejected changes.", pendingEdit.workflowId);
-
-    if (shouldContinueOriginalQuery) {
-      appendMessageAndRender(
-        this.state.mount,
-        this.state.chatState.transcript,
-        this.state.domHandlers,
-        "system",
-        "Continuing with original query.",
-        pendingEdit.workflowId
-      );
-      await this.runSubmitMessageWorkflow(
-        getWorkflowHumanMessage(this.state.chatState.transcript, pendingEdit.workflowId),
-        pendingEdit.workflowId,
-        false
-      );
-    }
+    await runSubmitMessageWorkflow(
+      state,
+      processModelResponse,
+      getWorkflowHumanMessage(state.chatState.transcript, pendingEdit.workflowId),
+      pendingEdit.workflowId,
+      false
+    );
   }
 }

@@ -21,141 +21,133 @@ import {
   removeDiffReviewTranscriptItem,
   removeWorkingTranscriptItem,
 } from "./chat-window-transcript-helpers";
-import { ChatWindowState, RunSubmitMessageWorkflow } from "./chat-window-state";
+import type { ProcessModelResponse } from "./chat-window";
+import { ChatWindowState } from "./chat-window-state";
+import { runSubmitMessageWorkflow } from "./chat-window-submit-message-workflow";
 
-export class AcceptDiffWorkflow {
-  constructor(
-    private readonly state: ChatWindowState,
-    private readonly runSubmitMessageWorkflow: RunSubmitMessageWorkflow
-  ) {}
-
-  async run(): Promise<void> {
-    const pendingEdit = this.state.chatState.pendingEdit!;
-    const shouldAnalyzeUpdate = this.state.chatState.fsmState === "pending_edit";
-    const userRequest = getWorkflowHumanMessage(
-      this.state.chatState.transcript,
-      pendingEdit.workflowId
-    );
-    await this.setup(pendingEdit);
-    await this.performActions(pendingEdit);
-    const restorePoint = await this.finalize(pendingEdit);
-    if (shouldAnalyzeUpdate) {
-      await this.appendUpdateAnalysis(
-        userRequest,
-        pendingEdit.workflowId,
-        restorePoint.sheet,
-        pendingEdit.sourceSheetName
-      );
-    }
-  }
-
-  private async setup(pendingEdit: PendingEdit): Promise<void> {
-    removeDiffReviewTranscriptItem(this.state.chatState.transcript, pendingEdit.workflowId);
-    appendWorkingTranscriptItem(
-      this.state.chatState.transcript,
-      "Applying changes...",
-      pendingEdit.workflowId
-    );
-    renderChatTranscript(this.state.mount, this.state.chatState.transcript, this.state.domHandlers);
-  }
-
-  private async performActions(pendingEdit: PendingEdit): Promise<void> {
-    const diffSheet = await readSheet(this.state.excelApi, pendingEdit.diffSheetName);
-    await writeSheetFormulas(
-      this.state.excelApi,
-      retargetFormulaSheetReferences(diffSheet, pendingEdit.sourceSheetName)
-    );
-    await deleteDiffSheet(
-      this.state.excelApi,
-      pendingEdit.sourceSheetName,
-      pendingEdit.diffSheetName
+export async function runAcceptDiffWorkflow(
+  state: ChatWindowState,
+  processModelResponse: ProcessModelResponse
+): Promise<void> {
+  const pendingEdit = state.chatState.pendingEdit!;
+  const shouldAnalyzeUpdate = state.chatState.fsmState === "pending_edit";
+  const userRequest = getWorkflowHumanMessage(state.chatState.transcript, pendingEdit.workflowId);
+  await setup(state, pendingEdit);
+  await performActions(state, pendingEdit);
+  const restorePoint = await finalize(state, processModelResponse, pendingEdit);
+  if (shouldAnalyzeUpdate) {
+    await appendUpdateAnalysis(
+      state,
+      userRequest,
+      pendingEdit.workflowId,
+      restorePoint.sheet,
+      pendingEdit.sourceSheetName
     );
   }
+}
 
-  private async finalize(pendingEdit: PendingEdit): Promise<RestorePoint> {
-    const shouldContinueOriginalQuery =
-      this.state.chatState.fsmState === "pending_edit_preprocessed";
-    const restorePoint = this.state.restoreManager.promotePotentialRestorePoint(
-      pendingEdit.workflowId
-    );
-    this.state.chatState.pendingEdit = undefined;
-    this.state.chatState.fsmState = "answered";
+async function setup(state: ChatWindowState, pendingEdit: PendingEdit): Promise<void> {
+  removeDiffReviewTranscriptItem(state.chatState.transcript, pendingEdit.workflowId);
+  appendWorkingTranscriptItem(
+    state.chatState.transcript,
+    "Applying changes...",
+    pendingEdit.workflowId
+  );
+  renderChatTranscript(state.mount, state.chatState.transcript, state.domHandlers);
+}
 
-    removeWorkingTranscriptItem(this.state.chatState.transcript, pendingEdit.workflowId);
-    insertRestoreTranscriptItemAndRender(
-      this.state.mount,
-      this.state.chatState.transcript,
-      this.state.domHandlers,
-      restorePoint,
-      pendingEdit.workflowId
-    );
+async function performActions(state: ChatWindowState, pendingEdit: PendingEdit): Promise<void> {
+  const diffSheet = await readSheet(state.excelApi, pendingEdit.diffSheetName);
+  await writeSheetFormulas(
+    state.excelApi,
+    retargetFormulaSheetReferences(diffSheet, pendingEdit.sourceSheetName)
+  );
+  await deleteDiffSheet(state.excelApi, pendingEdit.sourceSheetName, pendingEdit.diffSheetName);
+}
+
+async function finalize(
+  state: ChatWindowState,
+  processModelResponse: ProcessModelResponse,
+  pendingEdit: PendingEdit
+): Promise<RestorePoint> {
+  const shouldContinueOriginalQuery = state.chatState.fsmState === "pending_edit_preprocessed";
+  const restorePoint = state.restoreManager.promotePotentialRestorePoint(pendingEdit.workflowId);
+  state.chatState.pendingEdit = undefined;
+  state.chatState.fsmState = "answered";
+
+  removeWorkingTranscriptItem(state.chatState.transcript, pendingEdit.workflowId);
+  insertRestoreTranscriptItemAndRender(
+    state.mount,
+    state.chatState.transcript,
+    state.domHandlers,
+    restorePoint,
+    pendingEdit.workflowId
+  );
+  appendMessageAndRender(
+    state.mount,
+    state.chatState.transcript,
+    state.domHandlers,
+    "system",
+    "Accepted changes.",
+    pendingEdit.workflowId
+  );
+  state.appendUserDecisionLlmMessage("Accepted changes.", pendingEdit.workflowId);
+
+  if (shouldContinueOriginalQuery) {
     appendMessageAndRender(
-      this.state.mount,
-      this.state.chatState.transcript,
-      this.state.domHandlers,
+      state.mount,
+      state.chatState.transcript,
+      state.domHandlers,
       "system",
-      "Accepted changes.",
+      "Continuing with original query.",
       pendingEdit.workflowId
     );
-    this.state.appendUserDecisionLlmMessage("Accepted changes.", pendingEdit.workflowId);
-
-    if (shouldContinueOriginalQuery) {
-      appendMessageAndRender(
-        this.state.mount,
-        this.state.chatState.transcript,
-        this.state.domHandlers,
-        "system",
-        "Continuing with original query.",
-        pendingEdit.workflowId
-      );
-      await this.runSubmitMessageWorkflow(
-        getWorkflowHumanMessage(this.state.chatState.transcript, pendingEdit.workflowId),
-        pendingEdit.workflowId,
-        false
-      );
-    }
-
-    return restorePoint;
+    await runSubmitMessageWorkflow(
+      state,
+      processModelResponse,
+      getWorkflowHumanMessage(state.chatState.transcript, pendingEdit.workflowId),
+      pendingEdit.workflowId,
+      false
+    );
   }
 
-  private async appendUpdateAnalysis(
-    userRequest: string,
-    workflowId: number,
-    originalSheet: SheetSnapshot,
-    updatedSheetName: string
-  ): Promise<void> {
-    appendWorkingTranscriptItem(
-      this.state.chatState.transcript,
-      "Analyzing accepted changes...",
+  return restorePoint;
+}
+
+async function appendUpdateAnalysis(
+  state: ChatWindowState,
+  userRequest: string,
+  workflowId: number,
+  originalSheet: SheetSnapshot,
+  updatedSheetName: string
+): Promise<void> {
+  appendWorkingTranscriptItem(
+    state.chatState.transcript,
+    "Analyzing accepted changes...",
+    workflowId
+  );
+  renderChatTranscript(state.mount, state.chatState.transcript, state.domHandlers);
+  try {
+    const updatedSheet = await readSheet(state.excelApi, updatedSheetName);
+    const analysis = await runUpdateAnalysisPrompt(
+      userRequest,
+      originalSheet,
+      updatedSheet,
+      state.chatState.llmConversationMessages
+    );
+    removeWorkingTranscriptItem(state.chatState.transcript, workflowId);
+    appendMessageAndRender(
+      state.mount,
+      state.chatState.transcript,
+      state.domHandlers,
+      "system",
+      analysis,
       workflowId
     );
-    renderChatTranscript(this.state.mount, this.state.chatState.transcript, this.state.domHandlers);
-    try {
-      const updatedSheet = await readSheet(this.state.excelApi, updatedSheetName);
-      const analysis = await runUpdateAnalysisPrompt(
-        userRequest,
-        originalSheet,
-        updatedSheet,
-        this.state.chatState.llmConversationMessages
-      );
-      removeWorkingTranscriptItem(this.state.chatState.transcript, workflowId);
-      appendMessageAndRender(
-        this.state.mount,
-        this.state.chatState.transcript,
-        this.state.domHandlers,
-        "system",
-        analysis,
-        workflowId
-      );
-      this.state.appendAssistantLlmMessage(analysis, workflowId);
-    } catch (err) {
-      console.debug("OpenRouter update analysis request failed.", err);
-      removeWorkingTranscriptItem(this.state.chatState.transcript, workflowId);
-      renderChatTranscript(
-        this.state.mount,
-        this.state.chatState.transcript,
-        this.state.domHandlers
-      );
-    }
+    state.appendAssistantLlmMessage(analysis, workflowId);
+  } catch (err) {
+    console.debug("OpenRouter update analysis request failed.", err);
+    removeWorkingTranscriptItem(state.chatState.transcript, workflowId);
+    renderChatTranscript(state.mount, state.chatState.transcript, state.domHandlers);
   }
 }

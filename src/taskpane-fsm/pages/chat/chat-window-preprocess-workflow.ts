@@ -16,101 +16,102 @@ import {
   getWorkflowHumanMessage,
   removeWorkingTranscriptItem,
 } from "./chat-window-transcript-helpers";
-import { ChatWindowState, RunSubmitMessageWorkflow } from "./chat-window-state";
+import type { ProcessModelResponse } from "./chat-window";
+import { ChatWindowState } from "./chat-window-state";
+import { runSubmitMessageWorkflow } from "./chat-window-submit-message-workflow";
 
-export class PreprocessWorkflow {
-  constructor(
-    private readonly state: ChatWindowState,
-    private readonly runSubmitMessageWorkflow: RunSubmitMessageWorkflow
-  ) {}
-
-  async run(message: string, workflowId: number): Promise<void> {
-    const originalSheet = await readActiveSheet(this.state.excelApi);
-    this.setupTransition(message, workflowId, originalSheet);
-    let cellEdits: CellEdit[] | undefined;
-    for await (const event of runPreprocessPrompt(originalSheet)) {
-      if (event.type === "detection_complete") {
-        appendMessageAndRender(
-          this.state.mount,
-          this.state.chatState.transcript,
-          this.state.domHandlers,
-          "system",
-          formatFormulaInferencePlan(event.plan),
-          workflowId
-        );
-      } else if (event.type === "region_complete") {
-        appendMessageAndRender(
-          this.state.mount,
-          this.state.chatState.transcript,
-          this.state.domHandlers,
-          "system",
-          formatFormulaInferenceRegionResult(event.region, event.cellEditCount),
-          workflowId
-        );
-      } else if (event.type === "complete") {
-        cellEdits = event.cellEdits;
-      }
-    }
-    removeWorkingTranscriptItem(this.state.chatState.transcript, workflowId);
-    await this.finalizeTransition(workflowId, originalSheet, cellEdits!);
-  }
-
-  private setupTransition(message: string, workflowId: number, originalSheet: SheetSnapshot): void {
-    this.state.restoreManager.createPotentialRestorePoint(
-      workflowId,
-      this.state.chatState,
-      originalSheet
-    );
-    appendMessageAndRender(
-      this.state.mount,
-      this.state.chatState.transcript,
-      this.state.domHandlers,
-      "human",
-      message,
-      workflowId
-    );
-    appendWorkingTranscriptItem(
-      this.state.chatState.transcript,
-      "Analyzing worksheet..",
-      workflowId
-    );
-    this.state.chatState.preprocessedSheetNames.push(originalSheet.name);
-    renderChatTranscript(this.state.mount, this.state.chatState.transcript, this.state.domHandlers);
-  }
-
-  private async finalizeTransition(
-    workflowId: number,
-    originalSheet: SheetSnapshot,
-    cellEdits: CellEdit[]
-  ): Promise<void> {
-    if (cellEdits.length > 0) {
+export async function runPreprocessWorkflow(
+  state: ChatWindowState,
+  processModelResponse: ProcessModelResponse,
+  message: string,
+  workflowId: number
+): Promise<void> {
+  const originalSheet = await readActiveSheet(state.excelApi);
+  setupTransition(state, message, workflowId, originalSheet);
+  let cellEdits: CellEdit[] | undefined;
+  for await (const event of runPreprocessPrompt(originalSheet)) {
+    if (event.type === "detection_complete") {
       appendMessageAndRender(
-        this.state.mount,
-        this.state.chatState.transcript,
-        this.state.domHandlers,
+        state.mount,
+        state.chatState.transcript,
+        state.domHandlers,
         "system",
-        "**Completed formula inference. Please review the inferred formulas (highlighted)**",
+        formatFormulaInferencePlan(event.plan),
         workflowId
       );
-      const diff = await this.state.createNextDiffSheet(originalSheet, cellEdits);
-      this.state.chatState.pendingEdit = {
-        sourceSheetName: originalSheet.name,
-        diffSheetName: diff.sheetName,
-        workflowId,
-      };
-      this.state.chatState.fsmState = "pending_edit_preprocessed";
-      appendDiffReviewTranscriptItemAndRender(
-        this.state.mount,
-        this.state.chatState.transcript,
-        this.state.domHandlers,
+    } else if (event.type === "region_complete") {
+      appendMessageAndRender(
+        state.mount,
+        state.chatState.transcript,
+        state.domHandlers,
+        "system",
+        formatFormulaInferenceRegionResult(event.region, event.cellEditCount),
         workflowId
       );
-    } else {
-      await this.runSubmitMessageWorkflow(
-        getWorkflowHumanMessage(this.state.chatState.transcript, workflowId),
-        workflowId,
-        false
-      );
+    } else if (event.type === "complete") {
+      cellEdits = event.cellEdits;
     }
+  }
+  removeWorkingTranscriptItem(state.chatState.transcript, workflowId);
+  await finalizeTransition(state, processModelResponse, workflowId, originalSheet, cellEdits!);
+}
+
+function setupTransition(
+  state: ChatWindowState,
+  message: string,
+  workflowId: number,
+  originalSheet: SheetSnapshot
+): void {
+  state.restoreManager.createPotentialRestorePoint(workflowId, state.chatState, originalSheet);
+  appendMessageAndRender(
+    state.mount,
+    state.chatState.transcript,
+    state.domHandlers,
+    "human",
+    message,
+    workflowId
+  );
+  appendWorkingTranscriptItem(state.chatState.transcript, "Analyzing worksheet..", workflowId);
+  state.chatState.preprocessedSheetNames.push(originalSheet.name);
+  renderChatTranscript(state.mount, state.chatState.transcript, state.domHandlers);
+}
+
+async function finalizeTransition(
+  state: ChatWindowState,
+  processModelResponse: ProcessModelResponse,
+  workflowId: number,
+  originalSheet: SheetSnapshot,
+  cellEdits: CellEdit[]
+): Promise<void> {
+  if (cellEdits.length > 0) {
+    appendMessageAndRender(
+      state.mount,
+      state.chatState.transcript,
+      state.domHandlers,
+      "system",
+      "**Completed formula inference. Please review the inferred formulas (highlighted)**",
+      workflowId
+    );
+    const diff = await state.createNextDiffSheet(originalSheet, cellEdits);
+    state.chatState.pendingEdit = {
+      sourceSheetName: originalSheet.name,
+      diffSheetName: diff.sheetName,
+      workflowId,
+    };
+    state.chatState.fsmState = "pending_edit_preprocessed";
+    appendDiffReviewTranscriptItemAndRender(
+      state.mount,
+      state.chatState.transcript,
+      state.domHandlers,
+      workflowId
+    );
+  } else {
+    await runSubmitMessageWorkflow(
+      state,
+      processModelResponse,
+      getWorkflowHumanMessage(state.chatState.transcript, workflowId),
+      workflowId,
+      false
+    );
   }
 }

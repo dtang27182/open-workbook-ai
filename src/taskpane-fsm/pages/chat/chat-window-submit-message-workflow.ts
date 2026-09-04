@@ -17,121 +17,120 @@ import {
 import type { ProcessModelResponse } from "./chat-window";
 import { ChatWindowState } from "./chat-window-state";
 
-export class SubmitMessageWorkflow {
-  constructor(
-    private readonly state: ChatWindowState,
-    private readonly processModelResponse: ProcessModelResponse
-  ) {}
+export async function runSubmitMessageWorkflow(
+  state: ChatWindowState,
+  processModelResponse: ProcessModelResponse,
+  message: string,
+  workflowId: number,
+  showHumanMessage = true
+): Promise<void> {
+  const { originalSheet, llmConversationMessages } = await gatherInputs(state);
+  const responseEntry = setupTransition(
+    state,
+    message,
+    workflowId,
+    showHumanMessage,
+    originalSheet
+  );
+  const result = await performActions(
+    state,
+    message,
+    workflowId,
+    originalSheet,
+    llmConversationMessages,
+    responseEntry
+  );
+  await processModelResponse(message, workflowId, originalSheet, responseEntry, result);
+}
 
-  async run(message: string, workflowId: number, showHumanMessage = true): Promise<void> {
-    const { originalSheet, llmConversationMessages } = await this.gatherInputs();
-    const responseEntry = this.setupTransition(
+async function gatherInputs(state: ChatWindowState): Promise<{
+  originalSheet: SheetSnapshot;
+  llmConversationMessages: LlmConversationHistory;
+}> {
+  return {
+    originalSheet: await readActiveSheet(state.excelApi),
+    llmConversationMessages: state.chatState.llmConversationMessages,
+  };
+}
+
+function setupTransition(
+  state: ChatWindowState,
+  message: string,
+  workflowId: number,
+  showHumanMessage: boolean,
+  originalSheet: SheetSnapshot
+): ChatMessageTranscriptItem {
+  state.restoreManager.createPotentialRestorePoint(workflowId, state.chatState, originalSheet);
+  if (showHumanMessage) {
+    appendMessageAndRender(
+      state.mount,
+      state.chatState.transcript,
+      state.domHandlers,
+      "human",
       message,
-      workflowId,
-      showHumanMessage,
-      originalSheet
+      workflowId
     );
-    const result = await this.performActions(
-      message,
-      workflowId,
-      originalSheet,
-      llmConversationMessages,
-      responseEntry
-    );
-    await this.processModelResponse(message, workflowId, originalSheet, responseEntry, result);
   }
+  appendWorkingTranscriptItem(state.chatState.transcript, "Working...", workflowId);
+  renderChatTranscript(state.mount, state.chatState.transcript, state.domHandlers);
+  return {
+    kind: "message",
+    source: "system",
+    text: "",
+    workflowId,
+  };
+}
 
-  private async gatherInputs(): Promise<{
-    originalSheet: SheetSnapshot;
-    llmConversationMessages: LlmConversationHistory;
-  }> {
-    return {
-      originalSheet: await readActiveSheet(this.state.excelApi),
-      llmConversationMessages: this.state.chatState.llmConversationMessages,
-    };
-  }
+async function performActions(
+  state: ChatWindowState,
+  message: string,
+  workflowId: number,
+  originalSheet: SheetSnapshot,
+  llmConversationMessages: LlmConversationHistory,
+  responseEntry: ChatMessageTranscriptItem
+): Promise<SpreadsheetPromptCompletionEvent> {
+  let completionEvent: SpreadsheetPromptCompletionEvent | undefined;
+  for await (const event of runMainQueryPrompt(
+    message,
+    workflowId,
+    originalSheet,
+    llmConversationMessages
+  )) {
+    if (event.type === "partial_response") {
+      upsertTranscriptMessageAndRender(
+        state.mount,
+        state.chatState.transcript,
+        state.domHandlers,
+        responseEntry,
+        { text: event.text }
+      );
+    }
 
-  private setupTransition(
-    message: string,
-    workflowId: number,
-    showHumanMessage: boolean,
-    originalSheet: SheetSnapshot
-  ): ChatMessageTranscriptItem {
-    this.state.restoreManager.createPotentialRestorePoint(
-      workflowId,
-      this.state.chatState,
-      originalSheet
-    );
-    if (showHumanMessage) {
-      appendMessageAndRender(
-        this.state.mount,
-        this.state.chatState.transcript,
-        this.state.domHandlers,
-        "human",
-        message,
+    if (event.type === "creating_proposed_change") {
+      updateWorkingTranscriptItemAndRender(
+        state.mount,
+        state.chatState.transcript,
+        state.domHandlers,
+        "Creating proposed change...",
         workflowId
       );
     }
-    appendWorkingTranscriptItem(this.state.chatState.transcript, "Working...", workflowId);
-    renderChatTranscript(this.state.mount, this.state.chatState.transcript, this.state.domHandlers);
-    return {
-      kind: "message",
-      source: "system",
-      text: "",
-      workflowId,
-    };
-  }
 
-  private async performActions(
-    message: string,
-    workflowId: number,
-    originalSheet: SheetSnapshot,
-    llmConversationMessages: LlmConversationHistory,
-    responseEntry: ChatMessageTranscriptItem
-  ): Promise<SpreadsheetPromptCompletionEvent> {
-    let completionEvent: SpreadsheetPromptCompletionEvent | undefined;
-    for await (const event of runMainQueryPrompt(
-      message,
-      workflowId,
-      originalSheet,
-      llmConversationMessages
-    )) {
-      if (event.type === "partial_response") {
-        upsertTranscriptMessageAndRender(
-          this.state.mount,
-          this.state.chatState.transcript,
-          this.state.domHandlers,
-          responseEntry,
-          { text: event.text }
-        );
-      }
-
-      if (event.type === "creating_proposed_change") {
-        updateWorkingTranscriptItemAndRender(
-          this.state.mount,
-          this.state.chatState.transcript,
-          this.state.domHandlers,
-          "Creating proposed change...",
-          workflowId
-        );
-      }
-
-      if (event.type === "creating_scenario_sheet") {
-        updateWorkingTranscriptItemAndRender(
-          this.state.mount,
-          this.state.chatState.transcript,
-          this.state.domHandlers,
-          "Creating new sheet to model scenario...",
-          workflowId
-        );
-      }
-
-      if (event.type === "clarification_requested" || event.type === "complete") {
-        completionEvent = event;
-      }
+    if (event.type === "creating_scenario_sheet") {
+      updateWorkingTranscriptItemAndRender(
+        state.mount,
+        state.chatState.transcript,
+        state.domHandlers,
+        "Creating new sheet to model scenario...",
+        workflowId
+      );
     }
-    removeWorkingTranscriptItem(this.state.chatState.transcript, workflowId);
 
-    return completionEvent!;
+    if (event.type === "clarification_requested" || event.type === "complete") {
+      completionEvent = event;
+    }
   }
+  removeWorkingTranscriptItem(state.chatState.transcript, workflowId);
+
+  return completionEvent!;
 }

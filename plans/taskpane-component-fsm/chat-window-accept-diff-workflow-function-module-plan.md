@@ -1,6 +1,6 @@
 # Chat Window Accept Diff Workflow Function Module FIP
 
-Status: proposed for review. This plan does not authorize runtime changes yet.
+Status: implemented.
 
 ## Goal
 

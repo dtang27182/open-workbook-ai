@@ -1,6 +1,6 @@
 # Chat Window Workflow Function Modules Plan
 
-Status: proposed for review. This plan does not authorize runtime changes yet.
+Status: implemented.
 
 ## Goal
 
