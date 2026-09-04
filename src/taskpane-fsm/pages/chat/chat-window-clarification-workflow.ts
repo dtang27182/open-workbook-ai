@@ -17,13 +17,13 @@ import {
   updateWorkingTranscriptItemAndRender,
   upsertTranscriptMessageAndRender,
 } from "./chat-window-transcript-helpers";
+import type { ProcessModelResponse } from "./chat-window";
 import { ChatWindowState } from "./chat-window-state";
-import { SubmitMessageWorkflow } from "./chat-window-submit-message-workflow";
 
 export class ClarificationWorkflow {
   constructor(
     private readonly state: ChatWindowState,
-    private readonly submitMessageWorkflow: SubmitMessageWorkflow
+    private readonly processModelResponse: ProcessModelResponse
   ) {}
 
   async run(answer: string): Promise<void> {
@@ -39,7 +39,7 @@ export class ClarificationWorkflow {
       this.state.chatState.llmConversationMessages,
       responseEntry
     );
-    await this.submitMessageWorkflow.finalizeSubmitTransition(
+    await this.processModelResponse(
       getWorkflowHumanMessage(this.state.chatState.transcript, workflowId),
       workflowId,
       originalSheet,

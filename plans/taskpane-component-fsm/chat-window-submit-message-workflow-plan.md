@@ -4,7 +4,7 @@ Status: implemented.
 
 ## Goal
 
-Move the normal submit-message call path into `SubmitMessageWorkflow` while preserving its streaming UI, state transitions, restore-point behavior, diff creation, and scenario comparison behavior.
+Move normal prompt setup and streaming into `SubmitMessageWorkflow` while preserving restore-point creation and handing the completed model response back to `ChatWindow` for processing.
 
 ## Scope
 
@@ -15,22 +15,19 @@ Move these methods from `ChatWindow`:
 - `runSubmitMessageWorkflow()` to public `run()`;
 - `gatherSubmitInputs()`;
 - `setupSubmitTransition()`;
-- `performSubmitActions()`;
-- `finalizeSubmitTransition()` to a method callable by `ClarificationWorkflow`;
-- `createNextScenarioSheet()`; and
-- `createScenarioWithComparison()`.
+- `performSubmitActions()`.
 
-Continue using `ChatWindowState.createNextDiffSheet()` because submit and preprocessing share numbered diff-sheet creation. Keep the scenario-sheet creation method in this workflow; it updates `nextScenarioSheetNumber` through the shared state.
+Keep model-response processing, numbered diff-sheet creation, and scenario creation outside this workflow. The workflow creates the potential restore point before starting the prompt.
 
 ## Integration
 
-Construct one `SubmitMessageWorkflow` with the shared state before constructing `PreprocessWorkflow`, `AcceptDiffWorkflow`, `RejectDiffWorkflow`, or `ClarificationWorkflow`. `ChatWindow.submitMessage()` retains top-level routing between clarification, preprocessing, and normal submission, then calls `submitMessageWorkflow.run()` for the normal path.
+Construct one `SubmitMessageWorkflow` with the shared state and the callback to `ChatWindow.processModelResponse()`. `ChatWindow.submitMessage()` retains top-level routing between clarification, preprocessing, and normal submission, then calls `submitMessageWorkflow.run()` for the normal path.
 
 Give `SubmitMessageWorkflow.run()` the existing `(message, workflowId, showHumanMessage)` parameters. Replace the callback that currently delegates to `ChatWindow.runSubmitMessageWorkflow()` with one that delegates to `submitMessageWorkflow.run()`, and continue supplying that callback to preprocessing and the accept/reject continuation paths.
 
-The workflow directly mutates the shared state and calls the existing transcript/DOM helpers. It must not call `ChatWindow.updateState()` or retain per-run data after `run()` completes.
+The workflow directly mutates the shared state and calls the existing transcript/DOM helpers during setup and streaming. After receiving the completed model response, it calls the supplied model-response callback. It must not call `ChatWindow.updateState()` or retain per-run data after `run()` completes.
 
-Use `state.restoreManager` to create and discard potential restore points at the same transition points as the current implementation. Expose the existing response-finalization operation to `ClarificationWorkflow` without duplicating it. Preserve the current branches for clarification requests, answers, scenario creation, and pending diffs.
+Use `state.restoreManager` to create the potential restore point at the same transition point as the current implementation. `ChatWindow.processModelResponse()` owns the clarification, answer, scenario, and pending-diff branches and decides whether that restore point is retained or discarded.
 
 ## Verification
 
