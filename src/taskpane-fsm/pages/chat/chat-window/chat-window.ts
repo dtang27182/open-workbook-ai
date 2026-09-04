@@ -30,6 +30,7 @@ import { ChatWindowState } from "./chat-window-state";
 import { ChatState } from "./chat-window-types";
 import { ExcelManager } from "./excel-manager";
 import { LLMManager } from "./llm-manager";
+import { OpenrouterKeyStore } from "../../../../taskpane/pages/openrouter-auth/openrouter-api-key";
 import { runAcceptDiffWorkflow } from "./workflows/accept-diff";
 import { runClarificationWorkflow } from "./workflows/clarification";
 import { runPreprocessWorkflow } from "./workflows/preprocess";
@@ -44,7 +45,7 @@ export type ChatWindowUpdateEvent = { type: "clear" } | ChatStateMachineInput;
 export class ChatWindow implements Component<ChatWindowUpdateEvent> {
   private readonly state: ChatWindowState;
 
-  constructor(mount: HTMLElement, excelApi?: ExcelApi) {
+  constructor(mount: HTMLElement, keyStore: OpenrouterKeyStore, excelApi?: ExcelApi) {
     const domHandlers: ChatWindowDomHandlers = {
       onClear: () => {
         void this.updateState({ type: "clear" });
@@ -66,7 +67,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
       mount,
       domHandlers,
       new ExcelManager(excelApi),
-      new LLMManager()
+      new LLMManager(keyStore)
     );
     createInitialDom(this.state.mount, this.state.domHandlers);
     this.reset();

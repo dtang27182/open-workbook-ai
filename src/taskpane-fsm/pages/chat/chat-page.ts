@@ -3,17 +3,18 @@
 import { Component } from "../../component";
 import { ChatHeader } from "./chat-header";
 import { ChatWindow } from "./chat-window/chat-window";
+import { OpenrouterKeyStore } from "../../../taskpane/pages/openrouter-auth/openrouter-api-key";
 
 export class ChatPage implements Component<never> {
   private readonly mount: HTMLElement;
   private readonly chatHeader: ChatHeader;
   private readonly chatWindow: ChatWindow;
 
-  constructor(mount: HTMLElement, onSignOut: () => void) {
+  constructor(mount: HTMLElement, onSignOut: () => void, keyStore: OpenrouterKeyStore) {
     this.mount = mount;
     const initialDom = this.createInitialDom();
     this.chatHeader = new ChatHeader(initialDom.chatHeaderMount, onSignOut);
-    this.chatWindow = new ChatWindow(initialDom.chatWindowMount);
+    this.chatWindow = new ChatWindow(initialDom.chatWindowMount, keyStore);
   }
 
   getMount(): HTMLElement {

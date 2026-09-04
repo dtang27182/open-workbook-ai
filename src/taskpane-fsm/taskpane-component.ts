@@ -5,7 +5,6 @@ import { ChatPage } from "./pages/chat/chat-page";
 import { OpenRouterAuthPage } from "./pages/openrouter-auth/openrouter-auth-page";
 import { OpenrouterKeyStore } from "../taskpane/pages/openrouter-auth/openrouter-api-key";
 import { acquireOpenRouterApiKey } from "./pages/openrouter-auth/openrouter-key-exchange";
-import { configureOpenRouterClient } from "../taskpane/pages/chat/chat-state-machine/openrouter-client";
 
 export type TaskpanePageName = "openrouter-auth" | "chat";
 
@@ -25,7 +24,6 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
   constructor(mount: HTMLElement) {
     this.mount = mount;
     this.openrouterKeyStore = new OpenrouterKeyStore();
-    configureOpenRouterClient(this.openrouterKeyStore);
     this.state = {
       activePage: this.openrouterKeyStore.hasKey() ? "chat" : "openrouter-auth",
     };
@@ -34,7 +32,7 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
       initialDom.openRouterAuthMount,
       this.handleSignIn
     );
-    this.chatPage = new ChatPage(initialDom.chatMount, this.handleSignOut);
+    this.chatPage = new ChatPage(initialDom.chatMount, this.handleSignOut, this.openrouterKeyStore);
   }
 
   getMount(): HTMLElement {

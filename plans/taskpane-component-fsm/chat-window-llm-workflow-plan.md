@@ -56,15 +56,15 @@ Add `src/taskpane-fsm/pages/chat/chat-window/llm-manager.ts` with an `LLMManager
 readonly llmManager: LLMManager;
 ```
 
-The manager needs sheet Markdown formatting when it builds model contexts, but that formatting is pure and does not require live Excel access or controller state. Construct the manager without dependencies:
+The manager imports pure sheet Markdown formatting directly. Following the [OpenRouter Client FIP](./openrouter-client-plan.md), it receives the shared key store and constructs its own client:
 
 ```ts
 const excelManager = new ExcelManager(excelApi);
-const llmManager = new LLMManager();
+const llmManager = new LLMManager(keyStore);
 this.state = new ChatWindowState(mount, domHandlers, excelManager, llmManager);
 ```
 
-`LLMManager` has no instance variables. It does not store `ExcelManager`, ChatWindow state, workflow state, conversation history, transcript state, or DOM handlers.
+`LLMManager` stores a private readonly `openRouterClient`, constructed with the supplied `OpenrouterKeyStore`. It does not store `ExcelManager`, ChatWindow state, workflow state, conversation history, transcript state, or DOM handlers.
 
 ## Public Interface
 
@@ -72,6 +72,8 @@ The six current taskpane-FSM call sites require this public interface:
 
 ```ts
 export class LLMManager {
+  constructor(keyStore: OpenrouterKeyStore);
+
   runPreprocessPrompt(sheet: SheetSnapshot): AsyncGenerator<PreprocessPromptEvent>;
 
   runMainQueryPrompt(
@@ -116,13 +118,13 @@ Copy the behavior needed by these six operations and their private dependencies 
 
 Keep the new implementation straightforward:
 
-- implement the six public operations as `LLMManager` methods;
+- implement the six public operations directly as `LLMManager` methods, without forwarding wrappers;
 - preserve `async` generator methods for preprocess, submit, and clarification streaming;
 - keep instructions, schemas, and model configuration as unexported module constants;
 - keep stateless implementation helpers as unexported module functions rather than turning the entire file into one large class; and
 - import the pure sheet Markdown functions directly when building model contexts.
 
-Continue importing the existing OpenRouter client and formula-inference utilities. Migrating those modules is outside this FIP.
+Use the taskpane-FSM OpenRouter client and formula-inference utilities. Request-making inference helpers receive the owned client explicitly; pure helpers remain module-level functions.
 
 ## Call-Site Migration
 
@@ -154,7 +156,7 @@ This keeps the new taskpane-FSM path independent of `excel-sheet-utils.ts` witho
 
 1. Add and test the pure sheet Markdown module.
 2. Add `LLMManager` with the six public operations and copied private implementation support.
-3. Add the manager to `ChatWindowState` and construct it without dependencies in `ChatWindow`.
+3. Add the manager to `ChatWindowState` and construct it with the shared key store in `ChatWindow`.
 4. Migrate preprocess, submit, and clarification while preserving their streamed event handling.
 5. Migrate scenario comparison and accepted-change analysis.
 6. Move both history-append methods from `ChatWindowState` to module-level functions in `chat-window.ts` and update their call sites to pass `state.chatState`.
@@ -199,5 +201,5 @@ Existing original-taskpane tests should continue passing unchanged.
 - Keep the module-level `processModelResponse()` function in `chat-window.ts`.
 - Do not delete or refactor the legacy `llm-model-workflow.ts` module.
 - Do not migrate the original `ChatStateMachine`.
-- Do not redesign or inject the OpenRouter client.
+- Follow the OpenRouter Client FIP for client ownership; preserve transport behavior.
 - Do not change prompts, schemas, model selection, workflow state transitions, transcript rendering, or user-visible behavior.

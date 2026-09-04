@@ -17,6 +17,7 @@ import { configureOpenRouterClient } from "../src/taskpane/pages/chat/chat-state
 import { OpenrouterKeyStore } from "../src/taskpane/pages/openrouter-auth/openrouter-api-key";
 import { ExcelManager } from "../src/taskpane-fsm/pages/chat/chat-window/excel-manager";
 import { LLMManager } from "../src/taskpane-fsm/pages/chat/chat-window/llm-manager";
+import { OpenRouterClient } from "../src/taskpane-fsm/pages/chat/chat-window/openrouter-client";
 import { RestoreManager } from "../src/taskpane-fsm/pages/chat/chat-window/restore-manager";
 import {
   formatSheetAsMarkdown,
@@ -209,7 +210,7 @@ test("Taskpane FSM Sheet Markdown Matches The Existing Formatting", () => {
 });
 
 test("LLM Manager Preserves Main Query Streaming And Replacement History", async () => {
-  const manager = new LLMManager();
+  const manager = new LLMManager(openrouterKeyStore);
   const mocks = installMocks(() =>
     createOutputTextResponse({
       shouldEditSheet: true,
@@ -268,7 +269,7 @@ test("LLM Manager Preserves Main Query Streaming And Replacement History", async
 });
 
 test("LLM Manager Continues A Pending Clarification", async () => {
-  const manager = new LLMManager();
+  const manager = new LLMManager(openrouterKeyStore);
   const history: LlmConversationHistory = [
     { role: "user", text: "Update the forecast.", workflowId: 3 },
     {
@@ -327,7 +328,7 @@ test("LLM Manager Continues A Pending Clarification", async () => {
 });
 
 test("LLM Manager Preserves Preprocess Scenario And Update Analysis Operations", async () => {
-  const manager = new LLMManager();
+  const manager = new LLMManager(openrouterKeyStore);
   const mocks = installMocks((requestBody) => {
     const format = requestBody.text as { format: { type: string; name?: string } };
     if (format.format.name === "formula_inference_plan") {
@@ -386,6 +387,143 @@ test("LLM Manager Preserves Preprocess Scenario And Update Analysis Operations",
     mocks.restore();
   }
 });
+
+test("OpenRouter Clients Share Key Changes Only Through Their Supplied Stores", async (t) => {
+  const firstStore = new OpenrouterKeyStore();
+  const secondStore = new OpenrouterKeyStore();
+  firstStore.set("first-key");
+  secondStore.set("second-key");
+  const firstClient = new OpenRouterClient(firstStore);
+  const sharedClient = new OpenRouterClient(firstStore);
+  const secondClient = new OpenRouterClient(secondStore);
+  const authorizations: string[] = [];
+  t.mock.method(globalThis, "fetch", async (_input, init) => {
+    authorizations.push(new Headers(init.headers).get("Authorization")!);
+    return createOpenRouterResponse(
+      createOutputTextResponse("Response"),
+      JSON.parse(init.body).stream === true
+    );
+  });
+  const request = createClientRequest();
+
+  await firstClient.request(request);
+  await secondClient.request(request);
+  firstStore.set("replacement-key");
+  await sharedClient.request(request);
+  await collectEvents(firstClient.requestStreamEvents(request));
+  await secondClient.request(request);
+  assert.deepEqual(authorizations, [
+    "Bearer first-key",
+    "Bearer second-key",
+    "Bearer replacement-key",
+    "Bearer replacement-key",
+    "Bearer second-key",
+  ]);
+
+  firstStore.clear();
+  await assert.rejects(firstClient.request(request), /Sign in with OpenRouter/);
+  await assert.rejects(
+    collectEvents(sharedClient.requestStreamEvents(request)),
+    /Sign in with OpenRouter/
+  );
+  assert.equal(authorizations.length, 5);
+  assert.equal(secondStore.get(), "second-key");
+});
+
+test("OpenRouter Request Errors Preserve Key Invalidation Behavior", async (t) => {
+  const affectedStore = new OpenrouterKeyStore();
+  const otherStore = new OpenrouterKeyStore();
+  otherStore.set("other-key");
+  const client = new OpenRouterClient(affectedStore);
+  let status = 401;
+  t.mock.method(
+    globalThis,
+    "fetch",
+    async () => new Response(JSON.stringify({ error: { message: "Provider error." } }), { status })
+  );
+
+  for (const streaming of [false, true]) {
+    for (status of [401, 500]) {
+      affectedStore.set("affected-key");
+      await assert.rejects(
+        streaming
+          ? collectEvents(client.requestStreamEvents(createClientRequest()))
+          : client.request(createClientRequest()),
+        { message: status === 401 ? "OpenRouter rejected the API key." : "Provider error." }
+      );
+      assert.equal(affectedStore.hasKey(), status !== 401);
+      assert.equal(otherStore.get(), "other-key");
+    }
+  }
+});
+
+test("OpenRouter Streaming Assembles Text And Clarification Across Chunks", async (t) => {
+  const keyStore = new OpenrouterKeyStore();
+  keyStore.set("stream-key");
+  const client = new OpenRouterClient(keyStore);
+  const toolCall = {
+    type: "function_call",
+    id: "question-item",
+    call_id: "question-call",
+    name: "ask_clarifying_question",
+    arguments: "",
+  };
+  const argumentsText = JSON.stringify({ question: "Which period?" });
+  const streamEvents = [
+    { type: "response.output_item.added", item: toolCall },
+    { type: "response.function_call_arguments.done", arguments: argumentsText },
+    { type: "response.output_text.delta", delta: "Hello " },
+    { type: "response.output_text.delta", delta: "world" },
+  ];
+  t.mock.method(globalThis, "fetch", async (_input, init) => {
+    assert.equal(JSON.parse(init.body).stream, true);
+    assert.equal(new Headers(init.headers).get("Authorization"), "Bearer stream-key");
+    return new Response(
+      new ReadableStream({
+        start(controller) {
+          for (const event of streamEvents) {
+            const bytes = new TextEncoder().encode("data: " + JSON.stringify(event) + "\n\n");
+            controller.enqueue(bytes.slice(0, 9));
+            controller.enqueue(bytes.slice(9));
+          }
+          controller.close();
+        },
+      }),
+      { headers: { "Content-Type": "text/event-stream" } }
+    );
+  });
+
+  assert.deepEqual(await collectEvents(client.requestStreamEvents(createClientRequest())), [
+    { type: "output_text", outputText: "Hello " },
+    { type: "output_text", outputText: "Hello world" },
+    {
+      type: "complete",
+      response: {
+        output: [
+          { content: [{ type: "output_text", text: "Hello world" }] },
+          { ...toolCall, arguments: argumentsText },
+        ],
+      },
+    },
+  ]);
+});
+
+function createClientRequest(): OpenRouterRequestBody {
+  return {
+    model: "test-model",
+    instructions: "Test request",
+    input: [{ role: "user", content: "Hello" }],
+    max_output_tokens: 100,
+  };
+}
+
+async function collectEvents<T>(events: AsyncGenerator<T>): Promise<T[]> {
+  const result: T[] = [];
+  for await (const event of events) {
+    result.push(event);
+  }
+  return result;
+}
 
 function createRestoreManagerChatState(): ChatState {
   return {

@@ -23,9 +23,9 @@ import {
   extractOpenRouterText,
   extractPartialMainQueryText,
   parseSpreadsheetResponse,
-  requestOpenRouter,
-  requestOpenRouterStreamEvents,
-} from "../../../../taskpane/pages/chat/chat-state-machine/openrouter-client";
+  OpenRouterClient,
+} from "./openrouter-client";
+import { OpenrouterKeyStore } from "../../../../taskpane/pages/openrouter-auth/openrouter-api-key";
 import { formatSheetAsMarkdown, formatSheetDataAsMarkdown } from "./sheet-markdown";
 import {
   executeFormulaGenerator,
@@ -234,78 +234,360 @@ const scenarioComparisonResponseSchema = {
   },
 };
 
-async function* runPreprocessPrompt(sheet: SheetSnapshot): AsyncGenerator<PreprocessPromptEvent> {
-  const preprocessStartTime = Date.now();
-  console.dir("Initiating sheet preprocessing");
-  const sheetContext = buildSheetContext(sheet);
-  const detectionSheetContext = buildCompactSheetContext(sheet);
-  const detectionResponse = await requestOpenRouter({
-    ...formulaDetectionModelConfig,
-    instructions: formulaDetectionInstructions,
-    input: [
-      {
-        role: "user",
-        content: JSON.stringify({
-          userRequest: "Preprocess worksheet formulas.",
-          sheetContext: detectionSheetContext,
-        }),
-      },
-    ],
-    text: formulaDetectionResponseSchema,
-    max_output_tokens: 4000,
-  });
-  const formulaInferencePlan = JSON.parse(
-    extractOpenRouterText(detectionResponse)
-  ) as FormulaInferencePlan;
-  if (formulaInferencePlan.shouldInferFormulas) {
-    yield { type: "detection_complete", plan: formulaInferencePlan };
+export class LLMManager {
+  private readonly openRouterClient: OpenRouterClient;
+
+  constructor(keyStore: OpenrouterKeyStore) {
+    this.openRouterClient = new OpenRouterClient(keyStore);
   }
 
-  let cellEdits: CellEdit[];
-  if (!formulaInferencePlan.shouldInferFormulas) {
-    cellEdits = [];
-  } else {
-    const completedRegionResults: FormulaInferenceRegionResult[] = [];
-    let resolveNextRegionResult: (() => void) | undefined;
-    const regionResultsPromise = inferFormulaRegions(
-      formulaInferencePlan,
-      sheetContext,
-      (regionResult) => {
-        completedRegionResults.push(regionResult);
-        resolveNextRegionResult?.();
-      }
-    );
-    for (let index = 0; index < formulaInferencePlan.regions.length; index++) {
-      if (completedRegionResults.length === 0) {
-        await Promise.race([
-          new Promise<void>((resolve) => {
-            resolveNextRegionResult = resolve;
+  async *runPreprocessPrompt(sheet: SheetSnapshot): AsyncGenerator<PreprocessPromptEvent> {
+    const preprocessStartTime = Date.now();
+    console.dir("Initiating sheet preprocessing");
+    const sheetContext = buildSheetContext(sheet);
+    const detectionSheetContext = buildCompactSheetContext(sheet);
+    const detectionResponse = await this.openRouterClient.request({
+      ...formulaDetectionModelConfig,
+      instructions: formulaDetectionInstructions,
+      input: [
+        {
+          role: "user",
+          content: JSON.stringify({
+            userRequest: "Preprocess worksheet formulas.",
+            sheetContext: detectionSheetContext,
           }),
-          regionResultsPromise.then(() => undefined),
-        ]);
-        resolveNextRegionResult = undefined;
+        },
+      ],
+      text: formulaDetectionResponseSchema,
+      max_output_tokens: 4000,
+    });
+    const formulaInferencePlan = JSON.parse(
+      extractOpenRouterText(detectionResponse)
+    ) as FormulaInferencePlan;
+    if (formulaInferencePlan.shouldInferFormulas) {
+      yield { type: "detection_complete", plan: formulaInferencePlan };
+    }
+
+    let cellEdits: CellEdit[];
+    if (!formulaInferencePlan.shouldInferFormulas) {
+      cellEdits = [];
+    } else {
+      const completedRegionResults: FormulaInferenceRegionResult[] = [];
+      let resolveNextRegionResult: (() => void) | undefined;
+      const regionResultsPromise = inferFormulaRegions(
+        this.openRouterClient,
+        formulaInferencePlan,
+        sheetContext,
+        (regionResult) => {
+          completedRegionResults.push(regionResult);
+          resolveNextRegionResult?.();
+        }
+      );
+      for (let index = 0; index < formulaInferencePlan.regions.length; index++) {
+        if (completedRegionResults.length === 0) {
+          await Promise.race([
+            new Promise<void>((resolve) => {
+              resolveNextRegionResult = resolve;
+            }),
+            regionResultsPromise.then(() => undefined),
+          ]);
+          resolveNextRegionResult = undefined;
+        }
+        const regionResult = completedRegionResults.shift()!;
+        yield {
+          type: "region_complete",
+          region: regionResult.region,
+          cellEditCount: regionResult.cellEdits.length,
+        };
       }
-      const regionResult = completedRegionResults.shift()!;
+      const regionResults = await regionResultsPromise;
+      cellEdits = validatePreprocessEdits(
+        sheet,
+        regionResults.flatMap((regionResult) => regionResult.cellEdits)
+      );
+    }
+
+    console.dir({
+      preprocessTotalDurationSeconds: (Date.now() - preprocessStartTime) / 1000,
+    });
+    yield {
+      type: "complete",
+      cellEdits,
+    };
+  }
+
+  async *runMainQueryPrompt(
+    prompt: string,
+    workflowId: number,
+    originalSheet: SheetSnapshot,
+    llmConversationMessages: LlmConversationHistory
+  ): AsyncGenerator<SpreadsheetPromptEvent> {
+    const sheetContext = buildCompactSheetContext(originalSheet);
+    const currentUserContent = JSON.stringify({
+      userRequest: prompt,
+      sheetContext,
+    });
+    const requestBody = buildMainQueryRequestBody(currentUserContent, llmConversationMessages);
+    const compactedLlmConversationMessages = compactLlmConversationHistory(llmConversationMessages);
+    const currentUserMessage: LlmConversationMessage = {
+      role: "user",
+      text: prompt,
+      workflowId,
+      sheetContext,
+    };
+    let result: OpenRouterResponseBody | undefined;
+    let hasStartedCreatingProposedChange = false;
+    for await (const event of this.openRouterClient.requestStreamEvents(requestBody)) {
+      if (event.type === "output_text") {
+        const partialText = extractPartialMainQueryText(event.outputText);
+        const createNewSheetMatch = /"createNewSheet"\s*:\s*(true|false)/.exec(event.outputText);
+        if (partialText) {
+          yield { type: "partial_response", text: partialText };
+        }
+        if (
+          !hasStartedCreatingProposedChange &&
+          /"shouldEditSheet"\s*:\s*true/.test(event.outputText) &&
+          createNewSheetMatch
+        ) {
+          if (createNewSheetMatch[1] === "true") {
+            yield { type: "creating_scenario_sheet" };
+          } else {
+            yield { type: "creating_proposed_change" };
+          }
+          hasStartedCreatingProposedChange = true;
+        }
+      }
+
+      if (event.type === "complete") {
+        result = event.response;
+      }
+    }
+    const clarificationRequest = extractClarificationRequest(result!);
+    if (clarificationRequest) {
       yield {
-        type: "region_complete",
-        region: regionResult.region,
-        cellEditCount: regionResult.cellEdits.length,
+        type: "clarification_requested",
+        question: clarificationRequest.question,
+        updatedLlmConversationMessages: [
+          ...compactedLlmConversationMessages,
+          currentUserMessage,
+          toLlmConversationFunctionCall(clarificationRequest.toolCall, workflowId),
+        ],
+      };
+    } else {
+      const parsedResponse = parseSpreadsheetResponse(result!);
+      const response = parsedResponse.response;
+      const responseText = getMainQueryResponseText(response);
+
+      yield {
+        type: "complete",
+        reply: {
+          message: responseText,
+          shouldEditSheet: response.shouldEditSheet,
+          createNewSheet: response.createNewSheet,
+          cellEdits: response.cellEdits,
+          comparisonRanges: response.comparisonRanges,
+        },
+        updatedLlmConversationMessages: [
+          ...compactedLlmConversationMessages,
+          currentUserMessage,
+          { role: "assistant", text: responseText, workflowId },
+        ],
       };
     }
-    const regionResults = await regionResultsPromise;
-    cellEdits = validatePreprocessEdits(
-      sheet,
-      regionResults.flatMap((regionResult) => regionResult.cellEdits)
-    );
   }
 
-  console.dir({
-    preprocessTotalDurationSeconds: (Date.now() - preprocessStartTime) / 1000,
-  });
-  yield {
-    type: "complete",
-    cellEdits,
-  };
+  async *runClarificationResponsePrompt(
+    answer: string,
+    workflowId: number,
+    llmConversationMessages: LlmConversationHistory
+  ): AsyncGenerator<SpreadsheetPromptEvent> {
+    const pendingToolCall = this.getPendingClarificationToolCall(llmConversationMessages);
+    const functionCallOutput: LlmConversationFunctionCallOutput = {
+      type: "function_call_output",
+      callId: pendingToolCall.callId,
+      output: answer,
+      workflowId,
+    };
+    const updatedLlmConversationMessages = [...llmConversationMessages, functionCallOutput];
+    const requestBody = buildClarificationResponseRequestBody(updatedLlmConversationMessages);
+    let result: OpenRouterResponseBody | undefined;
+    let hasStartedCreatingProposedChange = false;
+    for await (const event of this.openRouterClient.requestStreamEvents(requestBody)) {
+      if (event.type === "output_text") {
+        const partialText = extractPartialMainQueryText(event.outputText);
+        const createNewSheetMatch = /"createNewSheet"\s*:\s*(true|false)/.exec(event.outputText);
+        if (partialText) {
+          yield { type: "partial_response", text: partialText };
+        }
+        if (
+          !hasStartedCreatingProposedChange &&
+          /"shouldEditSheet"\s*:\s*true/.test(event.outputText) &&
+          createNewSheetMatch
+        ) {
+          if (createNewSheetMatch[1] === "true") {
+            yield { type: "creating_scenario_sheet" };
+          } else {
+            yield { type: "creating_proposed_change" };
+          }
+          hasStartedCreatingProposedChange = true;
+        }
+      }
+
+      if (event.type === "complete") {
+        result = event.response;
+      }
+    }
+    const clarificationRequest = extractClarificationRequest(result!);
+    if (clarificationRequest) {
+      yield {
+        type: "clarification_requested",
+        question: clarificationRequest.question,
+        updatedLlmConversationMessages: [
+          ...updatedLlmConversationMessages,
+          toLlmConversationFunctionCall(clarificationRequest.toolCall, workflowId),
+        ],
+      };
+    } else {
+      const parsedResponse = parseSpreadsheetResponse(result!);
+      const response = parsedResponse.response;
+      const responseText = getMainQueryResponseText(response);
+      yield {
+        type: "complete",
+        reply: {
+          message: responseText,
+          shouldEditSheet: response.shouldEditSheet,
+          createNewSheet: response.createNewSheet,
+          cellEdits: response.cellEdits,
+          comparisonRanges: response.comparisonRanges,
+        },
+        updatedLlmConversationMessages: [
+          ...updatedLlmConversationMessages,
+          { role: "assistant", text: responseText, workflowId },
+        ],
+      };
+    }
+  }
+
+  async runScenarioComparisonPrompt(
+    userRequest: string,
+    originalSheet: SheetSnapshot,
+    scenarioSheet: SheetSnapshot,
+    comparisonRanges: ComparisonRange[],
+    llmConversationMessages: LlmConversationHistory
+  ): Promise<ScenarioComparisonPromptResult> {
+    if (comparisonRanges.length === 0) {
+      throw new Error("A scenario comparison requires at least one comparison range.");
+    }
+    const selectedCells = new Set<string>();
+    const ranges = comparisonRanges.map((range) => {
+      const parsedRange = parseComparisonRange(range.address);
+      for (
+        let row = parsedRange.rowIndex;
+        row < parsedRange.rowIndex + parsedRange.rowCount;
+        row++
+      ) {
+        for (
+          let column = parsedRange.columnIndex;
+          column < parsedRange.columnIndex + parsedRange.columnCount;
+          column++
+        ) {
+          const cell = `${row}:${column}`;
+          if (selectedCells.has(cell)) {
+            throw new Error(`Comparison ranges overlap at ${range.address}.`);
+          }
+          selectedCells.add(cell);
+        }
+      }
+      const originalContext = buildCompactSheetRangeContext(originalSheet, parsedRange);
+      const scenarioContext = buildCompactSheetRangeContext(scenarioSheet, parsedRange);
+      return {
+        purpose: range.purpose,
+        address: range.address,
+        originalSheetMarkdown: originalContext.sheetMarkdown,
+        scenarioSheetMarkdown: scenarioContext.sheetMarkdown,
+      };
+    });
+    const requestBody: OpenRouterRequestBody = {
+      ...openRouterModelConfig,
+      instructions: `You add a comparison section to an Excel scenario worksheet and provide a user-facing analysis. The current user message content is JSON containing the original user request, exact worksheet names, the first available comparison cell, and selected recalculated ranges from the original and scenario worksheets.
+
+Return cellEdits containing only new comparison cells at or below comparisonStartCell on the scenario worksheet. Do not modify the existing scenario model. Add clear labels and compare the relevant original values, scenario values, and differences. Baseline-value formulas must explicitly reference the original worksheet, scenario-value formulas must explicitly reference the scenario worksheet, and difference formulas must explicitly reference both. Use the exact worksheet names supplied in the request and quote worksheet names correctly in Excel formulas. Do not reconstruct original values from the scenario worksheet. Each cell edit address must be an A1 address on the scenario worksheet. newFormula is assigned through Office.js Range.formulas, so it must be exactly the literal cell value or exactly one valid Excel formula.
+
+Each originalSheetMarkdown and scenarioSheetMarkdown table contains literal cells directly and formula cells as the Excel formula followed by the calculated value in [value: ...].
+
+Return analysis as concise GitHub-flavored Markdown that directly answers the user's original request using the baseline and scenario values. Use a short heading, bold important metrics, bullets for key findings, and a Markdown table for baseline, scenario, and difference values when useful. Do not wrap the analysis in a code fence. Identify the most relevant differences, quantify material changes where possible, mention relevant metrics and periods, distinguish baseline, scenario, and difference values clearly, and focus on business implications. Do not explain how the worksheet or comparison table was constructed, and do not make unsupported claims.`,
+      input: buildOpenRouterMessages(
+        llmConversationMessages,
+        JSON.stringify({
+          userRequest,
+          originalSheetName: originalSheet.name,
+          scenarioSheetName: scenarioSheet.name,
+          comparisonStartCell: `A${scenarioSheet.rowIndex + scenarioSheet.rowCount + 2}`,
+          ranges,
+        })
+      ),
+      text: scenarioComparisonResponseSchema,
+      max_output_tokens: 32000,
+    };
+    console.info("Scenario comparison range selection:", {
+      ranges: comparisonRanges,
+      selectedCellCount: selectedCells.size,
+      requestCharacters: JSON.stringify(requestBody).length,
+    });
+    const comparisonStartTime = Date.now();
+    const responseBody = await this.openRouterClient.request(requestBody);
+    console.log("Scenario comparison duration (s):", (Date.now() - comparisonStartTime) / 1000);
+    const response = JSON.parse(extractOpenRouterText(responseBody)) as {
+      cellEdits: CellEdit[];
+      analysis: string;
+    };
+    return {
+      cellEdits: response.cellEdits,
+      analysis: response.analysis,
+    };
+  }
+
+  getPendingClarificationToolCall(
+    llmConversationMessages: LlmConversationHistory
+  ): LlmConversationFunctionCall {
+    const answeredCallIds = new Set<string>();
+    for (const message of llmConversationMessages) {
+      if ("type" in message && message.type === "function_call_output") {
+        answeredCallIds.add(message.callId);
+      }
+    }
+
+    let pendingToolCall: LlmConversationFunctionCall | undefined;
+    for (const message of llmConversationMessages) {
+      if (
+        "type" in message &&
+        message.type === "function_call" &&
+        !answeredCallIds.has(message.callId)
+      ) {
+        pendingToolCall = message;
+        break;
+      }
+    }
+
+    return pendingToolCall!;
+  }
+
+  async runUpdateAnalysisPrompt(
+    userRequest: string,
+    originalSheet: SheetSnapshot,
+    updatedSheet: SheetSnapshot,
+    llmConversationMessages: LlmConversationHistory
+  ): Promise<string> {
+    const result = await this.openRouterClient.request(
+      buildUpdateAnalysisRequestBody(
+        userRequest,
+        originalSheet,
+        updatedSheet,
+        llmConversationMessages
+      )
+    );
+    return extractOpenRouterText(result);
+  }
 }
 
 type FormulaInferenceRegionResult = {
@@ -314,6 +596,7 @@ type FormulaInferenceRegionResult = {
 };
 
 async function inferFormulaRegions(
+  openRouterClient: OpenRouterClient,
   formulaInferencePlan: FormulaInferencePlan,
   sheetContext: ReturnType<typeof buildSheetContext>,
   onRegionComplete: (regionResult: FormulaInferenceRegionResult) => void
@@ -321,7 +604,11 @@ async function inferFormulaRegions(
   return Promise.all(
     formulaInferencePlan.regions.map(async (region, index) => {
       await rateLimitFormulaInferenceRequest(index);
-      const regionResult = await inferFormulaRegionWithRetry(region, sheetContext);
+      const regionResult = await inferFormulaRegionWithRetry(
+        openRouterClient,
+        region,
+        sheetContext
+      );
       onRegionComplete(regionResult);
       return regionResult;
     })
@@ -329,12 +616,13 @@ async function inferFormulaRegions(
 }
 
 async function inferFormulaRegionWithRetry(
+  openRouterClient: OpenRouterClient,
   region: FormulaInferencePlan["regions"][number],
   sheetContext: ReturnType<typeof buildSheetContext>
 ): Promise<FormulaInferenceRegionResult> {
   let regionResult: FormulaInferenceRegionResult;
   try {
-    regionResult = await inferFormulaRegion(region, sheetContext, 1);
+    regionResult = await inferFormulaRegion(openRouterClient, region, sheetContext, 1);
   } catch (firstError) {
     console.warn("Formula inference failed. Retrying region.", {
       targetRange: region.targetRange,
@@ -342,7 +630,7 @@ async function inferFormulaRegionWithRetry(
       error: firstError,
     });
     try {
-      regionResult = await inferFormulaRegion(region, sheetContext, 2);
+      regionResult = await inferFormulaRegion(openRouterClient, region, sheetContext, 2);
     } catch (secondError) {
       console.error("Formula inference failed after retry.", {
         targetRange: region.targetRange,
@@ -356,11 +644,12 @@ async function inferFormulaRegionWithRetry(
 }
 
 async function inferFormulaRegion(
+  openRouterClient: OpenRouterClient,
   region: FormulaInferencePlan["regions"][number],
   sheetContext: ReturnType<typeof buildSheetContext>,
   attemptNumber: number
 ): Promise<FormulaInferenceRegionResult> {
-  const response = await requestOpenRouter({
+  const response = await openRouterClient.request({
     ...formulaInferenceModelConfig,
     instructions: formulaInferenceInstructions,
     input: [
@@ -434,258 +723,6 @@ function validatePreprocessEdits(sheet: SheetSnapshot, cellEdits: CellEdit[]) {
     .map((parsed) => parsed.edit);
 }
 
-async function* runMainQueryPrompt(
-  prompt: string,
-  workflowId: number,
-  originalSheet: SheetSnapshot,
-  llmConversationMessages: LlmConversationHistory
-): AsyncGenerator<SpreadsheetPromptEvent> {
-  const sheetContext = buildCompactSheetContext(originalSheet);
-  const currentUserContent = JSON.stringify({
-    userRequest: prompt,
-    sheetContext,
-  });
-  const requestBody = buildMainQueryRequestBody(currentUserContent, llmConversationMessages);
-  const compactedLlmConversationMessages = compactLlmConversationHistory(llmConversationMessages);
-  const currentUserMessage: LlmConversationMessage = {
-    role: "user",
-    text: prompt,
-    workflowId,
-    sheetContext,
-  };
-  let result: OpenRouterResponseBody | undefined;
-  let hasStartedCreatingProposedChange = false;
-  for await (const event of requestOpenRouterStreamEvents(requestBody)) {
-    if (event.type === "output_text") {
-      const partialText = extractPartialMainQueryText(event.outputText);
-      const createNewSheetMatch = /"createNewSheet"\s*:\s*(true|false)/.exec(event.outputText);
-      if (partialText) {
-        yield { type: "partial_response", text: partialText };
-      }
-      if (
-        !hasStartedCreatingProposedChange &&
-        /"shouldEditSheet"\s*:\s*true/.test(event.outputText) &&
-        createNewSheetMatch
-      ) {
-        if (createNewSheetMatch[1] === "true") {
-          yield { type: "creating_scenario_sheet" };
-        } else {
-          yield { type: "creating_proposed_change" };
-        }
-        hasStartedCreatingProposedChange = true;
-      }
-    }
-
-    if (event.type === "complete") {
-      result = event.response;
-    }
-  }
-  const clarificationRequest = extractClarificationRequest(result!);
-  if (clarificationRequest) {
-    yield {
-      type: "clarification_requested",
-      question: clarificationRequest.question,
-      updatedLlmConversationMessages: [
-        ...compactedLlmConversationMessages,
-        currentUserMessage,
-        toLlmConversationFunctionCall(clarificationRequest.toolCall, workflowId),
-      ],
-    };
-  } else {
-    const parsedResponse = parseSpreadsheetResponse(result!);
-    const response = parsedResponse.response;
-    const responseText = getMainQueryResponseText(response);
-
-    yield {
-      type: "complete",
-      reply: {
-        message: responseText,
-        shouldEditSheet: response.shouldEditSheet,
-        createNewSheet: response.createNewSheet,
-        cellEdits: response.cellEdits,
-        comparisonRanges: response.comparisonRanges,
-      },
-      updatedLlmConversationMessages: [
-        ...compactedLlmConversationMessages,
-        currentUserMessage,
-        { role: "assistant", text: responseText, workflowId },
-      ],
-    };
-  }
-}
-
-async function* runClarificationResponsePrompt(
-  answer: string,
-  workflowId: number,
-  llmConversationMessages: LlmConversationHistory
-): AsyncGenerator<SpreadsheetPromptEvent> {
-  const pendingToolCall = getPendingClarificationToolCall(llmConversationMessages);
-  const functionCallOutput: LlmConversationFunctionCallOutput = {
-    type: "function_call_output",
-    callId: pendingToolCall.callId,
-    output: answer,
-    workflowId,
-  };
-  const updatedLlmConversationMessages = [...llmConversationMessages, functionCallOutput];
-  const requestBody = buildClarificationResponseRequestBody(updatedLlmConversationMessages);
-  let result: OpenRouterResponseBody | undefined;
-  let hasStartedCreatingProposedChange = false;
-  for await (const event of requestOpenRouterStreamEvents(requestBody)) {
-    if (event.type === "output_text") {
-      const partialText = extractPartialMainQueryText(event.outputText);
-      const createNewSheetMatch = /"createNewSheet"\s*:\s*(true|false)/.exec(event.outputText);
-      if (partialText) {
-        yield { type: "partial_response", text: partialText };
-      }
-      if (
-        !hasStartedCreatingProposedChange &&
-        /"shouldEditSheet"\s*:\s*true/.test(event.outputText) &&
-        createNewSheetMatch
-      ) {
-        if (createNewSheetMatch[1] === "true") {
-          yield { type: "creating_scenario_sheet" };
-        } else {
-          yield { type: "creating_proposed_change" };
-        }
-        hasStartedCreatingProposedChange = true;
-      }
-    }
-
-    if (event.type === "complete") {
-      result = event.response;
-    }
-  }
-  const clarificationRequest = extractClarificationRequest(result!);
-  if (clarificationRequest) {
-    yield {
-      type: "clarification_requested",
-      question: clarificationRequest.question,
-      updatedLlmConversationMessages: [
-        ...updatedLlmConversationMessages,
-        toLlmConversationFunctionCall(clarificationRequest.toolCall, workflowId),
-      ],
-    };
-  } else {
-    const parsedResponse = parseSpreadsheetResponse(result!);
-    const response = parsedResponse.response;
-    const responseText = getMainQueryResponseText(response);
-    yield {
-      type: "complete",
-      reply: {
-        message: responseText,
-        shouldEditSheet: response.shouldEditSheet,
-        createNewSheet: response.createNewSheet,
-        cellEdits: response.cellEdits,
-        comparisonRanges: response.comparisonRanges,
-      },
-      updatedLlmConversationMessages: [
-        ...updatedLlmConversationMessages,
-        { role: "assistant", text: responseText, workflowId },
-      ],
-    };
-  }
-}
-
-async function runScenarioComparisonPrompt(
-  userRequest: string,
-  originalSheet: SheetSnapshot,
-  scenarioSheet: SheetSnapshot,
-  comparisonRanges: ComparisonRange[],
-  llmConversationMessages: LlmConversationHistory
-): Promise<ScenarioComparisonPromptResult> {
-  if (comparisonRanges.length === 0) {
-    throw new Error("A scenario comparison requires at least one comparison range.");
-  }
-  const selectedCells = new Set<string>();
-  const ranges = comparisonRanges.map((range) => {
-    const parsedRange = parseComparisonRange(range.address);
-    for (let row = parsedRange.rowIndex; row < parsedRange.rowIndex + parsedRange.rowCount; row++) {
-      for (
-        let column = parsedRange.columnIndex;
-        column < parsedRange.columnIndex + parsedRange.columnCount;
-        column++
-      ) {
-        const cell = `${row}:${column}`;
-        if (selectedCells.has(cell)) {
-          throw new Error(`Comparison ranges overlap at ${range.address}.`);
-        }
-        selectedCells.add(cell);
-      }
-    }
-    const originalContext = buildCompactSheetRangeContext(originalSheet, parsedRange);
-    const scenarioContext = buildCompactSheetRangeContext(scenarioSheet, parsedRange);
-    return {
-      purpose: range.purpose,
-      address: range.address,
-      originalSheetMarkdown: originalContext.sheetMarkdown,
-      scenarioSheetMarkdown: scenarioContext.sheetMarkdown,
-    };
-  });
-  const requestBody: OpenRouterRequestBody = {
-    ...openRouterModelConfig,
-    instructions: `You add a comparison section to an Excel scenario worksheet and provide a user-facing analysis. The current user message content is JSON containing the original user request, exact worksheet names, the first available comparison cell, and selected recalculated ranges from the original and scenario worksheets.
-
-Return cellEdits containing only new comparison cells at or below comparisonStartCell on the scenario worksheet. Do not modify the existing scenario model. Add clear labels and compare the relevant original values, scenario values, and differences. Baseline-value formulas must explicitly reference the original worksheet, scenario-value formulas must explicitly reference the scenario worksheet, and difference formulas must explicitly reference both. Use the exact worksheet names supplied in the request and quote worksheet names correctly in Excel formulas. Do not reconstruct original values from the scenario worksheet. Each cell edit address must be an A1 address on the scenario worksheet. newFormula is assigned through Office.js Range.formulas, so it must be exactly the literal cell value or exactly one valid Excel formula.
-
-Each originalSheetMarkdown and scenarioSheetMarkdown table contains literal cells directly and formula cells as the Excel formula followed by the calculated value in [value: ...].
-
-Return analysis as concise GitHub-flavored Markdown that directly answers the user's original request using the baseline and scenario values. Use a short heading, bold important metrics, bullets for key findings, and a Markdown table for baseline, scenario, and difference values when useful. Do not wrap the analysis in a code fence. Identify the most relevant differences, quantify material changes where possible, mention relevant metrics and periods, distinguish baseline, scenario, and difference values clearly, and focus on business implications. Do not explain how the worksheet or comparison table was constructed, and do not make unsupported claims.`,
-    input: buildOpenRouterMessages(
-      llmConversationMessages,
-      JSON.stringify({
-        userRequest,
-        originalSheetName: originalSheet.name,
-        scenarioSheetName: scenarioSheet.name,
-        comparisonStartCell: `A${scenarioSheet.rowIndex + scenarioSheet.rowCount + 2}`,
-        ranges,
-      })
-    ),
-    text: scenarioComparisonResponseSchema,
-    max_output_tokens: 32000,
-  };
-  console.info("Scenario comparison range selection:", {
-    ranges: comparisonRanges,
-    selectedCellCount: selectedCells.size,
-    requestCharacters: JSON.stringify(requestBody).length,
-  });
-  const comparisonStartTime = Date.now();
-  const responseBody = await requestOpenRouter(requestBody);
-  console.log("Scenario comparison duration (s):", (Date.now() - comparisonStartTime) / 1000);
-  const response = JSON.parse(extractOpenRouterText(responseBody)) as {
-    cellEdits: CellEdit[];
-    analysis: string;
-  };
-  return {
-    cellEdits: response.cellEdits,
-    analysis: response.analysis,
-  };
-}
-
-function getPendingClarificationToolCall(
-  llmConversationMessages: LlmConversationHistory
-): LlmConversationFunctionCall {
-  const answeredCallIds = new Set<string>();
-  for (const message of llmConversationMessages) {
-    if ("type" in message && message.type === "function_call_output") {
-      answeredCallIds.add(message.callId);
-    }
-  }
-
-  let pendingToolCall: LlmConversationFunctionCall | undefined;
-  for (const message of llmConversationMessages) {
-    if (
-      "type" in message &&
-      message.type === "function_call" &&
-      !answeredCallIds.has(message.callId)
-    ) {
-      pendingToolCall = message;
-      break;
-    }
-  }
-
-  return pendingToolCall!;
-}
-
 function getMainQueryResponseText(response: ModelSpreadsheetResponse): string {
   if (response.shouldEditSheet) {
     return response.editExplanation;
@@ -723,23 +760,6 @@ function buildClarificationResponseRequestBody(
     parallel_tool_calls: false,
     max_output_tokens: 32000,
   };
-}
-
-async function runUpdateAnalysisPrompt(
-  userRequest: string,
-  originalSheet: SheetSnapshot,
-  updatedSheet: SheetSnapshot,
-  llmConversationMessages: LlmConversationHistory
-): Promise<string> {
-  const result = await requestOpenRouter(
-    buildUpdateAnalysisRequestBody(
-      userRequest,
-      originalSheet,
-      updatedSheet,
-      llmConversationMessages
-    )
-  );
-  return extractOpenRouterText(result);
 }
 
 function buildUpdateAnalysisRequestBody(
@@ -955,63 +975,4 @@ function getColumnIndex(label: string): number {
     index = index * 26 + character.charCodeAt(0) - 64;
   }
   return index - 1;
-}
-
-export class LLMManager {
-  runPreprocessPrompt(sheet: SheetSnapshot): AsyncGenerator<PreprocessPromptEvent> {
-    return runPreprocessPrompt(sheet);
-  }
-
-  runMainQueryPrompt(
-    prompt: string,
-    workflowId: number,
-    originalSheet: SheetSnapshot,
-    llmConversationMessages: LlmConversationHistory
-  ): AsyncGenerator<SpreadsheetPromptEvent> {
-    return runMainQueryPrompt(prompt, workflowId, originalSheet, llmConversationMessages);
-  }
-
-  runClarificationResponsePrompt(
-    answer: string,
-    workflowId: number,
-    llmConversationMessages: LlmConversationHistory
-  ): AsyncGenerator<SpreadsheetPromptEvent> {
-    return runClarificationResponsePrompt(answer, workflowId, llmConversationMessages);
-  }
-
-  getPendingClarificationToolCall(
-    llmConversationMessages: LlmConversationHistory
-  ): LlmConversationFunctionCall {
-    return getPendingClarificationToolCall(llmConversationMessages);
-  }
-
-  runScenarioComparisonPrompt(
-    userRequest: string,
-    originalSheet: SheetSnapshot,
-    scenarioSheet: SheetSnapshot,
-    comparisonRanges: ComparisonRange[],
-    llmConversationMessages: LlmConversationHistory
-  ): Promise<ScenarioComparisonPromptResult> {
-    return runScenarioComparisonPrompt(
-      userRequest,
-      originalSheet,
-      scenarioSheet,
-      comparisonRanges,
-      llmConversationMessages
-    );
-  }
-
-  runUpdateAnalysisPrompt(
-    userRequest: string,
-    originalSheet: SheetSnapshot,
-    updatedSheet: SheetSnapshot,
-    llmConversationMessages: LlmConversationHistory
-  ): Promise<string> {
-    return runUpdateAnalysisPrompt(
-      userRequest,
-      originalSheet,
-      updatedSheet,
-      llmConversationMessages
-    );
-  }
 }
