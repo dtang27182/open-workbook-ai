@@ -1,6 +1,6 @@
 /* global document, HTMLButtonElement, HTMLElement */
 
-import openrouterAuthPageHtml from "../../../taskpane/pages/openrouter-auth/openrouter-auth-page.html?raw";
+import openrouterAuthPageHtml from "./openrouter-auth-page.html?raw";
 import { Component } from "../../component-v2";
 
 export type OpenRouterAuthState =

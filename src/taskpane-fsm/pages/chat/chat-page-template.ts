@@ -1,6 +1,6 @@
 /* global document, HTMLElement */
 
-import chatPageHtml from "../../../taskpane/pages/chat/chat-page.html?raw";
+import chatPageHtml from "./chat-page.html?raw";
 
 const chatPageTemplate = document.createElement("template");
 

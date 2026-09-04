@@ -38,7 +38,7 @@ import {
   formulaInferenceInstructions,
   formulaInferenceModelConfig,
   rateLimitFormulaInferenceRequest,
-} from "../../../../taskpane/pages/chat/chat-state-machine/preprocess-formula-inference";
+} from "./preprocess-formula-inference";
 
 const openRouterModelConfig = {
   model: "openai/gpt-5.6-sol:exacto",

@@ -5,7 +5,7 @@ import {
 import {
   formatFormulaInferencePlan,
   formatFormulaInferenceRegionResult,
-} from "../../../../../taskpane/pages/chat/chat-state-machine/preprocess-formula-inference";
+} from "../preprocess-formula-inference";
 import { renderChatTranscript } from "../dom/chat-window-dom";
 import {
   appendDiffReviewTranscriptItemAndRender,
