@@ -15,7 +15,7 @@ import {
 } from "../src/taskpane/pages/chat/chat-state-machine/excel-sheet-utils";
 import { configureOpenRouterClient } from "../src/taskpane/pages/chat/chat-state-machine/openrouter-client";
 import { OpenrouterKeyStore } from "../src/taskpane/pages/openrouter-auth/openrouter-api-key";
-import { ExcelController } from "../src/taskpane-fsm/pages/chat/chat-window/excel-controller";
+import { ExcelManager } from "../src/taskpane-fsm/pages/chat/chat-window/excel-manager";
 import { LLMManager } from "../src/taskpane-fsm/pages/chat/chat-window/llm-manager";
 import { RestoreManager } from "../src/taskpane-fsm/pages/chat/chat-window/restore-manager";
 import {
@@ -95,9 +95,9 @@ test("Restore Manager Copies Inputs When Creating Restore Point Snapshots", () =
   assert.strictEqual(storedRestorePoint, promotedRestorePoint);
 });
 
-test("Excel Controller Creates Numbered Sheets And Resets Their Counters", async () => {
+test("Excel Manager Creates Numbered Sheets And Resets Their Counters", async () => {
   const workbook = createWorkbook();
-  const controller = new ExcelController(workbook.excelApi);
+  const controller = new ExcelManager(workbook.excelApi);
   const originalSheet = await controller.readActiveSheet();
 
   assert.deepEqual(await controller.readSheet("Sheet1"), originalSheet);
@@ -134,9 +134,9 @@ test("Excel Controller Creates Numbered Sheets And Resets Their Counters", async
   assert.equal(await controller.createNextScenarioSheet(originalSheet, []), "Scenario 1");
 });
 
-test("Excel Controller Writes, Applies, And Deletes Sheet Changes", async () => {
+test("Excel Manager Writes, Applies, And Deletes Sheet Changes", async () => {
   const workbook = createWorkbook();
-  const controller = new ExcelController(workbook.excelApi);
+  const controller = new ExcelManager(workbook.excelApi);
   const originalSheet = await controller.readActiveSheet();
 
   await controller.applyCellEditsToSheet(originalSheet, [
@@ -154,8 +154,8 @@ test("Excel Controller Writes, Applies, And Deletes Sheet Changes", async () => 
   assert.equal(workbook.getActiveSheetName(), "Sheet1");
 });
 
-test("Excel Controller Retargets Escaped Sheet References", () => {
-  const controller = new ExcelController();
+test("Excel Manager Retargets Escaped Sheet References", () => {
+  const controller = new ExcelManager();
   const retargetedSheet = controller.retargetFormulaSheetReferences(
     {
       ...createRestoreManagerSheet("O'Brien"),

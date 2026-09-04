@@ -6,7 +6,7 @@ import {
   SheetSnapshot,
 } from "../../../../taskpane/pages/chat/chat-state-machine/chat-types";
 
-export class ExcelController {
+export class ExcelManager {
   private nextDiffSheetNumber = 1;
   private nextScenarioSheetNumber = 1;
 

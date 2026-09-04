@@ -23,7 +23,7 @@ export async function runClarificationWorkflow(
     state.chatState.llmConversationMessages
   );
   const workflowId = pendingToolCall.workflowId;
-  const originalSheet = await state.excelController.readActiveSheet();
+  const originalSheet = await state.excelManager.readActiveSheet();
   const responseEntry = setupTransition(state, answer, workflowId);
   const result = await performActions(
     state,

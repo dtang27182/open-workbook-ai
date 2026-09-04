@@ -1,6 +1,6 @@
 /* global document, HTMLElement */
 
-import { Component } from "./component-v2";
+import { Component } from "./component";
 import { ChatPage } from "./pages/chat/chat-page";
 import { OpenRouterAuthPage } from "./pages/openrouter-auth/openrouter-auth-page";
 import { OpenrouterKeyStore } from "../taskpane/pages/openrouter-auth/openrouter-api-key";

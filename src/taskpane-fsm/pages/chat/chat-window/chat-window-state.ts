@@ -3,13 +3,13 @@
 import { ChatWindowDomHandlers } from "./dom/chat-window-dom";
 import { RestoreManager } from "./restore-manager";
 import { ChatState } from "./chat-window-types";
-import { ExcelController } from "./excel-controller";
+import { ExcelManager } from "./excel-manager";
 import { LLMManager } from "./llm-manager";
 
 export class ChatWindowState {
   readonly mount: HTMLElement;
   readonly domHandlers: ChatWindowDomHandlers;
-  readonly excelController: ExcelController;
+  readonly excelManager: ExcelManager;
   readonly llmManager: LLMManager;
   chatState: ChatState = {
     transcript: [],
@@ -23,12 +23,12 @@ export class ChatWindowState {
   constructor(
     mount: HTMLElement,
     domHandlers: ChatWindowDomHandlers,
-    excelController: ExcelController,
+    excelManager: ExcelManager,
     llmManager: LLMManager
   ) {
     this.mount = mount;
     this.domHandlers = domHandlers;
-    this.excelController = excelController;
+    this.excelManager = excelManager;
     this.llmManager = llmManager;
   }
 }

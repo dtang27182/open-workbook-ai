@@ -1,6 +1,6 @@
 /* global document, HTMLElement */
 
-import { Component } from "../../component-v2";
+import { Component } from "../../component";
 import { ChatHeader } from "./chat-header";
 import { ChatWindow } from "./chat-window/chat-window";
 

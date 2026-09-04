@@ -1,6 +1,6 @@
 /* global document, HTMLAnchorElement, HTMLButtonElement, HTMLDivElement, HTMLElement */
 
-import { Component } from "../../component-v2";
+import { Component } from "../../component";
 import { cloneChatPageElement } from "./chat-page-template";
 
 export class ChatHeader implements Component<never> {

@@ -45,7 +45,7 @@ async function gatherInputs(state: ChatWindowState): Promise<{
   llmConversationMessages: LlmConversationHistory;
 }> {
   return {
-    originalSheet: await state.excelController.readActiveSheet(),
+    originalSheet: await state.excelManager.readActiveSheet(),
     llmConversationMessages: state.chatState.llmConversationMessages,
   };
 }

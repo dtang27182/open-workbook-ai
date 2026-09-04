@@ -59,12 +59,12 @@ readonly llmManager: LLMManager;
 The manager needs sheet Markdown formatting when it builds model contexts, but that formatting is pure and does not require live Excel access or controller state. Construct the manager without dependencies:
 
 ```ts
-const excelController = new ExcelController(excelApi);
+const excelManager = new ExcelManager(excelApi);
 const llmManager = new LLMManager();
-this.state = new ChatWindowState(mount, domHandlers, excelController, llmManager);
+this.state = new ChatWindowState(mount, domHandlers, excelManager, llmManager);
 ```
 
-`LLMManager` has no instance variables. It does not store `ExcelController`, ChatWindow state, workflow state, conversation history, transcript state, or DOM handlers.
+`LLMManager` has no instance variables. It does not store `ExcelManager`, ChatWindow state, workflow state, conversation history, transcript state, or DOM handlers.
 
 ## Public Interface
 
@@ -146,9 +146,9 @@ Add `src/taskpane-fsm/pages/chat/chat-window/sheet-markdown.ts` and move the two
 - `formatSheetDataAsMarkdown()`; and
 - `formatSheetAsMarkdown()`.
 
-Also copy their private cell and column formatting helpers. Export only the two sheet-level functions and keep their implementation helpers module-private. `LLMManager` imports the exported functions directly when building full, compact, and selected-range sheet contexts. `ExcelController` remains unchanged and continues to contain only live Excel operations and their supporting logic.
+Also copy their private cell and column formatting helpers. Export only the two sheet-level functions and keep their implementation helpers module-private. `LLMManager` imports the exported functions directly when building full, compact, and selected-range sheet contexts. `ExcelManager` remains unchanged and continues to contain only live Excel operations and their supporting logic.
 
-This keeps the new taskpane-FSM path independent of `excel-sheet-utils.ts` without coupling pure formatting to `ExcelController` or duplicating it inside `LLMManager`.
+This keeps the new taskpane-FSM path independent of `excel-sheet-utils.ts` without coupling pure formatting to `ExcelManager` or duplicating it inside `LLMManager`.
 
 ## Implementation Order
 

@@ -47,14 +47,11 @@ async function setup(state: ChatWindowState, pendingEdit: PendingEdit): Promise<
 }
 
 async function performActions(state: ChatWindowState, pendingEdit: PendingEdit): Promise<void> {
-  const diffSheet = await state.excelController.readSheet(pendingEdit.diffSheetName);
-  await state.excelController.writeSheetFormulas(
-    state.excelController.retargetFormulaSheetReferences(diffSheet, pendingEdit.sourceSheetName)
+  const diffSheet = await state.excelManager.readSheet(pendingEdit.diffSheetName);
+  await state.excelManager.writeSheetFormulas(
+    state.excelManager.retargetFormulaSheetReferences(diffSheet, pendingEdit.sourceSheetName)
   );
-  await state.excelController.deleteDiffSheet(
-    pendingEdit.sourceSheetName,
-    pendingEdit.diffSheetName
-  );
+  await state.excelManager.deleteDiffSheet(pendingEdit.sourceSheetName, pendingEdit.diffSheetName);
 }
 
 async function finalize(state: ChatWindowState, pendingEdit: PendingEdit): Promise<RestorePoint> {
@@ -115,7 +112,7 @@ async function appendUpdateAnalysis(
   );
   renderChatTranscript(state.mount, state.chatState.transcript, state.domHandlers);
   try {
-    const updatedSheet = await state.excelController.readSheet(updatedSheetName);
+    const updatedSheet = await state.excelManager.readSheet(updatedSheetName);
     const analysis = await state.llmManager.runUpdateAnalysisPrompt(
       userRequest,
       originalSheet,

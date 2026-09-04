@@ -22,7 +22,7 @@ export async function runPreprocessWorkflow(
   message: string,
   workflowId: number
 ): Promise<void> {
-  const originalSheet = await state.excelController.readActiveSheet();
+  const originalSheet = await state.excelManager.readActiveSheet();
   setupTransition(state, message, workflowId, originalSheet);
   let cellEdits: CellEdit[] | undefined;
   for await (const event of state.llmManager.runPreprocessPrompt(originalSheet)) {
@@ -87,7 +87,7 @@ async function finalizeTransition(
       "**Completed formula inference. Please review the inferred formulas (highlighted)**",
       workflowId
     );
-    const diff = await state.excelController.createNextDiffSheet(originalSheet, cellEdits);
+    const diff = await state.excelManager.createNextDiffSheet(originalSheet, cellEdits);
     state.chatState.pendingEdit = {
       sourceSheetName: originalSheet.name,
       diffSheetName: diff.sheetName,

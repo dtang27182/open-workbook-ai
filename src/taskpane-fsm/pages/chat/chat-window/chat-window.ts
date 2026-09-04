@@ -1,6 +1,6 @@
 /* global console, HTMLInputElement, HTMLElement */
 
-import { Component } from "../../../component-v2";
+import { Component } from "../../../component";
 import {
   CellEdit,
   ChatFsmState,
@@ -28,7 +28,7 @@ import {
 } from "./dom/transcript-helpers";
 import { ChatWindowState } from "./chat-window-state";
 import { ChatState } from "./chat-window-types";
-import { ExcelController } from "./excel-controller";
+import { ExcelManager } from "./excel-manager";
 import { LLMManager } from "./llm-manager";
 import { runAcceptDiffWorkflow } from "./workflows/accept-diff";
 import { runClarificationWorkflow } from "./workflows/clarification";
@@ -65,7 +65,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
     this.state = new ChatWindowState(
       mount,
       domHandlers,
-      new ExcelController(excelApi),
+      new ExcelManager(excelApi),
       new LLMManager()
     );
     createInitialDom(this.state.mount, this.state.domHandlers);
@@ -92,7 +92,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
       nextWorkflowId: 1,
     };
     this.state.restoreManager.clearAllRestorePoints();
-    this.state.excelController.resetSheetNumbers();
+    this.state.excelManager.resetSheetNumbers();
     configChatControls(
       this.state.mount,
       this.state.chatState.transcript,
@@ -148,7 +148,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
       return;
     }
 
-    const currentSheet = await this.state.excelController.readActiveSheet();
+    const currentSheet = await this.state.excelManager.readActiveSheet();
     const workflowId = this.state.chatState.nextWorkflowId++;
 
     if (
@@ -299,7 +299,7 @@ export async function processModelResponse(
       responseEntry,
       { text: response.reply.message }
     );
-    const diff = await state.excelController.createNextDiffSheet(
+    const diff = await state.excelManager.createNextDiffSheet(
       originalSheet,
       response.reply.cellEdits
     );
@@ -327,14 +327,14 @@ async function createScenarioWithComparison(
   comparisonRanges: ComparisonRange[],
   llmConversationMessages: LlmConversationHistory
 ): Promise<void> {
-  const scenarioSheetName = await state.excelController.createNextScenarioSheet(
+  const scenarioSheetName = await state.excelManager.createNextScenarioSheet(
     originalSheet,
     scenarioModelEdits
   );
   if (state.chatState.preprocessedSheetNames.includes(originalSheet.name)) {
     state.chatState.preprocessedSheetNames.push(scenarioSheetName);
   }
-  const scenarioSheet = await state.excelController.readSheet(scenarioSheetName);
+  const scenarioSheet = await state.excelManager.readSheet(scenarioSheetName);
   appendWorkingTranscriptItem(
     state.chatState.transcript,
     "Creating comparison between new scenario against baseline...",
@@ -348,7 +348,7 @@ async function createScenarioWithComparison(
     comparisonRanges,
     llmConversationMessages
   );
-  await state.excelController.applyCellEditsToSheet(scenarioSheet, comparison.cellEdits);
+  await state.excelManager.applyCellEditsToSheet(scenarioSheet, comparison.cellEdits);
   removeWorkingTranscriptItem(state.chatState.transcript, workflowId);
   appendMessageAndRender(
     state.mount,

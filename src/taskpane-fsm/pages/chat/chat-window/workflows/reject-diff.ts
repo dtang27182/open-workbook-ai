@@ -29,10 +29,7 @@ async function setup(state: ChatWindowState, pendingEdit: PendingEdit): Promise<
 }
 
 async function performActions(state: ChatWindowState, pendingEdit: PendingEdit): Promise<void> {
-  await state.excelController.deleteDiffSheet(
-    pendingEdit.sourceSheetName,
-    pendingEdit.diffSheetName
-  );
+  await state.excelManager.deleteDiffSheet(pendingEdit.sourceSheetName, pendingEdit.diffSheetName);
 }
 
 async function finalize(state: ChatWindowState, pendingEdit: PendingEdit): Promise<void> {
