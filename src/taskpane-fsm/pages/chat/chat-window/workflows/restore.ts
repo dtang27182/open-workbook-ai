@@ -1,4 +1,4 @@
-import { ChatWindowState } from "./chat-window-state";
+import { ChatWindowState } from "../chat-window-state";
 
 export async function runRestoreWorkflow(
   state: ChatWindowState,

@@ -2,7 +2,7 @@
 
 import { Component } from "../../component-v2";
 import { ChatHeader } from "./chat-header";
-import { ChatWindow } from "./chat-window";
+import { ChatWindow } from "./chat-window/chat-window";
 
 export class ChatPage implements Component<never> {
   private readonly mount: HTMLElement;

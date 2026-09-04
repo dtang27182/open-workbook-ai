@@ -1,15 +1,15 @@
-import { PendingEdit } from "../../../taskpane/pages/chat/chat-state-machine/chat-types";
-import { renderChatTranscript } from "./chat-window-dom";
+import { PendingEdit } from "../../../../../taskpane/pages/chat/chat-state-machine/chat-types";
+import { renderChatTranscript } from "../dom/chat-window-dom";
 import {
   appendMessageAndRender,
   appendWorkingTranscriptItem,
   getWorkflowHumanMessage,
   removeDiffReviewTranscriptItem,
   removeWorkingTranscriptItem,
-} from "./chat-window-transcript-helpers";
-import type { ProcessModelResponse } from "./chat-window";
-import { ChatWindowState } from "./chat-window-state";
-import { runSubmitMessageWorkflow } from "./chat-window-submit-message-workflow";
+} from "../dom/transcript-helpers";
+import { ChatWindowState } from "../chat-window-state";
+import type { ProcessModelResponse } from "../chat-window-types";
+import { runSubmitMessageWorkflow } from "./submit-message";
 
 export async function runRejectDiffWorkflow(
   state: ChatWindowState,

@@ -6,8 +6,8 @@ import {
   ChatFsmState,
   ChatMessageTranscriptItem,
   ChatTranscriptEntry,
-} from "../../../taskpane/pages/chat/chat-state-machine/chat-types";
-import { cloneChatPageElement } from "./chat-page-template";
+} from "../../../../../taskpane/pages/chat/chat-state-machine/chat-types";
+import { cloneChatPageElement } from "../../chat-page-template";
 
 export type ChatWindowDomHandlers = {
   onClear: () => void;

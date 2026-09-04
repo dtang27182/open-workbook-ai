@@ -1,75 +1,62 @@
-import { runMainQueryPrompt } from "../../../taskpane/pages/chat/chat-state-machine/llm-model-workflow";
+import {
+  getPendingClarificationToolCall,
+  runClarificationResponsePrompt,
+} from "../../../../../taskpane/pages/chat/chat-state-machine/llm-model-workflow";
 import {
   ChatMessageTranscriptItem,
   LlmConversationHistory,
-  SheetSnapshot,
   SpreadsheetPromptCompletionEvent,
-} from "../../../taskpane/pages/chat/chat-state-machine/chat-types";
-import { renderChatTranscript } from "./chat-window-dom";
+} from "../../../../../taskpane/pages/chat/chat-state-machine/chat-types";
+import { renderChatTranscript } from "../dom/chat-window-dom";
 import {
   appendMessageAndRender,
   appendWorkingTranscriptItem,
+  getWorkflowHumanMessage,
   removeWorkingTranscriptItem,
   updateWorkingTranscriptItemAndRender,
   upsertTranscriptMessageAndRender,
-} from "./chat-window-transcript-helpers";
-import type { ProcessModelResponse } from "./chat-window";
-import { ChatWindowState } from "./chat-window-state";
+} from "../dom/transcript-helpers";
+import { ChatWindowState } from "../chat-window-state";
+import type { ProcessModelResponse } from "../chat-window-types";
 
-export async function runSubmitMessageWorkflow(
+export async function runClarificationWorkflow(
   state: ChatWindowState,
   processModelResponse: ProcessModelResponse,
-  message: string,
-  workflowId: number,
-  showHumanMessage = true
+  answer: string
 ): Promise<void> {
-  const { originalSheet, llmConversationMessages } = await gatherInputs(state);
-  const responseEntry = setupTransition(
-    state,
-    message,
-    workflowId,
-    showHumanMessage,
-    originalSheet
-  );
+  const pendingToolCall = getPendingClarificationToolCall(state.chatState.llmConversationMessages);
+  const workflowId = pendingToolCall.workflowId;
+  const originalSheet = await state.excelController.readActiveSheet();
+  const responseEntry = setupTransition(state, answer, workflowId);
   const result = await performActions(
     state,
-    message,
+    answer,
     workflowId,
-    originalSheet,
-    llmConversationMessages,
+    state.chatState.llmConversationMessages,
     responseEntry
   );
-  await processModelResponse(message, workflowId, originalSheet, responseEntry, result);
-}
-
-async function gatherInputs(state: ChatWindowState): Promise<{
-  originalSheet: SheetSnapshot;
-  llmConversationMessages: LlmConversationHistory;
-}> {
-  return {
-    originalSheet: await state.excelController.readActiveSheet(),
-    llmConversationMessages: state.chatState.llmConversationMessages,
-  };
+  await processModelResponse(
+    getWorkflowHumanMessage(state.chatState.transcript, workflowId),
+    workflowId,
+    originalSheet,
+    responseEntry,
+    result
+  );
 }
 
 function setupTransition(
   state: ChatWindowState,
-  message: string,
-  workflowId: number,
-  showHumanMessage: boolean,
-  originalSheet: SheetSnapshot
+  answer: string,
+  workflowId: number
 ): ChatMessageTranscriptItem {
-  state.restoreManager.createPotentialRestorePoint(workflowId, state.chatState, originalSheet);
-  if (showHumanMessage) {
-    appendMessageAndRender(
-      state.mount,
-      state.chatState.transcript,
-      state.domHandlers,
-      "human",
-      message,
-      workflowId
-    );
-  }
+  appendMessageAndRender(
+    state.mount,
+    state.chatState.transcript,
+    state.domHandlers,
+    "human",
+    answer,
+    workflowId
+  );
   appendWorkingTranscriptItem(state.chatState.transcript, "Working...", workflowId);
   renderChatTranscript(state.mount, state.chatState.transcript, state.domHandlers);
   return {
@@ -82,17 +69,15 @@ function setupTransition(
 
 async function performActions(
   state: ChatWindowState,
-  message: string,
+  answer: string,
   workflowId: number,
-  originalSheet: SheetSnapshot,
   llmConversationMessages: LlmConversationHistory,
   responseEntry: ChatMessageTranscriptItem
 ): Promise<SpreadsheetPromptCompletionEvent> {
   let completionEvent: SpreadsheetPromptCompletionEvent | undefined;
-  for await (const event of runMainQueryPrompt(
-    message,
+  for await (const event of runClarificationResponsePrompt(
+    answer,
     workflowId,
-    originalSheet,
     llmConversationMessages
   )) {
     if (event.type === "partial_response") {

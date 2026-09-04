@@ -1,11 +1,11 @@
 /* global console */
 
-import { runUpdateAnalysisPrompt } from "../../../taskpane/pages/chat/chat-state-machine/llm-model-workflow";
+import { runUpdateAnalysisPrompt } from "../../../../../taskpane/pages/chat/chat-state-machine/llm-model-workflow";
 import {
   PendingEdit,
   SheetSnapshot,
-} from "../../../taskpane/pages/chat/chat-state-machine/chat-types";
-import { renderChatTranscript } from "./chat-window-dom";
+} from "../../../../../taskpane/pages/chat/chat-state-machine/chat-types";
+import { renderChatTranscript } from "../dom/chat-window-dom";
 import {
   appendMessageAndRender,
   appendWorkingTranscriptItem,
@@ -13,11 +13,11 @@ import {
   insertRestoreTranscriptItemAndRender,
   removeDiffReviewTranscriptItem,
   removeWorkingTranscriptItem,
-} from "./chat-window-transcript-helpers";
-import type { ProcessModelResponse } from "./chat-window";
-import { ChatWindowState } from "./chat-window-state";
-import { runSubmitMessageWorkflow } from "./chat-window-submit-message-workflow";
-import { RestorePoint } from "./chat-window-types";
+} from "../dom/transcript-helpers";
+import { ChatWindowState } from "../chat-window-state";
+import { RestorePoint } from "../chat-window-types";
+import type { ProcessModelResponse } from "../chat-window-types";
+import { runSubmitMessageWorkflow } from "./submit-message";
 
 export async function runAcceptDiffWorkflow(
   state: ChatWindowState,

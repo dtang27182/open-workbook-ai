@@ -4,7 +4,7 @@ import {
   CellEdit,
   ExcelApi,
   SheetSnapshot,
-} from "../../../taskpane/pages/chat/chat-state-machine/chat-types";
+} from "../../../../taskpane/pages/chat/chat-state-machine/chat-types";
 
 export class ExcelController {
   private nextDiffSheetNumber = 1;

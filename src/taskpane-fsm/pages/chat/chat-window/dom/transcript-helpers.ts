@@ -4,9 +4,9 @@ import {
   ChatMessageTranscriptItem,
   ChatTranscriptEntry,
   ChatWorkingTranscriptItem,
-} from "../../../taskpane/pages/chat/chat-state-machine/chat-types";
+} from "../../../../../taskpane/pages/chat/chat-state-machine/chat-types";
 import { ChatWindowDomHandlers, renderChatTranscript } from "./chat-window-dom";
-import { RestorePoint } from "./chat-window-types";
+import { RestorePoint } from "../chat-window-types";
 
 export function appendMessageAndRender(
   mount: HTMLElement,

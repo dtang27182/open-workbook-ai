@@ -1,7 +1,7 @@
 /* global console, HTMLInputElement, HTMLElement */
 
-import { Component } from "../../component-v2";
-import { runScenarioComparisonPrompt } from "../../../taskpane/pages/chat/chat-state-machine/llm-model-workflow";
+import { Component } from "../../../component-v2";
+import { runScenarioComparisonPrompt } from "../../../../taskpane/pages/chat/chat-state-machine/llm-model-workflow";
 import {
   CellEdit,
   ChatFsmState,
@@ -12,41 +12,34 @@ import {
   LlmConversationHistory,
   SheetSnapshot,
   SpreadsheetPromptCompletionEvent,
-} from "../../../taskpane/pages/chat/chat-state-machine/chat-types";
+} from "../../../../taskpane/pages/chat/chat-state-machine/chat-types";
 import {
   ChatWindowDomHandlers,
   configChatControls,
   createInitialDom,
   disableChatControls,
   renderChatTranscript,
-} from "./chat-window-dom";
+} from "./dom/chat-window-dom";
 import {
   appendDiffReviewTranscriptItemAndRender,
   appendMessageAndRender,
   appendWorkingTranscriptItem,
   removeWorkingTranscriptItem,
   upsertTranscriptMessageAndRender,
-} from "./chat-window-transcript-helpers";
-import { runAcceptDiffWorkflow } from "./chat-window-accept-diff-workflow";
-import { runClarificationWorkflow } from "./chat-window-clarification-workflow";
-import { runPreprocessWorkflow } from "./chat-window-preprocess-workflow";
-import { runRejectDiffWorkflow } from "./chat-window-reject-diff-workflow";
-import { runRestoreWorkflow } from "./chat-window-restore-workflow";
+} from "./dom/transcript-helpers";
 import { ChatWindowState } from "./chat-window-state";
-import { runSubmitMessageWorkflow } from "./chat-window-submit-message-workflow";
+import type { ProcessModelResponse } from "./chat-window-types";
 import { ExcelController } from "./excel-controller";
+import { runAcceptDiffWorkflow } from "./workflows/accept-diff";
+import { runClarificationWorkflow } from "./workflows/clarification";
+import { runPreprocessWorkflow } from "./workflows/preprocess";
+import { runRejectDiffWorkflow } from "./workflows/reject-diff";
+import { runRestoreWorkflow } from "./workflows/restore";
+import { runSubmitMessageWorkflow } from "./workflows/submit-message";
 
 const preprocessingEnabled = true;
 
 export type ChatWindowUpdateEvent = { type: "clear" } | ChatStateMachineInput;
-
-export type ProcessModelResponse = (
-  userRequest: string,
-  workflowId: number,
-  originalSheet: SheetSnapshot,
-  responseEntry: ChatMessageTranscriptItem,
-  response: SpreadsheetPromptCompletionEvent
-) => Promise<void>;
 
 export class ChatWindow implements Component<ChatWindowUpdateEvent> {
   private readonly state: ChatWindowState;

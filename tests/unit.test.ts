@@ -10,9 +10,9 @@ import {
 } from "../src/taskpane/pages/chat/chat-state-machine/chat-types";
 import { configureOpenRouterClient } from "../src/taskpane/pages/chat/chat-state-machine/openrouter-client";
 import { OpenrouterKeyStore } from "../src/taskpane/pages/openrouter-auth/openrouter-api-key";
-import { ExcelController } from "../src/taskpane-fsm/pages/chat/excel-controller";
-import { RestoreManager } from "../src/taskpane-fsm/pages/chat/chat-window-restore-manager";
-import type { ChatState } from "../src/taskpane-fsm/pages/chat/chat-window-types";
+import { ExcelController } from "../src/taskpane-fsm/pages/chat/chat-window/excel-controller";
+import { RestoreManager } from "../src/taskpane-fsm/pages/chat/chat-window/restore-manager";
+import type { ChatState } from "../src/taskpane-fsm/pages/chat/chat-window/chat-window-types";
 import { createExcelTestWorkbook } from "./excel-test-double";
 
 const openrouterKeyStore = new OpenrouterKeyStore();

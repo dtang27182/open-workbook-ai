@@ -17,7 +17,7 @@ The original taskpane implementation and its `excel-sheet-utils.ts` module remai
 
 ## New Class and Ownership
 
-Add `src/taskpane-fsm/pages/chat/excel-controller.ts` with an `ExcelController` class. The class stores the optional `ExcelApi` supplied to `ChatWindow` and falls back to the global `Excel` API exactly as the legacy functions do.
+Add `src/taskpane-fsm/pages/chat/chat-window/excel-controller.ts` with an `ExcelController` class. The class stores the optional `ExcelApi` supplied to `ChatWindow` and falls back to the global `Excel` API exactly as the legacy functions do.
 
 `ChatWindow` constructs one controller and passes it to `ChatWindowState`. `ChatWindowState` stores it as:
 
@@ -85,20 +85,20 @@ Do not import or delegate back to `excel-sheet-utils.ts` from the new controller
 
 | Current location                          | Current operation                                             | Replacement                                                                  |
 | ----------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `chat-window-types.ts`                    | stores diff and scenario counters in `ChatState`              | remove both counters                                                         |
-| `chat-window-state.ts`                    | stores `excelApi`; implements `createNextDiffSheet()`         | store `excelController`; remove the method                                   |
-| `chat-window-restore-manager.ts`          | copies diff and scenario counters                             | stop copying both counters                                                    |
-| `chat-window.ts` reset path               | initializes diff and scenario counters in `ChatState`         | call `state.excelController.resetSheetNumbers()`                             |
-| `chat-window.ts` submit path              | `readActiveSheet(state.excelApi)`                             | `state.excelController.readActiveSheet()`                                    |
-| `chat-window.ts` model-response path      | `state.createNextDiffSheet(...)`                              | `state.excelController.createNextDiffSheet(...)`                             |
-| `chat-window.ts` scenario path            | private `createNextScenarioSheet()`                           | `state.excelController.createNextScenarioSheet(...)`                         |
-| `chat-window.ts` scenario path            | `readSheet()` and `applyCellEditsToSheet()`                   | corresponding controller methods                                             |
-| `chat-window-submit-message-workflow.ts`  | `readActiveSheet()`                                           | `state.excelController.readActiveSheet()`                                    |
-| `chat-window-clarification-workflow.ts`   | `readActiveSheet()`                                           | `state.excelController.readActiveSheet()`                                    |
-| `chat-window-preprocess-workflow.ts`      | `readActiveSheet()` and `state.createNextDiffSheet()`         | corresponding controller methods                                             |
-| `chat-window-accept-diff-workflow.ts`     | read, retarget, write, delete, and post-accept read operations | corresponding controller methods                                             |
-| `chat-window-reject-diff-workflow.ts`     | `deleteDiffSheet()`                                           | `state.excelController.deleteDiffSheet()`                                    |
-| `chat-window-restore-workflow.ts`         | `deleteDiffSheet()` and `writeSheetFormulas()`                | corresponding controller methods                                             |
+| `chat-window/chat-window-types.ts`        | stores diff and scenario counters in `ChatState`              | remove both counters                                                         |
+| `chat-window/chat-window-state.ts`        | stores `excelApi`; implements `createNextDiffSheet()`         | store `excelController`; remove the method                                   |
+| `chat-window/restore-manager.ts`          | copies diff and scenario counters                             | stop copying both counters                                                    |
+| `chat-window/chat-window.ts` reset path   | initializes diff and scenario counters in `ChatState`         | call `state.excelController.resetSheetNumbers()`                             |
+| `chat-window/chat-window.ts` submit path  | `readActiveSheet(state.excelApi)`                             | `state.excelController.readActiveSheet()`                                    |
+| `chat-window/chat-window.ts` model path   | `state.createNextDiffSheet(...)`                              | `state.excelController.createNextDiffSheet(...)`                             |
+| `chat-window/chat-window.ts` scenario     | private `createNextScenarioSheet()`                           | `state.excelController.createNextScenarioSheet(...)`                         |
+| `chat-window/chat-window.ts` scenario     | `readSheet()` and `applyCellEditsToSheet()`                   | corresponding controller methods                                             |
+| `chat-window/workflows/submit-message.ts` | `readActiveSheet()`                                           | `state.excelController.readActiveSheet()`                                    |
+| `chat-window/workflows/clarification.ts`  | `readActiveSheet()`                                           | `state.excelController.readActiveSheet()`                                    |
+| `chat-window/workflows/preprocess.ts`     | `readActiveSheet()` and `state.createNextDiffSheet()`         | corresponding controller methods                                             |
+| `chat-window/workflows/accept-diff.ts`    | read, retarget, write, delete, and post-accept read operations | corresponding controller methods                                             |
+| `chat-window/workflows/reject-diff.ts`    | `deleteDiffSheet()`                                           | `state.excelController.deleteDiffSheet()`                                    |
+| `chat-window/workflows/restore.ts`        | `deleteDiffSheet()` and `writeSheetFormulas()`                | corresponding controller methods                                             |
 
 Remove each legacy utility import as its call sites migrate. When complete, `rg "excel-sheet-utils" src/taskpane-fsm` should return no matches.
 

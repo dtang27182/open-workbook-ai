@@ -1,7 +1,7 @@
 /* global HTMLElement */
 
-import { ChatWindowDomHandlers } from "./chat-window-dom";
-import { RestoreManager } from "./chat-window-restore-manager";
+import { ChatWindowDomHandlers } from "./dom/chat-window-dom";
+import { RestoreManager } from "./restore-manager";
 import { ChatState } from "./chat-window-types";
 import { ExcelController } from "./excel-controller";
 

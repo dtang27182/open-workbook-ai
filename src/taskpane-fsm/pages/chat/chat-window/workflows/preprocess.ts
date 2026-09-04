@@ -1,23 +1,23 @@
-import { runPreprocessPrompt } from "../../../taskpane/pages/chat/chat-state-machine/llm-model-workflow";
+import { runPreprocessPrompt } from "../../../../../taskpane/pages/chat/chat-state-machine/llm-model-workflow";
 import {
   CellEdit,
   SheetSnapshot,
-} from "../../../taskpane/pages/chat/chat-state-machine/chat-types";
+} from "../../../../../taskpane/pages/chat/chat-state-machine/chat-types";
 import {
   formatFormulaInferencePlan,
   formatFormulaInferenceRegionResult,
-} from "../../../taskpane/pages/chat/chat-state-machine/preprocess-formula-inference";
-import { renderChatTranscript } from "./chat-window-dom";
+} from "../../../../../taskpane/pages/chat/chat-state-machine/preprocess-formula-inference";
+import { renderChatTranscript } from "../dom/chat-window-dom";
 import {
   appendDiffReviewTranscriptItemAndRender,
   appendMessageAndRender,
   appendWorkingTranscriptItem,
   getWorkflowHumanMessage,
   removeWorkingTranscriptItem,
-} from "./chat-window-transcript-helpers";
-import type { ProcessModelResponse } from "./chat-window";
-import { ChatWindowState } from "./chat-window-state";
-import { runSubmitMessageWorkflow } from "./chat-window-submit-message-workflow";
+} from "../dom/transcript-helpers";
+import { ChatWindowState } from "../chat-window-state";
+import type { ProcessModelResponse } from "../chat-window-types";
+import { runSubmitMessageWorkflow } from "./submit-message";
 
 export async function runPreprocessWorkflow(
   state: ChatWindowState,

@@ -3,7 +3,7 @@
 import {
   PendingEdit,
   SheetSnapshot,
-} from "../../../taskpane/pages/chat/chat-state-machine/chat-types";
+} from "../../../../taskpane/pages/chat/chat-state-machine/chat-types";
 import { ChatState, RestorePoint } from "./chat-window-types";
 
 export class RestoreManager {
