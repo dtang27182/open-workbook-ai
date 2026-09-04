@@ -13,12 +13,11 @@ import {
   updateWorkingTranscriptItemAndRender,
   upsertTranscriptMessageAndRender,
 } from "../dom/transcript-helpers";
+import { processModelResponse } from "../chat-window";
 import { ChatWindowState } from "../chat-window-state";
-import type { ProcessModelResponse } from "../chat-window-types";
 
 export async function runSubmitMessageWorkflow(
   state: ChatWindowState,
-  processModelResponse: ProcessModelResponse,
   message: string,
   workflowId: number,
   showHumanMessage = true
@@ -39,7 +38,7 @@ export async function runSubmitMessageWorkflow(
     llmConversationMessages,
     responseEntry
   );
-  await processModelResponse(message, workflowId, originalSheet, responseEntry, result);
+  await processModelResponse(state, message, workflowId, originalSheet, responseEntry, result);
 }
 
 async function gatherInputs(state: ChatWindowState): Promise<{

@@ -28,7 +28,6 @@ import {
   upsertTranscriptMessageAndRender,
 } from "./dom/transcript-helpers";
 import { ChatWindowState } from "./chat-window-state";
-import type { ProcessModelResponse } from "./chat-window-types";
 import { ExcelController } from "./excel-controller";
 import { runAcceptDiffWorkflow } from "./workflows/accept-diff";
 import { runClarificationWorkflow } from "./workflows/clarification";
@@ -116,9 +115,9 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
         if (event.type === "submit_message") {
           await this.submitMessage(event.message);
         } else if (event.type === "accept_pending_diff") {
-          await runAcceptDiffWorkflow(this.state, this.processModelResponse);
+          await runAcceptDiffWorkflow(this.state);
         } else if (event.type === "reject_pending_diff") {
-          await runRejectDiffWorkflow(this.state, this.processModelResponse);
+          await runRejectDiffWorkflow(this.state);
         } else if (event.type === "restore_to_point") {
           await runRestoreWorkflow(this.state, event.restorePointId);
         }
@@ -139,7 +138,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
   private async submitMessage(message: string): Promise<void> {
     this.state.mount.querySelector<HTMLInputElement>("#chat-input")!.value = "";
     if (this.state.chatState.workflowState === "awaiting_clarification") {
-      await runClarificationWorkflow(this.state, this.processModelResponse, message);
+      await runClarificationWorkflow(this.state, message);
       return;
     }
 
@@ -150,131 +149,10 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
       preprocessingEnabled &&
       !this.state.chatState.preprocessedSheetNames.includes(currentSheet.name)
     ) {
-      await runPreprocessWorkflow(this.state, this.processModelResponse, message, workflowId);
+      await runPreprocessWorkflow(this.state, message, workflowId);
     } else {
-      await runSubmitMessageWorkflow(
-        this.state,
-        this.processModelResponse,
-        message,
-        workflowId,
-        true
-      );
+      await runSubmitMessageWorkflow(this.state, message, workflowId, true);
     }
-  }
-
-  private readonly processModelResponse: ProcessModelResponse = async (
-    userRequest: string,
-    workflowId: number,
-    originalSheet: SheetSnapshot,
-    responseEntry: ChatMessageTranscriptItem,
-    response: SpreadsheetPromptCompletionEvent
-  ): Promise<void> => {
-    this.state.chatState.llmConversationMessages = response.updatedLlmConversationMessages;
-
-    if (response.type === "clarification_requested") {
-      upsertTranscriptMessageAndRender(
-        this.state.mount,
-        this.state.chatState.transcript,
-        this.state.domHandlers,
-        responseEntry,
-        { text: response.question }
-      );
-      this.state.chatState.workflowState = "awaiting_clarification";
-    } else if (!response.reply.shouldEditSheet) {
-      upsertTranscriptMessageAndRender(
-        this.state.mount,
-        this.state.chatState.transcript,
-        this.state.domHandlers,
-        responseEntry,
-        { text: response.reply.message }
-      );
-      this.state.restoreManager.discardPotentialRestorePoint(workflowId);
-      this.state.chatState.workflowState = "answered";
-    } else if (response.reply.createNewSheet) {
-      upsertTranscriptMessageAndRender(
-        this.state.mount,
-        this.state.chatState.transcript,
-        this.state.domHandlers,
-        responseEntry,
-        { text: response.reply.message }
-      );
-      await this.createScenarioWithComparison(
-        userRequest,
-        workflowId,
-        originalSheet,
-        response.reply.cellEdits,
-        response.reply.comparisonRanges,
-        this.state.chatState.llmConversationMessages
-      );
-      this.state.restoreManager.discardPotentialRestorePoint(workflowId);
-      this.state.chatState.workflowState = "answered";
-    } else {
-      upsertTranscriptMessageAndRender(
-        this.state.mount,
-        this.state.chatState.transcript,
-        this.state.domHandlers,
-        responseEntry,
-        { text: response.reply.message }
-      );
-      const diff = await this.state.excelController.createNextDiffSheet(
-        originalSheet,
-        response.reply.cellEdits
-      );
-      this.state.chatState.pendingEdit = {
-        sourceSheetName: originalSheet.name,
-        diffSheetName: diff.sheetName,
-        workflowId,
-      };
-      this.state.chatState.workflowState = "pending_edit";
-      appendDiffReviewTranscriptItemAndRender(
-        this.state.mount,
-        this.state.chatState.transcript,
-        this.state.domHandlers,
-        workflowId
-      );
-    }
-  };
-
-  private async createScenarioWithComparison(
-    userRequest: string,
-    workflowId: number,
-    originalSheet: SheetSnapshot,
-    scenarioModelEdits: CellEdit[],
-    comparisonRanges: ComparisonRange[],
-    llmConversationMessages: LlmConversationHistory
-  ): Promise<void> {
-    const scenarioSheetName = await this.state.excelController.createNextScenarioSheet(
-      originalSheet,
-      scenarioModelEdits
-    );
-    if (this.state.chatState.preprocessedSheetNames.includes(originalSheet.name)) {
-      this.state.chatState.preprocessedSheetNames.push(scenarioSheetName);
-    }
-    const scenarioSheet = await this.state.excelController.readSheet(scenarioSheetName);
-    appendWorkingTranscriptItem(
-      this.state.chatState.transcript,
-      "Creating comparison between new scenario against baseline...",
-      workflowId
-    );
-    renderChatTranscript(this.state.mount, this.state.chatState.transcript, this.state.domHandlers);
-    const comparison = await runScenarioComparisonPrompt(
-      userRequest,
-      originalSheet,
-      scenarioSheet,
-      comparisonRanges,
-      llmConversationMessages
-    );
-    await this.state.excelController.applyCellEditsToSheet(scenarioSheet, comparison.cellEdits);
-    removeWorkingTranscriptItem(this.state.chatState.transcript, workflowId);
-    appendMessageAndRender(
-      this.state.mount,
-      this.state.chatState.transcript,
-      this.state.domHandlers,
-      "system",
-      comparison.analysis,
-      workflowId
-    );
-    this.state.appendAssistantLlmMessage(comparison.analysis, workflowId);
   }
 
   private appendErrorMessage(message: string) {
@@ -357,4 +235,122 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
   private isPendingEditState(state: ChatFsmState): boolean {
     return state === "pending_edit" || state === "pending_edit_preprocessed";
   }
+}
+
+export async function processModelResponse(
+  state: ChatWindowState,
+  userRequest: string,
+  workflowId: number,
+  originalSheet: SheetSnapshot,
+  responseEntry: ChatMessageTranscriptItem,
+  response: SpreadsheetPromptCompletionEvent
+): Promise<void> {
+  state.chatState.llmConversationMessages = response.updatedLlmConversationMessages;
+
+  if (response.type === "clarification_requested") {
+    upsertTranscriptMessageAndRender(
+      state.mount,
+      state.chatState.transcript,
+      state.domHandlers,
+      responseEntry,
+      { text: response.question }
+    );
+    state.chatState.workflowState = "awaiting_clarification";
+  } else if (!response.reply.shouldEditSheet) {
+    upsertTranscriptMessageAndRender(
+      state.mount,
+      state.chatState.transcript,
+      state.domHandlers,
+      responseEntry,
+      { text: response.reply.message }
+    );
+    state.restoreManager.discardPotentialRestorePoint(workflowId);
+    state.chatState.workflowState = "answered";
+  } else if (response.reply.createNewSheet) {
+    upsertTranscriptMessageAndRender(
+      state.mount,
+      state.chatState.transcript,
+      state.domHandlers,
+      responseEntry,
+      { text: response.reply.message }
+    );
+    await createScenarioWithComparison(
+      state,
+      userRequest,
+      workflowId,
+      originalSheet,
+      response.reply.cellEdits,
+      response.reply.comparisonRanges,
+      state.chatState.llmConversationMessages
+    );
+    state.restoreManager.discardPotentialRestorePoint(workflowId);
+    state.chatState.workflowState = "answered";
+  } else {
+    upsertTranscriptMessageAndRender(
+      state.mount,
+      state.chatState.transcript,
+      state.domHandlers,
+      responseEntry,
+      { text: response.reply.message }
+    );
+    const diff = await state.excelController.createNextDiffSheet(
+      originalSheet,
+      response.reply.cellEdits
+    );
+    state.chatState.pendingEdit = {
+      sourceSheetName: originalSheet.name,
+      diffSheetName: diff.sheetName,
+      workflowId,
+    };
+    state.chatState.workflowState = "pending_edit";
+    appendDiffReviewTranscriptItemAndRender(
+      state.mount,
+      state.chatState.transcript,
+      state.domHandlers,
+      workflowId
+    );
+  }
+}
+
+async function createScenarioWithComparison(
+  state: ChatWindowState,
+  userRequest: string,
+  workflowId: number,
+  originalSheet: SheetSnapshot,
+  scenarioModelEdits: CellEdit[],
+  comparisonRanges: ComparisonRange[],
+  llmConversationMessages: LlmConversationHistory
+): Promise<void> {
+  const scenarioSheetName = await state.excelController.createNextScenarioSheet(
+    originalSheet,
+    scenarioModelEdits
+  );
+  if (state.chatState.preprocessedSheetNames.includes(originalSheet.name)) {
+    state.chatState.preprocessedSheetNames.push(scenarioSheetName);
+  }
+  const scenarioSheet = await state.excelController.readSheet(scenarioSheetName);
+  appendWorkingTranscriptItem(
+    state.chatState.transcript,
+    "Creating comparison between new scenario against baseline...",
+    workflowId
+  );
+  renderChatTranscript(state.mount, state.chatState.transcript, state.domHandlers);
+  const comparison = await runScenarioComparisonPrompt(
+    userRequest,
+    originalSheet,
+    scenarioSheet,
+    comparisonRanges,
+    llmConversationMessages
+  );
+  await state.excelController.applyCellEditsToSheet(scenarioSheet, comparison.cellEdits);
+  removeWorkingTranscriptItem(state.chatState.transcript, workflowId);
+  appendMessageAndRender(
+    state.mount,
+    state.chatState.transcript,
+    state.domHandlers,
+    "system",
+    comparison.analysis,
+    workflowId
+  );
+  state.appendAssistantLlmMessage(comparison.analysis, workflowId);
 }

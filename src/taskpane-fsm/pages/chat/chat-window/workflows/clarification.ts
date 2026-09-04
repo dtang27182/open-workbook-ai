@@ -16,12 +16,11 @@ import {
   updateWorkingTranscriptItemAndRender,
   upsertTranscriptMessageAndRender,
 } from "../dom/transcript-helpers";
+import { processModelResponse } from "../chat-window";
 import { ChatWindowState } from "../chat-window-state";
-import type { ProcessModelResponse } from "../chat-window-types";
 
 export async function runClarificationWorkflow(
   state: ChatWindowState,
-  processModelResponse: ProcessModelResponse,
   answer: string
 ): Promise<void> {
   const pendingToolCall = getPendingClarificationToolCall(state.chatState.llmConversationMessages);
@@ -36,6 +35,7 @@ export async function runClarificationWorkflow(
     responseEntry
   );
   await processModelResponse(
+    state,
     getWorkflowHumanMessage(state.chatState.transcript, workflowId),
     workflowId,
     originalSheet,

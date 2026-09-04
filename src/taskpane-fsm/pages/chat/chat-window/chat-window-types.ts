@@ -1,11 +1,9 @@
 import {
   ChatFsmState,
-  ChatMessageTranscriptItem,
   ChatTranscriptItem,
   LlmConversationHistory,
   PendingEdit,
   SheetSnapshot,
-  SpreadsheetPromptCompletionEvent,
 } from "../../../../taskpane/pages/chat/chat-state-machine/chat-types";
 
 export type ChatState = {
@@ -22,11 +20,3 @@ export type RestorePoint = {
   chatState: ChatState;
   sheet: SheetSnapshot;
 };
-
-export type ProcessModelResponse = (
-  userRequest: string,
-  workflowId: number,
-  originalSheet: SheetSnapshot,
-  responseEntry: ChatMessageTranscriptItem,
-  response: SpreadsheetPromptCompletionEvent
-) => Promise<void>;

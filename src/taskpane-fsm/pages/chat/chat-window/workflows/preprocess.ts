@@ -16,12 +16,10 @@ import {
   removeWorkingTranscriptItem,
 } from "../dom/transcript-helpers";
 import { ChatWindowState } from "../chat-window-state";
-import type { ProcessModelResponse } from "../chat-window-types";
 import { runSubmitMessageWorkflow } from "./submit-message";
 
 export async function runPreprocessWorkflow(
   state: ChatWindowState,
-  processModelResponse: ProcessModelResponse,
   message: string,
   workflowId: number
 ): Promise<void> {
@@ -52,7 +50,7 @@ export async function runPreprocessWorkflow(
     }
   }
   removeWorkingTranscriptItem(state.chatState.transcript, workflowId);
-  await finalizeTransition(state, processModelResponse, workflowId, originalSheet, cellEdits!);
+  await finalizeTransition(state, workflowId, originalSheet, cellEdits!);
 }
 
 function setupTransition(
@@ -77,7 +75,6 @@ function setupTransition(
 
 async function finalizeTransition(
   state: ChatWindowState,
-  processModelResponse: ProcessModelResponse,
   workflowId: number,
   originalSheet: SheetSnapshot,
   cellEdits: CellEdit[]
@@ -107,7 +104,6 @@ async function finalizeTransition(
   } else {
     await runSubmitMessageWorkflow(
       state,
-      processModelResponse,
       getWorkflowHumanMessage(state.chatState.transcript, workflowId),
       workflowId,
       false

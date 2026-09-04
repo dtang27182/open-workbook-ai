@@ -8,17 +8,13 @@ import {
   removeWorkingTranscriptItem,
 } from "../dom/transcript-helpers";
 import { ChatWindowState } from "../chat-window-state";
-import type { ProcessModelResponse } from "../chat-window-types";
 import { runSubmitMessageWorkflow } from "./submit-message";
 
-export async function runRejectDiffWorkflow(
-  state: ChatWindowState,
-  processModelResponse: ProcessModelResponse
-): Promise<void> {
+export async function runRejectDiffWorkflow(state: ChatWindowState): Promise<void> {
   const pendingEdit = state.chatState.pendingEdit!;
   await setup(state, pendingEdit);
   await performActions(state, pendingEdit);
-  await finalize(state, processModelResponse, pendingEdit);
+  await finalize(state, pendingEdit);
 }
 
 async function setup(state: ChatWindowState, pendingEdit: PendingEdit): Promise<void> {
@@ -38,11 +34,7 @@ async function performActions(state: ChatWindowState, pendingEdit: PendingEdit):
   );
 }
 
-async function finalize(
-  state: ChatWindowState,
-  processModelResponse: ProcessModelResponse,
-  pendingEdit: PendingEdit
-): Promise<void> {
+async function finalize(state: ChatWindowState, pendingEdit: PendingEdit): Promise<void> {
   const shouldContinueOriginalQuery = state.chatState.workflowState === "pending_edit_preprocessed";
   state.restoreManager.discardPotentialRestorePoint(pendingEdit.workflowId);
   state.chatState.pendingEdit = undefined;
@@ -70,7 +62,6 @@ async function finalize(
     );
     await runSubmitMessageWorkflow(
       state,
-      processModelResponse,
       getWorkflowHumanMessage(state.chatState.transcript, pendingEdit.workflowId),
       pendingEdit.workflowId,
       false
