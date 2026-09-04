@@ -1,7 +1,6 @@
 /* global console, HTMLInputElement, HTMLElement */
 
 import { Component } from "../../../component-v2";
-import { runScenarioComparisonPrompt } from "../../../../taskpane/pages/chat/chat-state-machine/llm-model-workflow";
 import {
   CellEdit,
   ChatFsmState,
@@ -28,7 +27,9 @@ import {
   upsertTranscriptMessageAndRender,
 } from "./dom/transcript-helpers";
 import { ChatWindowState } from "./chat-window-state";
+import { ChatState } from "./chat-window-types";
 import { ExcelController } from "./excel-controller";
+import { LLMManager } from "./llm-manager";
 import { runAcceptDiffWorkflow } from "./workflows/accept-diff";
 import { runClarificationWorkflow } from "./workflows/clarification";
 import { runPreprocessWorkflow } from "./workflows/preprocess";
@@ -61,7 +62,12 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
         void this.updateState({ type: "restore_to_point", restorePointId });
       },
     };
-    this.state = new ChatWindowState(mount, domHandlers, new ExcelController(excelApi));
+    this.state = new ChatWindowState(
+      mount,
+      domHandlers,
+      new ExcelController(excelApi),
+      new LLMManager()
+    );
     createInitialDom(this.state.mount, this.state.domHandlers);
     this.reset();
   }
@@ -335,7 +341,7 @@ async function createScenarioWithComparison(
     workflowId
   );
   renderChatTranscript(state.mount, state.chatState.transcript, state.domHandlers);
-  const comparison = await runScenarioComparisonPrompt(
+  const comparison = await state.llmManager.runScenarioComparisonPrompt(
     userRequest,
     originalSheet,
     scenarioSheet,
@@ -352,5 +358,27 @@ async function createScenarioWithComparison(
     comparison.analysis,
     workflowId
   );
-  state.appendAssistantLlmMessage(comparison.analysis, workflowId);
+  appendAssistantLlmMessage(state.chatState, comparison.analysis, workflowId);
+}
+
+export function appendUserDecisionLlmMessage(
+  chatState: ChatState,
+  text: string,
+  workflowId: number
+): void {
+  chatState.llmConversationMessages = [
+    ...chatState.llmConversationMessages,
+    { role: "user", text, workflowId },
+  ];
+}
+
+export function appendAssistantLlmMessage(
+  chatState: ChatState,
+  text: string,
+  workflowId: number
+): void {
+  chatState.llmConversationMessages = [
+    ...chatState.llmConversationMessages,
+    { role: "assistant", text, workflowId },
+  ];
 }

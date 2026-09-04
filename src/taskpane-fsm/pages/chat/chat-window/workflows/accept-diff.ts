@@ -1,6 +1,5 @@
 /* global console */
 
-import { runUpdateAnalysisPrompt } from "../../../../../taskpane/pages/chat/chat-state-machine/llm-model-workflow";
 import {
   PendingEdit,
   SheetSnapshot,
@@ -14,6 +13,7 @@ import {
   removeDiffReviewTranscriptItem,
   removeWorkingTranscriptItem,
 } from "../dom/transcript-helpers";
+import { appendAssistantLlmMessage, appendUserDecisionLlmMessage } from "../chat-window";
 import { ChatWindowState } from "../chat-window-state";
 import { RestorePoint } from "../chat-window-types";
 import { runSubmitMessageWorkflow } from "./submit-message";
@@ -79,7 +79,7 @@ async function finalize(state: ChatWindowState, pendingEdit: PendingEdit): Promi
     "Accepted changes.",
     pendingEdit.workflowId
   );
-  state.appendUserDecisionLlmMessage("Accepted changes.", pendingEdit.workflowId);
+  appendUserDecisionLlmMessage(state.chatState, "Accepted changes.", pendingEdit.workflowId);
 
   if (shouldContinueOriginalQuery) {
     appendMessageAndRender(
@@ -116,7 +116,7 @@ async function appendUpdateAnalysis(
   renderChatTranscript(state.mount, state.chatState.transcript, state.domHandlers);
   try {
     const updatedSheet = await state.excelController.readSheet(updatedSheetName);
-    const analysis = await runUpdateAnalysisPrompt(
+    const analysis = await state.llmManager.runUpdateAnalysisPrompt(
       userRequest,
       originalSheet,
       updatedSheet,
@@ -131,7 +131,7 @@ async function appendUpdateAnalysis(
       analysis,
       workflowId
     );
-    state.appendAssistantLlmMessage(analysis, workflowId);
+    appendAssistantLlmMessage(state.chatState, analysis, workflowId);
   } catch (err) {
     console.debug("OpenRouter update analysis request failed.", err);
     removeWorkingTranscriptItem(state.chatState.transcript, workflowId);

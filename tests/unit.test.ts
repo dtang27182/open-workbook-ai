@@ -4,14 +4,24 @@ import test from "node:test";
 import { ChatStateMachine } from "../src/taskpane/pages/chat/chat-state-machine/chat-state-machine";
 import {
   ChatTranscriptEntry,
+  LlmConversationHistory,
   OpenRouterRequestBody,
   SheetSnapshot,
   SpreadsheetPromptResult,
 } from "../src/taskpane/pages/chat/chat-state-machine/chat-types";
+import {
+  formatSheetAsMarkdown as formatLegacySheetAsMarkdown,
+  formatSheetDataAsMarkdown as formatLegacySheetDataAsMarkdown,
+} from "../src/taskpane/pages/chat/chat-state-machine/excel-sheet-utils";
 import { configureOpenRouterClient } from "../src/taskpane/pages/chat/chat-state-machine/openrouter-client";
 import { OpenrouterKeyStore } from "../src/taskpane/pages/openrouter-auth/openrouter-api-key";
 import { ExcelController } from "../src/taskpane-fsm/pages/chat/chat-window/excel-controller";
+import { LLMManager } from "../src/taskpane-fsm/pages/chat/chat-window/llm-manager";
 import { RestoreManager } from "../src/taskpane-fsm/pages/chat/chat-window/restore-manager";
+import {
+  formatSheetAsMarkdown,
+  formatSheetDataAsMarkdown,
+} from "../src/taskpane-fsm/pages/chat/chat-window/sheet-markdown";
 import type { ChatState } from "../src/taskpane-fsm/pages/chat/chat-window/chat-window-types";
 import { createExcelTestWorkbook } from "./excel-test-double";
 
@@ -66,11 +76,18 @@ test("Restore Manager Copies Inputs When Creating Restore Point Snapshots", () =
     text: "Later message",
     workflowId: 1,
   });
+  chatState.llmConversationMessages = [
+    ...chatState.llmConversationMessages,
+    { role: "assistant", text: "Later response", workflowId: 1 },
+  ];
   chatState.nextWorkflowId++;
   sheet.formulas[0][0] = "Changed";
 
   const promotedRestorePoint = restoreManager.promotePotentialRestorePoint(1);
   assert.equal(promotedRestorePoint.chatState.transcript.length, 1);
+  assert.deepEqual(promotedRestorePoint.chatState.llmConversationMessages, [
+    { role: "user", text: "Initial request", workflowId: 1 },
+  ]);
   assert.equal(promotedRestorePoint.chatState.nextWorkflowId, 1);
   assert.deepEqual(promotedRestorePoint.sheet.formulas, [["Original"]]);
 
@@ -176,6 +193,200 @@ test("Restore Manager Finalizes And Clears Restore History Without Resetting IDs
   assert.equal(fourthRestorePoint.id, thirdRestorePoint.id + 1);
 });
 
+test("Taskpane FSM Sheet Markdown Matches The Existing Formatting", () => {
+  const sheet: SheetSnapshot = {
+    name: "Sheet1",
+    formulas: [["Label|Name", "=A2*2"], ["Line\nBreak", 2]],
+    values: [["Label|Name", 4], ["{Value}", 2]],
+    rowIndex: 2,
+    columnIndex: 1,
+    rowCount: 2,
+    columnCount: 2,
+  };
+
+  assert.equal(formatSheetDataAsMarkdown(sheet, sheet.values), formatLegacySheetDataAsMarkdown(sheet, sheet.values));
+  assert.equal(formatSheetAsMarkdown(sheet), formatLegacySheetAsMarkdown(sheet));
+});
+
+test("LLM Manager Preserves Main Query Streaming And Replacement History", async () => {
+  const manager = new LLMManager();
+  const mocks = installMocks(() =>
+    createOutputTextResponse({
+      shouldEditSheet: true,
+      createNewSheet: false,
+      answer: null,
+      editExplanation: "Updated the requested cells.",
+      cellEdits: [{ address: "B2", newFormula: 2400 }],
+      comparisonRanges: [],
+    })
+  );
+  const history: LlmConversationHistory = [
+    {
+      role: "user",
+      text: "Earlier request",
+      workflowId: 1,
+      sheetContext: {
+        range: { rowIndex: 0, columnIndex: 0, rowCount: 1, columnCount: 1 },
+        sheetMarkdown: "Earlier context",
+      },
+    },
+  ];
+
+  try {
+    const events = [];
+    for await (const event of manager.runMainQueryPrompt(
+      "Update the units.",
+      2,
+      createRestoreManagerSheet("Sheet1"),
+      history
+    )) {
+      events.push(event);
+    }
+
+    assert.deepEqual(
+      events.map((event) => event.type),
+      ["partial_response", "creating_proposed_change", "complete"]
+    );
+    const completion = events.at(-1)!;
+    assert.equal(completion.type, "complete");
+    if (completion.type === "complete") {
+      assert.deepEqual(completion.updatedLlmConversationMessages[0], {
+        role: "user",
+        text: "Earlier request",
+        workflowId: 1,
+      });
+      assert.equal(completion.updatedLlmConversationMessages.length, 3);
+      assert.deepEqual(completion.updatedLlmConversationMessages.at(-1), {
+        role: "assistant",
+        text: "Updated the requested cells.",
+        workflowId: 2,
+      });
+    }
+  } finally {
+    mocks.restore();
+  }
+});
+
+test("LLM Manager Continues A Pending Clarification", async () => {
+  const manager = new LLMManager();
+  const history: LlmConversationHistory = [
+    { role: "user", text: "Update the forecast.", workflowId: 3 },
+    {
+      type: "function_call",
+      id: "tool-1",
+      callId: "call-1",
+      name: "ask_clarifying_question",
+      arguments: JSON.stringify({ question: "Which period?" }),
+      workflowId: 3,
+    },
+  ];
+  const mocks = installMocks(() =>
+    createOutputTextResponse({
+      shouldEditSheet: false,
+      createNewSheet: false,
+      answer: "The clarification was applied.",
+      editExplanation: null,
+      cellEdits: [],
+      comparisonRanges: [],
+    })
+  );
+
+  try {
+    assert.strictEqual(manager.getPendingClarificationToolCall(history), history[1]);
+    const events = [];
+    for await (const event of manager.runClarificationResponsePrompt("FY2028", 3, history)) {
+      events.push(event);
+    }
+
+    const functionCallOutput = mocks.requests[0].input.find(
+      (item) => "type" in item && item.type === "function_call_output"
+    );
+    assert.deepEqual(functionCallOutput, {
+      type: "function_call_output",
+      call_id: "call-1",
+      output: "FY2028",
+    });
+    const completion = events.at(-1)!;
+    assert.equal(completion.type, "complete");
+    if (completion.type === "complete") {
+      assert.deepEqual(completion.updatedLlmConversationMessages.at(-2), {
+        type: "function_call_output",
+        callId: "call-1",
+        output: "FY2028",
+        workflowId: 3,
+      });
+      assert.deepEqual(completion.updatedLlmConversationMessages.at(-1), {
+        role: "assistant",
+        text: "The clarification was applied.",
+        workflowId: 3,
+      });
+    }
+  } finally {
+    mocks.restore();
+  }
+});
+
+test("LLM Manager Preserves Preprocess Scenario And Update Analysis Operations", async () => {
+  const manager = new LLMManager();
+  const mocks = installMocks((requestBody) => {
+    const format = requestBody.text as { format: { type: string; name?: string } };
+    if (format.format.name === "formula_inference_plan") {
+      return createNoEditResponse();
+    } else if (format.format.name === "scenario_comparison_response") {
+      return createOutputTextResponse({
+        cellEdits: [{ address: "A4", newFormula: "Comparison" }],
+        analysis: "Scenario analysis.",
+      });
+    } else {
+      return createOutputTextResponse("Accepted update analysis.");
+    }
+  });
+  const originalSheet = createRestoreManagerSheet("Baseline");
+  const scenarioSheet = createRestoreManagerSheet("Scenario 1");
+
+  try {
+    const preprocessEvents = [];
+    for await (const event of manager.runPreprocessPrompt(originalSheet)) {
+      preprocessEvents.push(event);
+    }
+    assert.deepEqual(preprocessEvents, [{ type: "complete", cellEdits: [] }]);
+
+    const comparison = await manager.runScenarioComparisonPrompt(
+      "Compare the scenario.",
+      originalSheet,
+      scenarioSheet,
+      [{ purpose: "Compare outputs", address: "A1:A1" }],
+      []
+    );
+    assert.deepEqual(comparison, {
+      cellEdits: [{ address: "A4", newFormula: "Comparison" }],
+      analysis: "Scenario analysis.",
+    });
+    await assert.rejects(
+      manager.runScenarioComparisonPrompt(
+        "Compare the scenario.",
+        originalSheet,
+        scenarioSheet,
+        [],
+        []
+      ),
+      /at least one comparison range/
+    );
+
+    assert.equal(
+      await manager.runUpdateAnalysisPrompt(
+        "Update the forecast.",
+        originalSheet,
+        scenarioSheet,
+        []
+      ),
+      "Accepted update analysis."
+    );
+  } finally {
+    mocks.restore();
+  }
+});
+
 function createRestoreManagerChatState(): ChatState {
   return {
     transcript: [
@@ -186,7 +397,7 @@ function createRestoreManagerChatState(): ChatState {
         workflowId: 0,
       },
     ],
-    llmConversationMessages: [],
+    llmConversationMessages: [{ role: "user", text: "Initial request", workflowId: 1 }],
     workflowState: "answered",
     preprocessedSheetNames: [],
     nextWorkflowId: 1,
@@ -247,10 +458,13 @@ function getLatestMessageEntry(stateMachine: ChatStateMachine) {
     .at(-1)!;
 }
 
-function installMocks() {
+function installMocks(
+  getResponseBody: (requestBody: OpenRouterRequestBody) => object = getOpenRouterResponseBody
+) {
   const previousFetch = globalThis.fetch;
   const previousLog = console.log;
   const previousDebug = console.debug;
+  const requests: OpenRouterRequestBody[] = [];
 
   openrouterKeyStore.set("unit-test-key");
   globalThis.fetch = async (_input, init) => {
@@ -258,8 +472,9 @@ function installMocks() {
     if (init?.body && typeof init.body === "string") {
       requestBody = JSON.parse(init.body);
     }
+    requests.push(requestBody!);
     return createOpenRouterResponse(
-      getOpenRouterResponseBody(requestBody!),
+      getResponseBody(requestBody!),
       requestBody!.stream === true
     );
   };
@@ -267,12 +482,28 @@ function installMocks() {
   console.debug = () => {};
 
   return {
+    requests,
     restore() {
       openrouterKeyStore.clear();
       globalThis.fetch = previousFetch;
       console.log = previousLog;
       console.debug = previousDebug;
     },
+  };
+}
+
+function createOutputTextResponse(content: object | string) {
+  return {
+    output: [
+      {
+        content: [
+          {
+            type: "output_text",
+            text: typeof content === "string" ? content : JSON.stringify(content),
+          },
+        ],
+      },
+    ],
   };
 }
 

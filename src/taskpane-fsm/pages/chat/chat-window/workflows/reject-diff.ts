@@ -7,6 +7,7 @@ import {
   removeDiffReviewTranscriptItem,
   removeWorkingTranscriptItem,
 } from "../dom/transcript-helpers";
+import { appendUserDecisionLlmMessage } from "../chat-window";
 import { ChatWindowState } from "../chat-window-state";
 import { runSubmitMessageWorkflow } from "./submit-message";
 
@@ -49,7 +50,7 @@ async function finalize(state: ChatWindowState, pendingEdit: PendingEdit): Promi
     "Rejected changes.",
     pendingEdit.workflowId
   );
-  state.appendUserDecisionLlmMessage("Rejected changes.", pendingEdit.workflowId);
+  appendUserDecisionLlmMessage(state.chatState, "Rejected changes.", pendingEdit.workflowId);
 
   if (shouldContinueOriginalQuery) {
     appendMessageAndRender(

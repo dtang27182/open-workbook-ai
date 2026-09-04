@@ -1,4 +1,3 @@
-import { runMainQueryPrompt } from "../../../../../taskpane/pages/chat/chat-state-machine/llm-model-workflow";
 import {
   ChatMessageTranscriptItem,
   LlmConversationHistory,
@@ -88,7 +87,7 @@ async function performActions(
   responseEntry: ChatMessageTranscriptItem
 ): Promise<SpreadsheetPromptCompletionEvent> {
   let completionEvent: SpreadsheetPromptCompletionEvent | undefined;
-  for await (const event of runMainQueryPrompt(
+  for await (const event of state.llmManager.runMainQueryPrompt(
     message,
     workflowId,
     originalSheet,

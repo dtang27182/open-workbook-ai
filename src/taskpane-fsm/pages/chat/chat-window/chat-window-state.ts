@@ -4,11 +4,13 @@ import { ChatWindowDomHandlers } from "./dom/chat-window-dom";
 import { RestoreManager } from "./restore-manager";
 import { ChatState } from "./chat-window-types";
 import { ExcelController } from "./excel-controller";
+import { LLMManager } from "./llm-manager";
 
 export class ChatWindowState {
   readonly mount: HTMLElement;
   readonly domHandlers: ChatWindowDomHandlers;
   readonly excelController: ExcelController;
+  readonly llmManager: LLMManager;
   chatState: ChatState = {
     transcript: [],
     llmConversationMessages: [],
@@ -21,24 +23,12 @@ export class ChatWindowState {
   constructor(
     mount: HTMLElement,
     domHandlers: ChatWindowDomHandlers,
-    excelController: ExcelController
+    excelController: ExcelController,
+    llmManager: LLMManager
   ) {
     this.mount = mount;
     this.domHandlers = domHandlers;
     this.excelController = excelController;
-  }
-
-  appendUserDecisionLlmMessage(text: string, workflowId: number): void {
-    this.chatState.llmConversationMessages = [
-      ...this.chatState.llmConversationMessages,
-      { role: "user", text, workflowId },
-    ];
-  }
-
-  appendAssistantLlmMessage(text: string, workflowId: number): void {
-    this.chatState.llmConversationMessages = [
-      ...this.chatState.llmConversationMessages,
-      { role: "assistant", text, workflowId },
-    ];
+    this.llmManager = llmManager;
   }
 }

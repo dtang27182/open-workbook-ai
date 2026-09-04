@@ -1,4 +1,3 @@
-import { runPreprocessPrompt } from "../../../../../taskpane/pages/chat/chat-state-machine/llm-model-workflow";
 import {
   CellEdit,
   SheetSnapshot,
@@ -26,7 +25,7 @@ export async function runPreprocessWorkflow(
   const originalSheet = await state.excelController.readActiveSheet();
   setupTransition(state, message, workflowId, originalSheet);
   let cellEdits: CellEdit[] | undefined;
-  for await (const event of runPreprocessPrompt(originalSheet)) {
+  for await (const event of state.llmManager.runPreprocessPrompt(originalSheet)) {
     if (event.type === "detection_complete") {
       appendMessageAndRender(
         state.mount,

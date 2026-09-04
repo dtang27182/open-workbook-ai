@@ -1,8 +1,4 @@
 import {
-  getPendingClarificationToolCall,
-  runClarificationResponsePrompt,
-} from "../../../../../taskpane/pages/chat/chat-state-machine/llm-model-workflow";
-import {
   ChatMessageTranscriptItem,
   LlmConversationHistory,
   SpreadsheetPromptCompletionEvent,
@@ -23,7 +19,9 @@ export async function runClarificationWorkflow(
   state: ChatWindowState,
   answer: string
 ): Promise<void> {
-  const pendingToolCall = getPendingClarificationToolCall(state.chatState.llmConversationMessages);
+  const pendingToolCall = state.llmManager.getPendingClarificationToolCall(
+    state.chatState.llmConversationMessages
+  );
   const workflowId = pendingToolCall.workflowId;
   const originalSheet = await state.excelController.readActiveSheet();
   const responseEntry = setupTransition(state, answer, workflowId);
@@ -75,7 +73,7 @@ async function performActions(
   responseEntry: ChatMessageTranscriptItem
 ): Promise<SpreadsheetPromptCompletionEvent> {
   let completionEvent: SpreadsheetPromptCompletionEvent | undefined;
-  for await (const event of runClarificationResponsePrompt(
+  for await (const event of state.llmManager.runClarificationResponsePrompt(
     answer,
     workflowId,
     llmConversationMessages
