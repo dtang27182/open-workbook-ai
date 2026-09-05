@@ -1,8 +1,9 @@
 ## Repository Architecture
 
-- Read `ARCHITECTURE.md` before making broad changes to the current runtime, assistant state, streaming, edit lifecycle, or test architecture.
-- Before changing Component FSM architecture or code under `src/taskpane-fsm`, read `docs/taskpane-component-fsm-architecture-v2.md` as the authoritative component contract and behavior description.
-- Also read `docs/component-fsm-architecture-v2-implementation-guide.md` for recommended component structure. Its guidance is not enforced by the architecture unless the architecture document says otherwise.
+- Read `docs/application-architecture.md` before making broad changes to module responsibilities, assistant workflows, or restore behavior.
+- Read `docs/testing.md` before changing tests or the test architecture.
+- Before changing Component Architecture or code under `src/taskpane`, read `docs/component-architecture.md` as the authoritative component contract and behavior description.
+- Also read `docs/component-architecture-implementation-guide.md` for recommended component structure. Its guidance is not enforced by the architecture unless the architecture document says otherwise.
 
 ## Coding Style
 
