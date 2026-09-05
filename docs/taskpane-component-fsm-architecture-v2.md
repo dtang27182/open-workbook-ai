@@ -126,9 +126,7 @@ There is no global render function. Application initialization constructs the to
 ```ts
 Office.onReady(() => {
   const mount = document.getElementById("app-body")!;
-  const keyStore = new OpenRouterKeyStore();
-
-  configureOpenRouterClient(keyStore);
-  new TaskpaneComponent(mount, { keyStore });
+  new TaskpaneComponent(mount);
+  mount.hidden = false;
 });
 ```

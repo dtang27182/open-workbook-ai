@@ -21,8 +21,8 @@
     "prettier": "office-addin-lint prettier",
     "signin": "office-addin-dev-settings m365-account login",
     "signout": "office-addin-dev-settings m365-account logout",
-    "test:live": "tsc --project tests/tsconfig.live.json && node --test --test-concurrency=100 .live-test-build/tests/integration.test.js",
-    "test:unit": "tsc --project tests/tsconfig.unit.json && node --test .unit-test-build/tests/unit.test.js",
+    "test:live": "tsc --noEmit --project tests/tsconfig.live.json && node tests/run-tests.mjs integration",
+    "test:unit": "tsc --noEmit --project tests/tsconfig.unit.json && node tests/run-tests.mjs unit",
     "validate": "office-addin-manifest validate manifest.xml",
     "watch": "vite build --mode development --watch"
   },
@@ -36,6 +36,7 @@
     "@types/office-js": "^1.0.377",
     "@types/office-runtime": "^1.0.35",
     "eslint-plugin-office-addins": "^4.0.3",
+    "jsdom": "^27.4.0",
     "office-addin-cli": "^2.0.3",
     "office-addin-debugging": "^6.0.3",
     "office-addin-dev-certs": "^2.0.3",

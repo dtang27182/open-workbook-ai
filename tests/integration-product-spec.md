@@ -65,7 +65,7 @@ When the user makes a series of analysis-only requests, the assistant should ret
 Example flow:
 
 ```txt
-Remember this label: alpha-test-forecast.
+For this conversation only, remember the label alpha-test-forecast. Do not edit the worksheet. Reply only with the label.
 What label did I ask you to remember?
 ```
 

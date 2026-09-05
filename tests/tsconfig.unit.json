@@ -11,10 +11,6 @@
   },
   "include": [
     "../src/vite-env.d.ts",
-    "../src/taskpane/pages/chat/chat-state-machine/excel-sheet-utils.ts",
-    "../src/taskpane/pages/chat/chat-state-machine/llm-model-workflow.ts",
-    "../src/taskpane/pages/chat/chat-state-machine/chat-types.ts",
-    "../src/taskpane-fsm/pages/chat/chat-window-restore-manager.ts",
     "./excel-test-double.ts",
     "./unit.test.ts"
   ]

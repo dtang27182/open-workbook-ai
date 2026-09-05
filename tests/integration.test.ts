@@ -2,15 +2,18 @@ import assert from "node:assert/strict";
 import { AsyncLocalStorage } from "node:async_hooks";
 import test, { after, before, TestContext } from "node:test";
 
-import { ChatStateMachine } from "../src/taskpane/pages/chat/chat-state-machine/chat-state-machine";
-import { ChatTranscriptEntry, SpreadsheetPromptResult } from "../src/taskpane/pages/chat/chat-state-machine/chat-types";
-import { configureOpenRouterClient } from "../src/taskpane/pages/chat/chat-state-machine/openrouter-client";
-import { OpenrouterKeyStore } from "../src/taskpane/pages/openrouter-auth/openrouter-api-key";
+import type { ChatWindow } from "../src/taskpane-fsm/pages/chat/chat-window/chat-window";
+import type { ChatTranscriptEntry } from "../src/taskpane-fsm/pages/chat/chat-window/dom/transcript-helpers";
+import { OpenrouterKeyStore } from "../src/taskpane-fsm/pages/openrouter-auth/openrouter-api-key";
+import {
+  createChatWindowForTest,
+  getChatStateForTest,
+  submitChatMessageForTest,
+} from "./chat-window-test-helpers";
 import { createExcelTestWorkbook } from "./excel-test-double";
 
 const apiKey = process.env.OPEN_ROUTER_TOKEN || "";
 const openrouterKeyStore = new OpenrouterKeyStore();
-configureOpenRouterClient(openrouterKeyStore);
 
 const alreadyPreprocessedSheetFormulas = [
   ["PRODUCT", "UNITS", "PRICE", "GROWTH", "REVENUE"],
@@ -41,7 +44,7 @@ const nonPreprocessedSheetValues = [
 type OpenRouterRequest = { input: Array<{ role: string; content: string }> };
 type ExcelTestWorkbook = ReturnType<typeof createExcelTestWorkbook>;
 type TestHarness = {
-  stateMachine: ChatStateMachine;
+  chatWindow: ChatWindow;
   workbook: ExcelTestWorkbook;
   openRouterRequests: OpenRouterRequest[];
   logLines: string[];
@@ -68,7 +71,7 @@ after(() => {
 
 liveTest("Analysis Request Does Not Edit The Sheet", createTestHarness, async (harness) => {
   const result = await submitChatMessageForTest(
-    harness.stateMachine,
+    harness.chatWindow,
     "Summarize what this spreadsheet contains."
   );
 
@@ -81,7 +84,7 @@ liveTest(
   createTestHarness,
   async (harness) => {
     const result = await submitChatMessageForTest(
-      harness.stateMachine,
+      harness.chatWindow,
       "Make all column headers lower case."
     );
 
@@ -93,7 +96,7 @@ liveTest(
       harness.workbook.getSheet("Sheet1").formulas,
       alreadyPreprocessedSheetFormulas
     );
-    await harness.stateMachine.updateState({ type: "accept_pending_diff" });
+    await harness.chatWindow.updateState({ type: "accept_pending_diff" });
     assert.deepEqual(harness.workbook.getSheet("Sheet1").formulas, expectedSheetFormulas);
   }
 );
@@ -103,7 +106,7 @@ liveTest(
   createTestHarness,
   async (harness) => {
     const result = await submitChatMessageForTest(
-      harness.stateMachine,
+      harness.chatWindow,
       "Make all column headers lower case."
     );
 
@@ -114,26 +117,27 @@ liveTest(
       alreadyPreprocessedSheetFormulas
     );
 
-    await harness.stateMachine.updateState({ type: "reject_pending_diff" });
+    await harness.chatWindow.updateState({ type: "reject_pending_diff" });
 
     assert.deepEqual(
       harness.workbook.getSheet("Sheet1").formulas,
       alreadyPreprocessedSheetFormulas
     );
-    assert.notEqual(harness.stateMachine.getCurrentTurnState(), "pending_edit");
+    assert.notEqual(getChatStateForTest(harness.chatWindow).workflowState, "pending_edit");
     assert.equal(
-      harness.stateMachine.buildChatTranscript().some((entry) => entry.kind === "restore"),
+      getChatStateForTest(harness.chatWindow).transcript.some((entry) => entry.kind === "restore"),
       false
     );
   }
 );
 
 liveTest("Follow-Up Requests Use Conversation Context", createTestHarness, async (harness) => {
-  const firstPrompt = "Remember this label: alpha-test-forecast.";
+  const firstPrompt =
+    "For this conversation only, remember the label alpha-test-forecast. Do not edit the worksheet. Reply only with the label.";
   const secondPrompt = "What label did I ask you to remember?";
 
-  const firstResult = await submitChatMessageForTest(harness.stateMachine, firstPrompt);
-  const secondResult = await submitChatMessageForTest(harness.stateMachine, secondPrompt);
+  const firstResult = await submitChatMessageForTest(harness.chatWindow, firstPrompt);
+  const secondResult = await submitChatMessageForTest(harness.chatWindow, secondPrompt);
   const secondRequest = harness.openRouterRequests[harness.openRouterRequests.length - 1];
   const expectedHistory = [
     { role: "user", content: firstPrompt },
@@ -151,17 +155,20 @@ liveTest(
   async (harness) => {
     const label = "restore-context-check";
     const editResult = await submitChatMessageForTest(
-      harness.stateMachine,
+      harness.chatWindow,
       "Make all column headers lower case."
     );
-    await harness.stateMachine.updateState({ type: "accept_pending_diff" });
-    const restoreEntry = findRestoreEntry(harness.stateMachine);
+    await harness.chatWindow.updateState({ type: "accept_pending_diff" });
+    const restoreEntry = findRestoreEntry(harness.chatWindow);
 
     assert.equal(editResult.didCreateDiff, true);
     assert.ok(restoreEntry);
 
-    await submitChatMessageForTest(harness.stateMachine, `Remember this label: ${label}.`);
-    await harness.stateMachine.updateState({
+    await submitChatMessageForTest(
+      harness.chatWindow,
+      `For this conversation only, remember the label ${label}. Do not edit the worksheet. Reply only with the label.`
+    );
+    await harness.chatWindow.updateState({
       type: "restore_to_point",
       restorePointId: restoreEntry.restorePointId,
     });
@@ -171,12 +178,12 @@ liveTest(
       alreadyPreprocessedSheetFormulas
     );
     assert.equal(
-      getMessageEntries(harness.stateMachine).some((entry) => entry.text.includes(label)),
+      getMessageEntries(harness.chatWindow).some((entry) => entry.text.includes(label)),
       false
     );
 
     const result = await submitChatMessageForTest(
-      harness.stateMachine,
+      harness.chatWindow,
       "What label did I ask you to remember? Answer only with the label if you know it, otherwise answer UNKNOWN."
     );
     assert.ok(!result.message.toLowerCase().includes(label));
@@ -188,20 +195,20 @@ liveTest(
   createNonPreprocessedTestHarness,
   async (harness) => {
     const result = await submitChatMessageForTest(
-      harness.stateMachine,
+      harness.chatWindow,
       "Summarize what this spreadsheet contains."
     );
 
     assert.equal(result.didCreateDiff, true);
-    assert.equal(harness.stateMachine.getCurrentTurnState(), "pending_edit_preprocessed");
+    assert.equal(getChatStateForTest(harness.chatWindow).workflowState, "pending_edit_preprocessed");
     assert.deepEqual(harness.workbook.getSheet("Sheet1").formulas, nonPreprocessedSheetFormulas);
 
-    await harness.stateMachine.updateState({ type: "accept_pending_diff" });
+    await harness.chatWindow.updateState({ type: "accept_pending_diff" });
 
     assert.equal(isFormula(harness.workbook.getSheet("Sheet1").formulas[1][3]), true);
-    assert.equal(harness.stateMachine.getCurrentTurnState(), "answered");
+    assert.equal(getChatStateForTest(harness.chatWindow).workflowState, "answered");
     // The live response text can vary, so only verify that the original query produced a final answer.
-    assert.ok(getLatestMessageEntry(harness.stateMachine).text.length > 0);
+    assert.ok(getLatestMessageEntry(harness.chatWindow).text.length > 0);
   }
 );
 
@@ -209,24 +216,25 @@ liveTest(
   "Restore Reverts An Accepted Preprocessing Edit",
   createNonPreprocessedTestHarness,
   async (harness) => {
+    const initialTranscript = structuredClone(getChatStateForTest(harness.chatWindow).transcript);
     const result = await submitChatMessageForTest(
-      harness.stateMachine,
+      harness.chatWindow,
       "Summarize what this spreadsheet contains."
     );
-    await harness.stateMachine.updateState({ type: "accept_pending_diff" });
-    const restoreEntry = findRestoreEntry(harness.stateMachine);
+    await harness.chatWindow.updateState({ type: "accept_pending_diff" });
+    const restoreEntry = findRestoreEntry(harness.chatWindow);
 
     assert.equal(result.didCreateDiff, true);
     assert.ok(restoreEntry);
     assert.equal(isFormula(harness.workbook.getSheet("Sheet1").formulas[1][3]), true);
 
-    await harness.stateMachine.updateState({
+    await harness.chatWindow.updateState({
       type: "restore_to_point",
       restorePointId: restoreEntry.restorePointId,
     });
 
     assert.deepEqual(harness.workbook.getSheet("Sheet1").formulas, nonPreprocessedSheetFormulas);
-    assert.equal(harness.stateMachine.buildChatTranscript().length, 0);
+    assert.deepEqual(getChatStateForTest(harness.chatWindow).transcript, initialTranscript);
   }
 );
 
@@ -235,15 +243,15 @@ liveTest(
   createNonPreprocessedTestHarness,
   async (harness) => {
     await submitChatMessageForTest(
-      harness.stateMachine,
+      harness.chatWindow,
       "Summarize what this spreadsheet contains."
     );
-    assert.equal(harness.stateMachine.getCurrentTurnState(), "pending_edit_preprocessed");
+    assert.equal(getChatStateForTest(harness.chatWindow).workflowState, "pending_edit_preprocessed");
 
-    await harness.stateMachine.updateState({ type: "accept_pending_diff" });
-    await submitChatMessageForTest(harness.stateMachine, "Summarize this spreadsheet again.");
+    await harness.chatWindow.updateState({ type: "accept_pending_diff" });
+    await submitChatMessageForTest(harness.chatWindow, "Summarize this spreadsheet again.");
 
-    assert.equal(harness.stateMachine.getCurrentTurnState(), "answered");
+    assert.equal(getChatStateForTest(harness.chatWindow).workflowState, "answered");
     assert.equal(countPreprocessRequests(harness), 1);
   }
 );
@@ -253,15 +261,15 @@ liveTest(
   createNonPreprocessedTestHarness,
   async (harness) => {
     await submitChatMessageForTest(
-      harness.stateMachine,
+      harness.chatWindow,
       "Summarize what this spreadsheet contains."
     );
-    assert.equal(harness.stateMachine.getCurrentTurnState(), "pending_edit_preprocessed");
+    assert.equal(getChatStateForTest(harness.chatWindow).workflowState, "pending_edit_preprocessed");
 
-    await harness.stateMachine.updateState({ type: "reject_pending_diff" });
-    await submitChatMessageForTest(harness.stateMachine, "Summarize this spreadsheet again.");
+    await harness.chatWindow.updateState({ type: "reject_pending_diff" });
+    await submitChatMessageForTest(harness.chatWindow, "Summarize this spreadsheet again.");
 
-    assert.equal(harness.stateMachine.getCurrentTurnState(), "answered");
+    assert.equal(getChatStateForTest(harness.chatWindow).workflowState, "answered");
     assert.equal(countPreprocessRequests(harness), 1);
   }
 );
@@ -303,7 +311,7 @@ function createTestHarness(): TestHarness {
   });
 
   return {
-    stateMachine: createStateMachine(workbook),
+    chatWindow: createChatWindowForTest(workbook.excelApi, openrouterKeyStore),
     workbook,
     openRouterRequests: [],
     logLines: [],
@@ -322,55 +330,27 @@ function createNonPreprocessedTestHarness(): TestHarness {
   });
 
   return {
-    stateMachine: createStateMachine(workbook),
+    chatWindow: createChatWindowForTest(workbook.excelApi, openrouterKeyStore),
     workbook,
     openRouterRequests: [],
     logLines: [],
   };
 }
 
-function createStateMachine(workbook: ExcelTestWorkbook) {
-  return new ChatStateMachine(workbook.excelApi, {
-    renderTranscript() {},
-    configChatControls() {},
-    disableChatInputControls() {},
-  });
+function findRestoreEntry(chatWindow: ChatWindow) {
+  return getChatStateForTest(chatWindow).transcript.find(
+    (entry): entry is Extract<ChatTranscriptEntry, { kind: "restore" }> => entry.kind === "restore"
+  );
 }
 
-async function submitChatMessageForTest(
-  stateMachine: ChatStateMachine,
-  message: string
-): Promise<SpreadsheetPromptResult> {
-  await stateMachine.updateState({ type: "submit_message", message });
-  const responseEntry = getLatestMessageEntry(stateMachine);
-  return {
-    message: responseEntry.text,
-    didCreateDiff:
-      stateMachine.getCurrentTurnState() === "pending_edit" ||
-      stateMachine.getCurrentTurnState() === "pending_edit_preprocessed",
-  };
+function getLatestMessageEntry(chatWindow: ChatWindow) {
+  return getMessageEntries(chatWindow).at(-1)!;
 }
 
-function findRestoreEntry(stateMachine: ChatStateMachine) {
-  return stateMachine
-    .buildChatTranscript()
-    .find(
-      (entry): entry is Extract<ChatTranscriptEntry, { kind: "restore" }> =>
-        entry.kind === "restore"
-    );
-}
-
-function getLatestMessageEntry(stateMachine: ChatStateMachine) {
-  return getMessageEntries(stateMachine).at(-1)!;
-}
-
-function getMessageEntries(stateMachine: ChatStateMachine) {
-  return stateMachine
-    .buildChatTranscript()
-    .filter(
-      (entry): entry is Extract<ChatTranscriptEntry, { kind: "message" }> =>
-        entry.kind === "message"
-    );
+function getMessageEntries(chatWindow: ChatWindow) {
+  return getChatStateForTest(chatWindow).transcript.filter(
+    (entry): entry is Extract<ChatTranscriptEntry, { kind: "message" }> => entry.kind === "message"
+  );
 }
 
 function countPreprocessRequests(harness: TestHarness) {

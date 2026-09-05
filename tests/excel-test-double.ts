@@ -1,4 +1,4 @@
-import type { ExcelApi } from "../src/taskpane/pages/chat/chat-state-machine/chat-types";
+import type { ExcelApi } from "../src/taskpane-fsm/pages/chat/chat-window/excel-manager";
 
 export type ExcelTestWorkbookInput = {
   activeSheetName: string;

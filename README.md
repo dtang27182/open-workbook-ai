@@ -108,11 +108,12 @@ in-place or formula-inference edits, not to newly created scenario worksheets.
 
 ```text
 manifest.xml                               Add-in identity, permissions, ribbon, and URLs
-src/taskpane/taskpane.html                 Task-pane HTML entry point
-src/taskpane/taskpane.ts                   Page initialization and navigation
-src/taskpane/pages/openrouter-auth/         OpenRouter sign-in and local key storage
-src/taskpane/pages/chat/chat-page.ts        Chat rendering and UI event handlers
-src/taskpane/pages/chat/chat-state-machine/ Conversation, model, and Excel workflows
+src/taskpane-fsm/taskpane.html              Task-pane HTML entry point and styles
+src/taskpane-fsm/taskpane.ts                Component initialization
+src/taskpane-fsm/taskpane-component.ts      Page selection and authentication handling
+src/taskpane-fsm/pages/openrouter-auth/     OpenRouter sign-in and local key storage
+src/taskpane-fsm/pages/chat/chat-page.ts    Chat component composition
+src/taskpane-fsm/pages/chat/chat-window/   Conversation, model, Excel, and DOM workflows
 src/auth-dialog/                           OpenRouter authorization callback dialog
 assets/                                    Manifest icons
 tests/                                     Unit and live integration behavior tests

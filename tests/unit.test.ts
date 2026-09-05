@@ -1,11 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ChatStateMachine } from "../src/taskpane/pages/chat/chat-state-machine/chat-state-machine";
-import type {
-  ChatTranscriptEntry,
-  SpreadsheetPromptResult,
-} from "../src/taskpane/pages/chat/chat-state-machine/chat-types";
 import {
   type LlmConversationHistory,
   LLMManager,
@@ -19,12 +14,6 @@ import {
   ExcelManager,
 } from "../src/taskpane-fsm/pages/chat/chat-window/excel-manager";
 import type { ChatState } from "../src/taskpane-fsm/pages/chat/chat-window/chat-window-state";
-import {
-  formatSheetAsMarkdown as formatLegacySheetAsMarkdown,
-  formatSheetDataAsMarkdown as formatLegacySheetDataAsMarkdown,
-} from "../src/taskpane/pages/chat/chat-state-machine/excel-sheet-utils";
-import { configureOpenRouterClient } from "../src/taskpane/pages/chat/chat-state-machine/openrouter-client";
-import { OpenrouterKeyStore as LegacyOpenrouterKeyStore } from "../src/taskpane/pages/openrouter-auth/openrouter-api-key";
 import { OpenrouterKeyStore } from "../src/taskpane-fsm/pages/openrouter-auth/openrouter-api-key";
 import { RestoreManager } from "../src/taskpane-fsm/pages/chat/chat-window/restore-manager";
 import {
@@ -32,10 +21,9 @@ import {
   formatSheetDataAsMarkdown,
 } from "../src/taskpane-fsm/pages/chat/chat-window/sheet-markdown";
 import { createExcelTestWorkbook } from "./excel-test-double";
+import { createChatWindowForTest, submitChatMessageForTest } from "./chat-window-test-helpers";
 
 const openrouterKeyStore = new OpenrouterKeyStore();
-const legacyOpenrouterKeyStore = new LegacyOpenrouterKeyStore();
-configureOpenRouterClient(legacyOpenrouterKeyStore);
 
 const sheetFormulas = [
   ["PRODUCT", "UNITS"],
@@ -49,12 +37,12 @@ const sheetValues = [
 
 test("Model Proposed Updates Are Reflected In The Generated Diff Sheet", async () => {
   const workbook = createWorkbook();
-  const stateMachine = createStateMachine(workbook);
+  const chatWindow = createChatWindowForTest(workbook.excelApi, openrouterKeyStore);
   const mocks = installMocks();
 
   try {
     const result = await submitChatMessageForTest(
-      stateMachine,
+      chatWindow,
       "Make all column headers lower case."
     );
 
@@ -202,7 +190,7 @@ test("Restore Manager Finalizes And Clears Restore History Without Resetting IDs
   assert.equal(fourthRestorePoint.id, thirdRestorePoint.id + 1);
 });
 
-test("Taskpane FSM Sheet Markdown Matches The Existing Formatting", () => {
+test("Sheet Markdown Preserves Values Formulas And Escaping", () => {
   const sheet: SheetSnapshot = {
     name: "Sheet1",
     formulas: [["Label|Name", "=A2*2"], ["Line\nBreak", 2]],
@@ -213,8 +201,24 @@ test("Taskpane FSM Sheet Markdown Matches The Existing Formatting", () => {
     columnCount: 2,
   };
 
-  assert.equal(formatSheetDataAsMarkdown(sheet, sheet.values), formatLegacySheetDataAsMarkdown(sheet, sheet.values));
-  assert.equal(formatSheetAsMarkdown(sheet), formatLegacySheetAsMarkdown(sheet));
+  assert.equal(
+    formatSheetDataAsMarkdown(sheet, sheet.values),
+    [
+      "| | B | C |",
+      "| --- | --- | --- |",
+      "| **3** | Label\\|Name | 4 |",
+      "| **4** | \\u007BValue\\u007D | 2 |",
+    ].join("\n")
+  );
+  assert.equal(
+    formatSheetAsMarkdown(sheet),
+    [
+      "| | B | C |",
+      "| --- | --- | --- |",
+      "| **3** | Label\\|Name | =A2*2 [value: 4] |",
+      "| **4** | \\u007BValue\\u007D | 2 |",
+    ].join("\n")
+  );
 });
 
 test("LLM Manager Preserves Main Query Streaming And Replacement History", async () => {
@@ -574,36 +578,6 @@ function createWorkbook() {
   });
 }
 
-function createStateMachine(workbook: ReturnType<typeof createWorkbook>) {
-  return new ChatStateMachine(workbook.excelApi, {
-    renderTranscript() {},
-    configChatControls() {},
-    disableChatInputControls() {},
-  });
-}
-
-async function submitChatMessageForTest(
-  stateMachine: ChatStateMachine,
-  message: string
-): Promise<SpreadsheetPromptResult> {
-  await stateMachine.updateState({ type: "submit_message", message });
-  const responseEntry = getLatestMessageEntry(stateMachine);
-  return {
-    message: responseEntry.text,
-    didCreateDiff: stateMachine.getCurrentTurnState() === "pending_edit",
-  };
-}
-
-function getLatestMessageEntry(stateMachine: ChatStateMachine) {
-  return stateMachine
-    .buildChatTranscript()
-    .filter(
-      (entry): entry is Extract<ChatTranscriptEntry, { kind: "message" }> =>
-        entry.kind === "message"
-    )
-    .at(-1)!;
-}
-
 function installMocks(
   getResponseBody: (requestBody: OpenRouterRequestBody) => object = getOpenRouterResponseBody
 ) {
@@ -613,7 +587,6 @@ function installMocks(
   const requests: OpenRouterRequestBody[] = [];
 
   openrouterKeyStore.set("unit-test-key");
-  legacyOpenrouterKeyStore.set("unit-test-key");
   globalThis.fetch = async (_input, init) => {
     let requestBody: OpenRouterRequestBody | undefined;
     if (init?.body && typeof init.body === "string") {
@@ -632,7 +605,6 @@ function installMocks(
     requests,
     restore() {
       openrouterKeyStore.clear();
-      legacyOpenrouterKeyStore.clear();
       globalThis.fetch = previousFetch;
       console.log = previousLog;
       console.debug = previousDebug;
@@ -723,7 +695,10 @@ function createSpreadsheetEditResponse() {
           {
             type: "output_text",
             text: JSON.stringify({
-              message: "Lowercased the column headers.",
+              answer: null,
+              editExplanation: "Lowercased the column headers.",
+              createNewSheet: false,
+              comparisonRanges: [],
               shouldEditSheet: true,
               cellEdits: [
                 { address: "A1", newFormula: "product" },
