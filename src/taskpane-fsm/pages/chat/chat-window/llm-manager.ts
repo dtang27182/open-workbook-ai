@@ -15,17 +15,17 @@ import {
   CellEdit,
   OpenRouterRequestBody,
   OpenRouterResponseBody,
-  PreprocessPromptEvent,
   ScenarioComparisonPromptResult,
   SpreadsheetPromptEvent,
 } from "../../../../taskpane/pages/chat/chat-state-machine/chat-types";
+import type { PreprocessPromptEvent } from "./chat-window-types";
 import {
   extractOpenRouterText,
   extractPartialMainQueryText,
   parseSpreadsheetResponse,
   OpenRouterClient,
 } from "./openrouter-client";
-import { OpenrouterKeyStore } from "../../../../taskpane/pages/openrouter-auth/openrouter-api-key";
+import { OpenrouterKeyStore } from "../../openrouter-auth/openrouter-api-key";
 import { formatSheetAsMarkdown, formatSheetDataAsMarkdown } from "./sheet-markdown";
 import {
   executeFormulaGenerator,

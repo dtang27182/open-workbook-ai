@@ -14,7 +14,8 @@ import {
   formatSheetDataAsMarkdown as formatLegacySheetDataAsMarkdown,
 } from "../src/taskpane/pages/chat/chat-state-machine/excel-sheet-utils";
 import { configureOpenRouterClient } from "../src/taskpane/pages/chat/chat-state-machine/openrouter-client";
-import { OpenrouterKeyStore } from "../src/taskpane/pages/openrouter-auth/openrouter-api-key";
+import { OpenrouterKeyStore as LegacyOpenrouterKeyStore } from "../src/taskpane/pages/openrouter-auth/openrouter-api-key";
+import { OpenrouterKeyStore } from "../src/taskpane-fsm/pages/openrouter-auth/openrouter-api-key";
 import { ExcelManager } from "../src/taskpane-fsm/pages/chat/chat-window/excel-manager";
 import { LLMManager } from "../src/taskpane-fsm/pages/chat/chat-window/llm-manager";
 import { OpenRouterClient } from "../src/taskpane-fsm/pages/chat/chat-window/openrouter-client";
@@ -27,7 +28,8 @@ import type { ChatState } from "../src/taskpane-fsm/pages/chat/chat-window/chat-
 import { createExcelTestWorkbook } from "./excel-test-double";
 
 const openrouterKeyStore = new OpenrouterKeyStore();
-configureOpenRouterClient(openrouterKeyStore);
+const legacyOpenrouterKeyStore = new LegacyOpenrouterKeyStore();
+configureOpenRouterClient(legacyOpenrouterKeyStore);
 
 const sheetFormulas = [
   ["PRODUCT", "UNITS"],
@@ -605,6 +607,7 @@ function installMocks(
   const requests: OpenRouterRequestBody[] = [];
 
   openrouterKeyStore.set("unit-test-key");
+  legacyOpenrouterKeyStore.set("unit-test-key");
   globalThis.fetch = async (_input, init) => {
     let requestBody: OpenRouterRequestBody | undefined;
     if (init?.body && typeof init.body === "string") {
@@ -623,6 +626,7 @@ function installMocks(
     requests,
     restore() {
       openrouterKeyStore.clear();
+      legacyOpenrouterKeyStore.clear();
       globalThis.fetch = previousFetch;
       console.log = previousLog;
       console.debug = previousDebug;

@@ -3,7 +3,7 @@
 import { Component } from "./component";
 import { ChatPage } from "./pages/chat/chat-page";
 import { OpenRouterAuthPage } from "./pages/openrouter-auth/openrouter-auth-page";
-import { OpenrouterKeyStore } from "../taskpane/pages/openrouter-auth/openrouter-api-key";
+import { OpenrouterKeyStore } from "./pages/openrouter-auth/openrouter-api-key";
 import { acquireOpenRouterApiKey } from "./pages/openrouter-auth/openrouter-key-exchange";
 
 export type TaskpanePageName = "openrouter-auth" | "chat";

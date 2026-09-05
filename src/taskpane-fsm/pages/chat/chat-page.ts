@@ -3,7 +3,7 @@
 import { Component } from "../../component";
 import { ChatHeader } from "./chat-header";
 import { ChatWindow } from "./chat-window/chat-window";
-import { OpenrouterKeyStore } from "../../../taskpane/pages/openrouter-auth/openrouter-api-key";
+import { OpenrouterKeyStore } from "../openrouter-auth/openrouter-api-key";
 
 export class ChatPage implements Component<never> {
   private readonly mount: HTMLElement;

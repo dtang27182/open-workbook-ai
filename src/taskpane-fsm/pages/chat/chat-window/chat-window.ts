@@ -30,7 +30,7 @@ import { ChatWindowState } from "./chat-window-state";
 import { ChatState } from "./chat-window-types";
 import { ExcelManager } from "./excel-manager";
 import { LLMManager } from "./llm-manager";
-import { OpenrouterKeyStore } from "../../../../taskpane/pages/openrouter-auth/openrouter-api-key";
+import { OpenrouterKeyStore } from "../../openrouter-auth/openrouter-api-key";
 import { runAcceptDiffWorkflow } from "./workflows/accept-diff";
 import { runClarificationWorkflow } from "./workflows/clarification";
 import { runPreprocessWorkflow } from "./workflows/preprocess";

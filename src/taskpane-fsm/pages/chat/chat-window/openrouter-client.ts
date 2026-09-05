@@ -11,7 +11,7 @@ import {
   OpenRouterStreamResultEvent,
   OpenRouterStreamEvent,
 } from "../../../../taskpane/pages/chat/chat-state-machine/chat-types";
-import { OpenrouterKeyStore } from "../../../../taskpane/pages/openrouter-auth/openrouter-api-key";
+import { OpenrouterKeyStore } from "../../openrouter-auth/openrouter-api-key";
 
 export class OpenRouterClient {
   private readonly keyStore: OpenrouterKeyStore;
