@@ -2,7 +2,7 @@ import type { CellEdit, SheetSnapshot } from "../excel-manager";
 import {
   formatFormulaInferencePlan,
   formatFormulaInferenceRegionResult,
-} from "../preprocess-formula-inference";
+} from "../llm/preprocess-formula-inference";
 import { renderChatTranscript } from "../dom/chat-window-dom";
 import {
   appendDiffReviewTranscriptItemAndRender,

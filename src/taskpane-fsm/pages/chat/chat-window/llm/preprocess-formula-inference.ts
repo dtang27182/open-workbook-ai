@@ -2,7 +2,7 @@
 
 import { getQuickJS, shouldInterruptAfterDeadline } from "quickjs-emscripten";
 
-import type { CellEdit } from "./excel-manager";
+import type { CellEdit } from "../excel-manager";
 
 export type PreprocessPromptEvent =
   | { type: "detection_complete"; plan: FormulaInferencePlan }

@@ -1,4 +1,4 @@
-import type { SheetSnapshot } from "./excel-manager";
+import type { SheetSnapshot } from "../excel-manager";
 
 export function formatSheetDataAsMarkdown(sheet: SheetSnapshot, data: unknown[][]): string {
   const colLabels: string[] = [];

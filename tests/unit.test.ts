@@ -4,11 +4,11 @@ import test from "node:test";
 import {
   type LlmConversationHistory,
   LLMManager,
-} from "../src/taskpane-fsm/pages/chat/chat-window/llm-manager";
+} from "../src/taskpane-fsm/pages/chat/chat-window/llm/llm-manager";
 import {
   type OpenRouterRequestBody,
   OpenRouterClient,
-} from "../src/taskpane-fsm/pages/chat/chat-window/openrouter-client";
+} from "../src/taskpane-fsm/pages/chat/chat-window/llm/openrouter-client";
 import {
   type SheetSnapshot,
   ExcelManager,
@@ -19,7 +19,7 @@ import { RestoreManager } from "../src/taskpane-fsm/pages/chat/chat-window/resto
 import {
   formatSheetAsMarkdown,
   formatSheetDataAsMarkdown,
-} from "../src/taskpane-fsm/pages/chat/chat-window/sheet-markdown";
+} from "../src/taskpane-fsm/pages/chat/chat-window/llm/sheet-markdown";
 import { createExcelTestWorkbook } from "./excel-test-double";
 import { createChatWindowForTest, submitChatMessageForTest } from "./chat-window-test-helpers";
 

@@ -3,7 +3,7 @@
 import { createParser } from "eventsource-parser";
 
 import type { ModelSpreadsheetResponse } from "./llm-manager";
-import { OpenrouterKeyStore } from "../../openrouter-auth/openrouter-api-key";
+import { OpenrouterKeyStore } from "../../../openrouter-auth/openrouter-api-key";
 
 export type OpenRouterMessage = { role: string; content: string };
 

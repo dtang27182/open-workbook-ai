@@ -12,7 +12,7 @@ import {
   parseSpreadsheetResponse,
   OpenRouterClient,
 } from "./openrouter-client";
-import type { SheetSnapshot, CellEdit } from "./excel-manager";
+import type { SheetSnapshot, CellEdit } from "../excel-manager";
 import {
   type PreprocessPromptEvent,
   executeFormulaGenerator,
@@ -26,7 +26,7 @@ import {
   formulaInferenceModelConfig,
   rateLimitFormulaInferenceRequest,
 } from "./preprocess-formula-inference";
-import { OpenrouterKeyStore } from "../../openrouter-auth/openrouter-api-key";
+import { OpenrouterKeyStore } from "../../../openrouter-auth/openrouter-api-key";
 import { formatSheetAsMarkdown, formatSheetDataAsMarkdown } from "./sheet-markdown";
 
 type LlmConversationSheetContext = Readonly<{

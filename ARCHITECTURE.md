@@ -10,8 +10,8 @@ This repo is an Excel Office Add-in task pane for a spreadsheet assistant. The a
 - `src/taskpane-fsm/pages/chat/chat-page.ts` composes `ChatHeader` and `ChatWindow`.
 - `src/taskpane-fsm/pages/chat/chat-window/chat-window.ts` owns chat input handling and state transitions, delegating to the modules in `workflows/` and DOM helpers in `dom/`.
 - `chat-window-state.ts` holds component dependencies and restorable chat state; `restore-manager.ts` owns restore checkpoints.
-- `llm-manager.ts` owns model operations through its `OpenRouterClient`; `openrouter-client.ts` handles HTTP and streaming responses.
-- `excel-manager.ts` owns workbook operations and generated sheet counters; `sheet-markdown.ts` formats sheet context.
+- `llm/llm-manager.ts` owns model operations through its `OpenRouterClient`; `llm/openrouter-client.ts` handles HTTP and streaming responses.
+- `excel-manager.ts` owns workbook operations and generated sheet counters; `llm/sheet-markdown.ts` formats sheet context, and `llm/preprocess-formula-inference.ts` supports formula inference.
 
 The original taskpane implementation and its runtime selector have been removed. The component contract and implementation guidance are in [Component FSM Architecture V2](docs/taskpane-component-fsm-architecture-v2.md) and its [implementation guide](docs/component-fsm-architecture-v2-implementation-guide.md).
 

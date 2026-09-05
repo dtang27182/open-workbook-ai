@@ -3,7 +3,7 @@
 import type { ChatWindowDomHandlers } from "./dom/chat-window-dom";
 import { RestoreManager } from "./restore-manager";
 import type { ChatTranscriptItem } from "./dom/transcript-helpers";
-import type { LlmConversationHistory, LLMManager } from "./llm-manager";
+import type { LlmConversationHistory, LLMManager } from "./llm/llm-manager";
 import type { ExcelManager } from "./excel-manager";
 
 export type ChatWorkflowStateVals =

@@ -6,7 +6,7 @@ import {
   updateWorkingTranscriptItemAndRender,
   upsertTranscriptMessageAndRender,
 } from "../dom/transcript-helpers";
-import type { LlmConversationHistory, SpreadsheetPromptCompletionEvent } from "../llm-manager";
+import type { LlmConversationHistory, SpreadsheetPromptCompletionEvent } from "../llm/llm-manager";
 import type { SheetSnapshot } from "../excel-manager";
 import { renderChatTranscript } from "../dom/chat-window-dom";
 import { processModelResponse } from "../chat-window";

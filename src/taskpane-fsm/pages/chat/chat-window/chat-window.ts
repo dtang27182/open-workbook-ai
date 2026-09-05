@@ -16,7 +16,7 @@ import {
   type LlmConversationHistory,
   type SpreadsheetPromptCompletionEvent,
   LLMManager,
-} from "./llm-manager";
+} from "./llm/llm-manager";
 import {
   ChatWindowDomHandlers,
   configChatControls,
