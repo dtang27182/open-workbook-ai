@@ -1,33 +1,20 @@
 /* global console */
 
 import {
-  LlmConversationFunctionCall,
-  LlmConversationFunctionCallOutput,
-  LlmConversationHistory,
-  LlmConversationMessage,
-  ComparisonRange,
-  ModelSpreadsheetResponse,
-  OpenRouterFunctionCall,
-  OpenRouterFunctionTool,
-  OpenRouterInputItem,
-  OpenRouterMessage,
-  SheetSnapshot,
-  CellEdit,
-  OpenRouterRequestBody,
-  OpenRouterResponseBody,
-  ScenarioComparisonPromptResult,
-  SpreadsheetPromptEvent,
-} from "../../../../taskpane/pages/chat/chat-state-machine/chat-types";
-import type { PreprocessPromptEvent } from "./chat-window-types";
-import {
+  type OpenRouterFunctionCall,
+  type OpenRouterFunctionTool,
+  type OpenRouterInputItem,
+  type OpenRouterMessage,
+  type OpenRouterRequestBody,
+  type OpenRouterResponseBody,
   extractOpenRouterText,
   extractPartialMainQueryText,
   parseSpreadsheetResponse,
   OpenRouterClient,
 } from "./openrouter-client";
-import { OpenrouterKeyStore } from "../../openrouter-auth/openrouter-api-key";
-import { formatSheetAsMarkdown, formatSheetDataAsMarkdown } from "./sheet-markdown";
+import type { SheetSnapshot, CellEdit } from "./excel-manager";
 import {
+  type PreprocessPromptEvent,
   executeFormulaGenerator,
   formulaDetectionInstructions,
   formulaDetectionModelConfig,
@@ -39,6 +26,101 @@ import {
   formulaInferenceModelConfig,
   rateLimitFormulaInferenceRequest,
 } from "./preprocess-formula-inference";
+import { OpenrouterKeyStore } from "../../openrouter-auth/openrouter-api-key";
+import { formatSheetAsMarkdown, formatSheetDataAsMarkdown } from "./sheet-markdown";
+
+type LlmConversationSheetContext = Readonly<{
+  range: Readonly<{
+    rowIndex: number;
+    columnIndex: number;
+    rowCount: number;
+    columnCount: number;
+  }>;
+  sheetMarkdown: string;
+}>;
+
+type LlmConversationMessage = Readonly<{
+  role: "assistant" | "user";
+  text: string;
+  workflowId: number;
+  sheetContext?: LlmConversationSheetContext;
+}>;
+
+type LlmConversationFunctionCall = Readonly<{
+  type: "function_call";
+  id: string;
+  callId: string;
+  name: "ask_clarifying_question";
+  arguments: string;
+  workflowId: number;
+}>;
+
+type LlmConversationFunctionCallOutput = Readonly<{
+  type: "function_call_output";
+  callId: string;
+  output: string;
+  workflowId: number;
+}>;
+
+export type LlmConversationHistory = readonly (
+  | LlmConversationMessage
+  | LlmConversationFunctionCall
+  | LlmConversationFunctionCallOutput
+)[];
+
+export type ComparisonRange = {
+  purpose: string;
+  address: string;
+};
+
+export type ModelSpreadsheetResponse =
+  | {
+      shouldEditSheet: false;
+      createNewSheet: false;
+      answer: string;
+      editExplanation: null;
+      cellEdits: CellEdit[];
+      comparisonRanges: ComparisonRange[];
+    }
+  | {
+      shouldEditSheet: true;
+      createNewSheet: boolean;
+      answer: null;
+      editExplanation: string;
+      cellEdits: CellEdit[];
+      comparisonRanges: ComparisonRange[];
+    };
+
+export type SpreadsheetPromptWorkflowResult = {
+  message: string;
+  shouldEditSheet: boolean;
+  createNewSheet: boolean;
+  cellEdits: CellEdit[];
+  comparisonRanges: ComparisonRange[];
+};
+
+export type ScenarioComparisonPromptResult = {
+  cellEdits: CellEdit[];
+  analysis: string;
+};
+
+export type SpreadsheetPromptCompletionEvent =
+  | {
+      type: "clarification_requested";
+      question: string;
+      updatedLlmConversationMessages: LlmConversationHistory;
+    }
+  | {
+      type: "complete";
+      reply: SpreadsheetPromptWorkflowResult;
+      updatedLlmConversationMessages: LlmConversationHistory;
+    };
+
+export type SpreadsheetPromptEvent =
+  | { type: "partial_response"; text: string }
+  | { type: "creating_proposed_change" }
+  | { type: "creating_scenario_sheet" }
+  | SpreadsheetPromptCompletionEvent;
 
 const openRouterModelConfig = {
   model: "openai/gpt-5.6-sol:exacto",
@@ -537,10 +619,9 @@ Return analysis as concise GitHub-flavored Markdown that directly answers the us
     const comparisonStartTime = Date.now();
     const responseBody = await this.openRouterClient.request(requestBody);
     console.log("Scenario comparison duration (s):", (Date.now() - comparisonStartTime) / 1000);
-    const response = JSON.parse(extractOpenRouterText(responseBody)) as {
-      cellEdits: CellEdit[];
-      analysis: string;
-    };
+    const response = JSON.parse(
+      extractOpenRouterText(responseBody)
+    ) as ScenarioComparisonPromptResult;
     return {
       cellEdits: response.cellEdits,
       analysis: response.analysis,

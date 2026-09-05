@@ -2,7 +2,16 @@
 
 import { getQuickJS, shouldInterruptAfterDeadline } from "quickjs-emscripten";
 
-import type { CellEdit } from "../../../../taskpane/pages/chat/chat-state-machine/chat-types";
+import type { CellEdit } from "./excel-manager";
+
+export type PreprocessPromptEvent =
+  | { type: "detection_complete"; plan: FormulaInferencePlan }
+  | {
+      type: "region_complete";
+      region: FormulaInferenceRegion;
+      cellEditCount: number;
+    }
+  | { type: "complete"; cellEdits: CellEdit[] };
 
 export type FormulaInferenceRegion = {
   targetRange: string;

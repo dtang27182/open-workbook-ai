@@ -1,7 +1,4 @@
-import {
-  CellEdit,
-  SheetSnapshot,
-} from "../../../../../taskpane/pages/chat/chat-state-machine/chat-types";
+import type { CellEdit, SheetSnapshot } from "../excel-manager";
 import {
   formatFormulaInferencePlan,
   formatFormulaInferenceRegionResult,

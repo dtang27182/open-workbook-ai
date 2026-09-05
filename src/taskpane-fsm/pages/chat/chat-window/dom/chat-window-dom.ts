@@ -2,11 +2,8 @@
 
 import DOMPurify from "dompurify";
 import { marked } from "marked";
-import {
-  ChatFsmState,
-  ChatMessageTranscriptItem,
-  ChatTranscriptEntry,
-} from "../../../../../taskpane/pages/chat/chat-state-machine/chat-types";
+import type { ChatWorkflowStateVals } from "../chat-window-state";
+import type { ChatMessageTranscriptItem, ChatTranscriptEntry } from "./transcript-helpers";
 import { cloneChatPageElement } from "../../chat-page-template";
 
 export type ChatWindowDomHandlers = {
@@ -79,7 +76,7 @@ export function disableChatControls(
 export function configChatControls(
   mount: HTMLElement,
   entries: ChatTranscriptEntry[],
-  state: ChatFsmState,
+  state: ChatWorkflowStateVals,
   handlers: ChatWindowDomHandlers
 ): void {
   entries.forEach((entry) => {

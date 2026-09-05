@@ -1,10 +1,23 @@
 /* global console, Excel */
 
-import {
-  CellEdit,
-  ExcelApi,
-  SheetSnapshot,
-} from "../../../../taskpane/pages/chat/chat-state-machine/chat-types";
+export type ExcelApi = {
+  run<T>(callback: (context: Excel.RequestContext) => Promise<T>): Promise<T>;
+};
+
+export type SheetSnapshot = {
+  name: string;
+  values: unknown[][];
+  formulas: unknown[][];
+  rowIndex: number;
+  columnIndex: number;
+  rowCount: number;
+  columnCount: number;
+};
+
+export type CellEdit = {
+  address: string;
+  newFormula: string | number | boolean | null;
+};
 
 export class ExcelManager {
   private nextDiffSheetNumber = 1;

@@ -2,13 +2,23 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { ChatStateMachine } from "../src/taskpane/pages/chat/chat-state-machine/chat-state-machine";
-import {
+import type {
   ChatTranscriptEntry,
-  LlmConversationHistory,
-  OpenRouterRequestBody,
-  SheetSnapshot,
   SpreadsheetPromptResult,
 } from "../src/taskpane/pages/chat/chat-state-machine/chat-types";
+import {
+  type LlmConversationHistory,
+  LLMManager,
+} from "../src/taskpane-fsm/pages/chat/chat-window/llm-manager";
+import {
+  type OpenRouterRequestBody,
+  OpenRouterClient,
+} from "../src/taskpane-fsm/pages/chat/chat-window/openrouter-client";
+import {
+  type SheetSnapshot,
+  ExcelManager,
+} from "../src/taskpane-fsm/pages/chat/chat-window/excel-manager";
+import type { ChatState } from "../src/taskpane-fsm/pages/chat/chat-window/chat-window-state";
 import {
   formatSheetAsMarkdown as formatLegacySheetAsMarkdown,
   formatSheetDataAsMarkdown as formatLegacySheetDataAsMarkdown,
@@ -16,15 +26,11 @@ import {
 import { configureOpenRouterClient } from "../src/taskpane/pages/chat/chat-state-machine/openrouter-client";
 import { OpenrouterKeyStore as LegacyOpenrouterKeyStore } from "../src/taskpane/pages/openrouter-auth/openrouter-api-key";
 import { OpenrouterKeyStore } from "../src/taskpane-fsm/pages/openrouter-auth/openrouter-api-key";
-import { ExcelManager } from "../src/taskpane-fsm/pages/chat/chat-window/excel-manager";
-import { LLMManager } from "../src/taskpane-fsm/pages/chat/chat-window/llm-manager";
-import { OpenRouterClient } from "../src/taskpane-fsm/pages/chat/chat-window/openrouter-client";
 import { RestoreManager } from "../src/taskpane-fsm/pages/chat/chat-window/restore-manager";
 import {
   formatSheetAsMarkdown,
   formatSheetDataAsMarkdown,
 } from "../src/taskpane-fsm/pages/chat/chat-window/sheet-markdown";
-import type { ChatState } from "../src/taskpane-fsm/pages/chat/chat-window/chat-window-types";
 import { createExcelTestWorkbook } from "./excel-test-double";
 
 const openrouterKeyStore = new OpenrouterKeyStore();

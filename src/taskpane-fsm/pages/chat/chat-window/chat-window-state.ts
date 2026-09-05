@@ -1,10 +1,32 @@
 /* global HTMLElement */
 
-import { ChatWindowDomHandlers } from "./dom/chat-window-dom";
+import type { ChatWindowDomHandlers } from "./dom/chat-window-dom";
 import { RestoreManager } from "./restore-manager";
-import { ChatState } from "./chat-window-types";
-import { ExcelManager } from "./excel-manager";
-import { LLMManager } from "./llm-manager";
+import type { ChatTranscriptItem } from "./dom/transcript-helpers";
+import type { LlmConversationHistory, LLMManager } from "./llm-manager";
+import type { ExcelManager } from "./excel-manager";
+
+export type ChatWorkflowStateVals =
+  | "answered"
+  | "awaiting_clarification"
+  | "pending_edit_preprocessed"
+  | "pending_edit"
+  | "errored";
+
+export type PendingEdit = {
+  sourceSheetName: string;
+  diffSheetName: string;
+  workflowId: number;
+};
+
+export type ChatState = {
+  transcript: ChatTranscriptItem[];
+  llmConversationMessages: LlmConversationHistory;
+  workflowState: ChatWorkflowStateVals;
+  pendingEdit?: PendingEdit;
+  preprocessedSheetNames: string[];
+  nextWorkflowId: number;
+};
 
 export class ChatWindowState {
   readonly mount: HTMLElement;

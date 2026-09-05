@@ -1,17 +1,14 @@
 import {
-  ChatMessageTranscriptItem,
-  LlmConversationHistory,
-  SheetSnapshot,
-  SpreadsheetPromptCompletionEvent,
-} from "../../../../../taskpane/pages/chat/chat-state-machine/chat-types";
-import { renderChatTranscript } from "../dom/chat-window-dom";
-import {
+  type ChatMessageTranscriptItem,
   appendMessageAndRender,
   appendWorkingTranscriptItem,
   removeWorkingTranscriptItem,
   updateWorkingTranscriptItemAndRender,
   upsertTranscriptMessageAndRender,
 } from "../dom/transcript-helpers";
+import type { LlmConversationHistory, SpreadsheetPromptCompletionEvent } from "../llm-manager";
+import type { SheetSnapshot } from "../excel-manager";
+import { renderChatTranscript } from "../dom/chat-window-dom";
 import { processModelResponse } from "../chat-window";
 import { ChatWindowState } from "../chat-window-state";
 

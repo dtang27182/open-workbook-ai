@@ -1,17 +1,22 @@
 /* global console, HTMLInputElement, HTMLElement */
 
 import { Component } from "../../../component";
+import { type CellEdit, type ExcelApi, type SheetSnapshot, ExcelManager } from "./excel-manager";
+import { type ChatWorkflowStateVals, type ChatState, ChatWindowState } from "./chat-window-state";
 import {
-  CellEdit,
-  ChatFsmState,
-  ChatMessageTranscriptItem,
-  ChatStateMachineInput,
-  ComparisonRange,
-  ExcelApi,
-  LlmConversationHistory,
-  SheetSnapshot,
-  SpreadsheetPromptCompletionEvent,
-} from "../../../../taskpane/pages/chat/chat-state-machine/chat-types";
+  type ChatMessageTranscriptItem,
+  appendDiffReviewTranscriptItemAndRender,
+  appendMessageAndRender,
+  appendWorkingTranscriptItem,
+  removeWorkingTranscriptItem,
+  upsertTranscriptMessageAndRender,
+} from "./dom/transcript-helpers";
+import {
+  type ComparisonRange,
+  type LlmConversationHistory,
+  type SpreadsheetPromptCompletionEvent,
+  LLMManager,
+} from "./llm-manager";
 import {
   ChatWindowDomHandlers,
   configChatControls,
@@ -19,17 +24,6 @@ import {
   disableChatControls,
   renderChatTranscript,
 } from "./dom/chat-window-dom";
-import {
-  appendDiffReviewTranscriptItemAndRender,
-  appendMessageAndRender,
-  appendWorkingTranscriptItem,
-  removeWorkingTranscriptItem,
-  upsertTranscriptMessageAndRender,
-} from "./dom/transcript-helpers";
-import { ChatWindowState } from "./chat-window-state";
-import { ChatState } from "./chat-window-types";
-import { ExcelManager } from "./excel-manager";
-import { LLMManager } from "./llm-manager";
 import { OpenrouterKeyStore } from "../../openrouter-auth/openrouter-api-key";
 import { runAcceptDiffWorkflow } from "./workflows/accept-diff";
 import { runClarificationWorkflow } from "./workflows/clarification";
@@ -40,7 +34,12 @@ import { runSubmitMessageWorkflow } from "./workflows/submit-message";
 
 const preprocessingEnabled = true;
 
-export type ChatWindowUpdateEvent = { type: "clear" } | ChatStateMachineInput;
+export type ChatWindowUpdateEvent =
+  | { type: "submit_message"; message: string }
+  | { type: "accept_pending_diff" }
+  | { type: "reject_pending_diff" }
+  | { type: "restore_to_point"; restorePointId: number }
+  | { type: "clear" };
 
 export class ChatWindow implements Component<ChatWindowUpdateEvent> {
   private readonly state: ChatWindowState;
@@ -185,7 +184,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
     );
   }
 
-  private validateInputForCurrentState(input: ChatStateMachineInput) {
+  private validateInputForCurrentState(input: Exclude<ChatWindowUpdateEvent, { type: "clear" }>) {
     if (input.type === "submit_message") {
       if (
         !this.isTerminalTurnState(this.state.chatState.workflowState) &&
@@ -217,7 +216,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
     }
   }
 
-  private getErrorMessage(input: ChatStateMachineInput): string {
+  private getErrorMessage(input: Exclude<ChatWindowUpdateEvent, { type: "clear" }>): string {
     if (input.type === "submit_message") {
       return "I could not get an assistant response. Check the active worksheet and OpenRouter configuration, then ask again.";
     }
@@ -235,11 +234,11 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
     }
   }
 
-  private isTerminalTurnState(state: ChatFsmState): boolean {
+  private isTerminalTurnState(state: ChatWorkflowStateVals): boolean {
     return state === "answered" || state === "errored";
   }
 
-  private isPendingEditState(state: ChatFsmState): boolean {
+  private isPendingEditState(state: ChatWorkflowStateVals): boolean {
     return state === "pending_edit" || state === "pending_edit_preprocessed";
   }
 }

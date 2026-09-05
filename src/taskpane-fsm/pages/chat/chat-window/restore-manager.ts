@@ -1,10 +1,13 @@
 /* global structuredClone */
 
-import {
-  PendingEdit,
-  SheetSnapshot,
-} from "../../../../taskpane/pages/chat/chat-state-machine/chat-types";
-import { ChatState, RestorePoint } from "./chat-window-types";
+import type { PendingEdit, ChatState } from "./chat-window-state";
+import type { SheetSnapshot } from "./excel-manager";
+
+export type RestorePoint = {
+  id: number;
+  chatState: ChatState;
+  sheet: SheetSnapshot;
+};
 
 export class RestoreManager {
   private readonly restorePoints: RestorePoint[] = [];

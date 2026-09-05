@@ -1,4 +1,4 @@
-import { SheetSnapshot } from "../../../../taskpane/pages/chat/chat-state-machine/chat-types";
+import type { SheetSnapshot } from "./excel-manager";
 
 export function formatSheetDataAsMarkdown(sheet: SheetSnapshot, data: unknown[][]): string {
   const colLabels: string[] = [];

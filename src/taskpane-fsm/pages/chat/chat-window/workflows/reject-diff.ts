@@ -1,4 +1,4 @@
-import { PendingEdit } from "../../../../../taskpane/pages/chat/chat-state-machine/chat-types";
+import type { PendingEdit, ChatWindowState } from "../chat-window-state";
 import { renderChatTranscript } from "../dom/chat-window-dom";
 import {
   appendMessageAndRender,
@@ -8,7 +8,6 @@ import {
   removeWorkingTranscriptItem,
 } from "../dom/transcript-helpers";
 import { appendUserDecisionLlmMessage } from "../chat-window";
-import { ChatWindowState } from "../chat-window-state";
 import { runSubmitMessageWorkflow } from "./submit-message";
 
 export async function runRejectDiffWorkflow(state: ChatWindowState): Promise<void> {

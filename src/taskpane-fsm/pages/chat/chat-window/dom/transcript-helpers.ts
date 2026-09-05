@@ -1,12 +1,40 @@
 /* global HTMLElement */
 
-import {
-  ChatMessageTranscriptItem,
-  ChatTranscriptEntry,
-  ChatWorkingTranscriptItem,
-} from "../../../../../taskpane/pages/chat/chat-state-machine/chat-types";
+import type { RestorePoint } from "../restore-manager";
 import { ChatWindowDomHandlers, renderChatTranscript } from "./chat-window-dom";
-import { RestorePoint } from "../chat-window-types";
+
+export type ChatTranscriptSource = "human" | "system";
+
+export type ChatTranscriptItem =
+  | {
+      kind: "message";
+      source: ChatTranscriptSource;
+      text: string;
+      workflowId: number;
+    }
+  | {
+      kind: "restore";
+      restorePointId: number;
+      workflowId: number;
+      disabled: boolean;
+    }
+  | {
+      kind: "diff_review";
+      workflowId: number;
+      disabled: boolean;
+    }
+  | {
+      kind: "working";
+      source: "system";
+      text: string;
+      workflowId: number;
+    };
+
+export type ChatTranscriptEntry = ChatTranscriptItem;
+
+export type ChatMessageTranscriptItem = Extract<ChatTranscriptItem, { kind: "message" }>;
+
+export type ChatWorkingTranscriptItem = Extract<ChatTranscriptItem, { kind: "working" }>;
 
 export function appendMessageAndRender(
   mount: HTMLElement,

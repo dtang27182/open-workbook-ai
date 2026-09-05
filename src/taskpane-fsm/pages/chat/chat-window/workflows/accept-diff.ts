@@ -1,9 +1,8 @@
 /* global console */
 
-import {
-  PendingEdit,
-  SheetSnapshot,
-} from "../../../../../taskpane/pages/chat/chat-state-machine/chat-types";
+import type { PendingEdit, ChatWindowState } from "../chat-window-state";
+import type { SheetSnapshot } from "../excel-manager";
+import type { RestorePoint } from "../restore-manager";
 import { renderChatTranscript } from "../dom/chat-window-dom";
 import {
   appendMessageAndRender,
@@ -14,8 +13,6 @@ import {
   removeWorkingTranscriptItem,
 } from "../dom/transcript-helpers";
 import { appendAssistantLlmMessage, appendUserDecisionLlmMessage } from "../chat-window";
-import { ChatWindowState } from "../chat-window-state";
-import { RestorePoint } from "../chat-window-types";
 import { runSubmitMessageWorkflow } from "./submit-message";
 
 export async function runAcceptDiffWorkflow(state: ChatWindowState): Promise<void> {

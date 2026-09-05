@@ -2,16 +2,76 @@
 
 import { createParser } from "eventsource-parser";
 
-import {
-  ModelSpreadsheetResponse,
-  OpenRouterFunctionCall,
-  OpenRouterOutputItem,
-  OpenRouterRequestBody,
-  OpenRouterResponseBody,
-  OpenRouterStreamResultEvent,
-  OpenRouterStreamEvent,
-} from "../../../../taskpane/pages/chat/chat-state-machine/chat-types";
+import type { ModelSpreadsheetResponse } from "./llm-manager";
 import { OpenrouterKeyStore } from "../../openrouter-auth/openrouter-api-key";
+
+export type OpenRouterMessage = { role: string; content: string };
+
+export type OpenRouterFunctionCall = {
+  type: "function_call";
+  id: string;
+  call_id: string;
+  name: "ask_clarifying_question";
+  arguments: string;
+};
+
+export type OpenRouterFunctionCallOutput = {
+  type: "function_call_output";
+  call_id: string;
+  output: string;
+};
+
+export type OpenRouterInputItem =
+  | OpenRouterMessage
+  | (OpenRouterFunctionCall & { content?: never })
+  | (OpenRouterFunctionCallOutput & { content?: never });
+
+export type OpenRouterOutputItem =
+  | { type?: string; content?: Array<{ type?: string; text?: string }> }
+  | (OpenRouterFunctionCall & { content?: never });
+
+export type OpenRouterFunctionTool = {
+  type: "function";
+  name: string;
+  description: string;
+  strict: boolean;
+  parameters: object;
+};
+
+export type OpenRouterRequestBody = {
+  model: string;
+  provider?: object;
+  instructions: string;
+  input: OpenRouterInputItem[];
+  text?: object;
+  max_output_tokens: number;
+  reasoning?: object;
+  tools?: OpenRouterFunctionTool[];
+  tool_choice?: "auto" | "required";
+  parallel_tool_calls?: boolean;
+  max_tool_calls?: number;
+  stream?: boolean;
+};
+
+export type OpenRouterResponseBody = {
+  ok?: boolean;
+  error?: { message?: string };
+  output?: OpenRouterOutputItem[];
+};
+
+export type OpenRouterStreamEvent = {
+  type?: string;
+  delta?: string;
+  item?: OpenRouterOutputItem;
+  item_id?: string;
+  arguments?: string;
+  error?: { message?: string };
+  choices?: Array<{ delta?: { content?: string } }>;
+};
+
+export type OpenRouterStreamResultEvent =
+  | { type: "output_text"; outputText: string }
+  | { type: "complete"; response: OpenRouterResponseBody };
 
 export class OpenRouterClient {
   private readonly keyStore: OpenrouterKeyStore;
