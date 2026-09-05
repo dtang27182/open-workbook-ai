@@ -4,22 +4,22 @@ import test from "node:test";
 import {
   type LlmConversationHistory,
   LLMManager,
-} from "../src/taskpane-fsm/pages/chat/chat-window/llm/llm-manager";
+} from "../src/taskpane/pages/chat/chat-window/llm/llm-manager";
 import {
   type OpenRouterRequestBody,
   OpenRouterClient,
-} from "../src/taskpane-fsm/pages/chat/chat-window/llm/openrouter-client";
+} from "../src/taskpane/pages/chat/chat-window/llm/openrouter-client";
 import {
   type SheetSnapshot,
   ExcelManager,
-} from "../src/taskpane-fsm/pages/chat/chat-window/excel-manager";
-import type { ChatState } from "../src/taskpane-fsm/pages/chat/chat-window/chat-window-state";
-import { OpenrouterKeyStore } from "../src/taskpane-fsm/pages/openrouter-auth/openrouter-api-key";
-import { RestoreManager } from "../src/taskpane-fsm/pages/chat/chat-window/restore-manager";
+} from "../src/taskpane/pages/chat/chat-window/excel-manager";
+import type { ChatState } from "../src/taskpane/pages/chat/chat-window/chat-window-state";
+import { OpenrouterKeyStore } from "../src/taskpane/pages/openrouter-auth/openrouter-api-key";
+import { RestoreManager } from "../src/taskpane/pages/chat/chat-window/restore-manager";
 import {
   formatSheetAsMarkdown,
   formatSheetDataAsMarkdown,
-} from "../src/taskpane-fsm/pages/chat/chat-window/llm/sheet-markdown";
+} from "../src/taskpane/pages/chat/chat-window/llm/sheet-markdown";
 import { createExcelTestWorkbook } from "./excel-test-double";
 import { createChatWindowForTest, submitChatMessageForTest } from "./chat-window-test-helpers";
 

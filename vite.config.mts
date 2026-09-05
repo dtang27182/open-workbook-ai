@@ -10,7 +10,7 @@ const DEVELOPMENT_URL = "https://localhost:3000/";
 const PRODUCTION_URL = "https://open-workbook-ai-addin.pages.dev/";
 
 const HTML_ENTRIES = {
-  taskpane: resolve(ROOT_DIRECTORY, "src/taskpane-fsm/taskpane.html"),
+  taskpane: resolve(ROOT_DIRECTORY, "src/taskpane/taskpane.html"),
   openrouterAuthDialog: resolve(ROOT_DIRECTORY, "src/auth-dialog/openrouter-auth-dialog.html"),
 };
 
