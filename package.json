@@ -7,6 +7,9 @@
     "url": "https://github.com/dtang27182/open-workbook-ai.git"
   },
   "license": "MIT",
+  "engines": {
+    "node": "^20.19.0 || ^22.12.0 || >=24.0.0"
+  },
   "config": {
     "app_to_debug": "excel",
     "app_type_to_debug": "desktop",
@@ -14,7 +17,6 @@
   },
   "scripts": {
     "build": "vite build",
-    "build:dev": "vite build --mode development",
     "start": "vite --mode development",
     "lint": "office-addin-lint check",
     "lint:fix": "office-addin-lint fix",
