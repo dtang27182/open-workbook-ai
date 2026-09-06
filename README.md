@@ -127,6 +127,7 @@ manage or revoke the key through your OpenRouter account.
 - [Component Architecture](docs/component-architecture.md): the component contract and event ownership.
 - [Component Implementation Guide](docs/component-architecture-implementation-guide.md): recommended component structure.
 - [Testing](docs/testing.md): test setup, coverage boundaries, and contribution guidance.
+- [Production Hosting](docs/production-hosting.md): project-maintained hosting and automatic GitHub-to-Cloudflare deployment.
 
 ## License
 
