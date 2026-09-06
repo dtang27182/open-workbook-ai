@@ -8,6 +8,16 @@ This guide recommends a consistent way to organize components that implement the
 
 Use a simpler structure when it makes a component clearer. In particular, a small leaf component may not need a stable root field, an initialization helper, or child-component coordination.
 
+## Applying the Contract to Features
+
+Use the component contract to decide where responsibilities belong before listing implementation changes:
+
+- **Choose the component boundary first.** A cohesive UI element can own its DOM and behavior through a small component.
+- **Route updates to the component whose state changes.** Local input updates belong to the input component's `updateState()`; conversation updates belong to the chat component's `updateState()`. An existing parent does not need to handle every new event.
+- **Keep DOM ownership exclusive.** Parents provide mounts; children construct and modify their own contents. Parent helpers delegate child changes through the child's update interface.
+- **Connect components through explicit interfaces.** Parents send update events and supply callbacks. Pass needed values, such as a height limit, rather than giving children access to ancestor DOM. A child can own a control's DOM while invoking an ancestor-owned callback for the wider action.
+- **Use construction helpers for composition.** Keep child creation and related observer wiring together in `createInitialDom()`. Return the initialized child and retain it in the parent's existing state holder when one is used, avoiding a second ownership location. Each child constructor creates the DOM beneath its own mount.
+
 ## Recommended Component Structure
 
 ### Name the owned root `rootElement`
@@ -30,10 +40,10 @@ Keep the constructor focused on initialization order:
 
 1. store dependencies and the mount;
 2. initialize component state;
-3. call an initialization helper that creates and attaches the initial DOM; and
-4. construct child components with the mounts returned by that helper.
+3. call an initialization helper that creates and attaches the initial DOM, constructs children, and wires related observers; and
+4. retain the returned child instances and complete any state initialization that depends on them.
 
-The helper can be named `createInitialDom()` and should return any DOM elements needed for the remaining initialization. It can be an instance method or a module-level function that receives the mount and required handlers or values. It runs as part of construction; later DOM changes belong to the `updateState()` call path.
+The helper can be named `createInitialDom()` and should return the child instances and any owned DOM elements needed for the remaining initialization. It can be an instance method or a module-level function that receives the mount and required handlers or values. It runs as part of construction; later DOM changes belong to the owning component's `updateState()` call path, including observer callbacks that send update events to a child.
 
 This helper is recommended when construction requires several related elements. A leaf that creates one simple element can keep that work directly in its constructor if extracting it would make the implementation harder to read.
 
@@ -87,8 +97,8 @@ class ParentComponent implements Component<ParentUpdateEvent> {
 
     const initialDom = this.createInitialDom();
     this.rootElement = initialDom.rootElement;
-    this.firstChild = new FirstChild(initialDom.firstChildMount);
-    this.secondChild = new SecondChild(initialDom.secondChildMount);
+    this.firstChild = initialDom.firstChild;
+    this.secondChild = initialDom.secondChild;
   }
 
   getMount(): HTMLElement {
@@ -107,8 +117,8 @@ class ParentComponent implements Component<ParentUpdateEvent> {
 
   private createInitialDom(): {
     rootElement: HTMLElement;
-    firstChildMount: HTMLElement;
-    secondChildMount: HTMLElement;
+    firstChild: FirstChild;
+    secondChild: SecondChild;
   } {
     const rootElement = document.createElement("section");
     const firstChildMount = document.createElement("div");
@@ -119,14 +129,14 @@ class ParentComponent implements Component<ParentUpdateEvent> {
 
     return {
       rootElement,
-      firstChildMount,
-      secondChildMount,
+      firstChild: new FirstChild(firstChildMount),
+      secondChild: new SecondChild(secondChildMount),
     };
   }
 }
 ```
 
-The parent creates child mounts once in `createInitialDom()` and assigns each one as a child's permanent DOM boundary. It later retrieves them through `getMount()`. `ParentComponent` stores only its own mount, its owned root, its children, and its state.
+The parent creates child mounts and instances once in `createInitialDom()` and assigns each mount as a child's permanent DOM boundary. It later retrieves them through `getMount()`. This example stores child instances directly on the parent; when the parent uses a state holder for these references, retain them there instead.
 
 ## Relationship to Architecture Requirements
 
