@@ -191,15 +191,15 @@ npm run test:unit
 npm run validate
 ```
 
-See [Testing](docs/testing.md) for the testing approach and live integration test setup.
+See [Testing](docs/developer/testing.md) for the testing approach and live integration test setup.
 
 ### Developer Documentation
 
-- [Application Architecture](docs/application-architecture.md): module responsibilities, workflow transitions, and restore semantics.
-- [Component Architecture](docs/component-architecture.md): the component contract and event ownership.
-- [Component Implementation Guide](docs/component-architecture-implementation-guide.md): recommended component structure.
-- [Testing](docs/testing.md): test setup, coverage boundaries, and contribution guidance.
-- [Production Hosting](docs/production-hosting.md): project-maintained hosting and automatic GitHub-to-Cloudflare deployment.
+- [Application Architecture](docs/developer/application-architecture.md): module responsibilities, workflow transitions, and restore semantics.
+- [Component Architecture](docs/developer/component-architecture.md): the component contract and event ownership.
+- [Component Implementation Guide](docs/developer/component-architecture-implementation-guide.md): recommended component structure.
+- [Testing](docs/developer/testing.md): test setup, coverage boundaries, and contribution guidance.
+- [Production Hosting](docs/developer/production-hosting.md): project-maintained hosting and automatic GitHub-to-Cloudflare deployment.
 
 ## License
 

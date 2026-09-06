@@ -27,7 +27,7 @@ Both test commands type-check their respective test projects before running. Liv
 
 ## Changing Tests
 
-- Read the [implementation specification](../tests/implementation-spec.md) for unit behavior and the [integration product specification](../tests/integration-product-spec.md) for live behavior. Keep the relevant specification aligned with intentional behavior changes.
+- Read the [implementation specification](../../tests/implementation-spec.md) for unit behavior and the [integration product specification](../../tests/integration-product-spec.md) for live behavior. Keep the relevant specification aligned with intentional behavior changes.
 - Assert meaningful outcomes such as worksheet contents, review controls, and restored conversation context rather than incidental ID formats or exact model wording.
 - Run the live suite when changing integration tests.
-- For changes to Office integration or task-pane presentation, also sideload the add-in and verify the affected behavior in Excel using the [local setup instructions](../README.md#run-locally).
+- For changes to Office integration or task-pane presentation, also sideload the add-in and verify the affected behavior in Excel using the [local setup instructions](../../README.md#run-locally).
