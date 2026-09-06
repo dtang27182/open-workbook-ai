@@ -46,7 +46,7 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
         this.openrouterKeyStore.set(await acquireOpenRouterApiKey());
         await this.openRouterAuthPage.updateState({ type: "sign_in_succeeded" });
         this.state.activePage = "chat";
-        this.mount.replaceChildren(this.debugHeaderElement, this.chatPage.getMount());
+        this.mount.replaceChildren(this.chatPage.getMount());
       } catch (error) {
         await this.openRouterAuthPage.updateState({
           type: "sign_in_failed",
@@ -58,7 +58,7 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
       this.openrouterKeyStore.clear();
       await this.openRouterAuthPage.updateState({ type: "reset" });
       this.state.activePage = "openrouter-auth";
-      this.mount.replaceChildren(this.debugHeaderElement, this.openRouterAuthPage.getMount());
+      this.mount.replaceChildren(this.openRouterAuthPage.getMount());
     }
   }
 
@@ -74,16 +74,15 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
     openRouterAuthMount: HTMLElement;
     chatMount: HTMLElement;
   } {
-    const debugHeaderElement = document.createElement("header");
     const openRouterAuthMount = document.createElement("div");
     const chatMount = document.createElement("div");
 
     openRouterAuthMount.style.display = "contents";
     chatMount.style.display = "contents";
     if (this.state.activePage === "openrouter-auth") {
-      this.mount.replaceChildren(debugHeaderElement, openRouterAuthMount);
+      this.mount.replaceChildren(openRouterAuthMount);
     } else if (this.state.activePage === "chat") {
-      this.mount.replaceChildren(debugHeaderElement, chatMount);
+      this.mount.replaceChildren(chatMount);
     }
 
     return {
