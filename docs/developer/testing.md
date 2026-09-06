@@ -3,7 +3,7 @@
 ## Approach
 
 - Unit tests in `tests/unit.test.ts` cover implementation behavior with mocked OpenRouter responses and the Excel test double where needed.
-- Component tests exercise the real `ChatWindow` with jsdom. `tests/chat-window-test-helpers.ts` drives component events and exposes results for assertions.
+- Component tests exercise the real `ChatWindow` and `ChatInput` with jsdom. `tests/chat-window-test-helpers.ts` drives chat events and exposes results for assertions. The test runner supplies an inert `ResizeObserver`; sizing tests use supplied measurements, while real text wrapping and observer delivery require browser verification.
 - Live integration tests in `tests/integration.test.ts` exercise the same component with real OpenRouter calls and the Excel test double. They verify user-visible behavior, not a live Excel installation.
 - `tests/excel-test-double.ts` simulates the worksheet operations used by the add-in. It does not replace verification of Office integration in Excel.
 - `tests/run-tests.mjs` uses Vite to load TypeScript and raw HTML templates without starting a listening server.

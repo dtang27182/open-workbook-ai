@@ -16,11 +16,11 @@ Assumptions: the chat panel is the `#chat-window` content area containing the tr
 
 Existing interface points to change:
 
-- `ChatWindow.constructor()`: construct a `ChatInput` child, retain it in `ChatWindowState`, and observe the panel height to supply the child's height limit.
+- `ChatWindow.constructor()`: receive the initialized `ChatInput` from `createInitialDom()` and retain it in `ChatWindowState`.
 - `ChatWindowState.constructor()`: accept and retain the `ChatInput` instance as a readonly field outside restorable `ChatState`.
 - `ChatWindow.submitMessage()`: send the child a clear event after reading the submitted message.
 - `ChatWindow.reset()` and `updateState()`: pass `this.state.chatInput` to their existing control-helper calls.
-- `createInitialDom()`: create and bind the parent-owned Clear button beside an empty child mount, returning the mount and panel element without creating the child's form or controls.
+- `createInitialDom()`: create the parent DOM, instantiate `ChatInput` at its mount, set up the panel observer, and return the child instance.
 - `disableChatControls()` and `configChatControls()`: accept a `ChatInput` argument and delegate input and Send button enabled/disabled updates while preserving their transcript updates.
 - `chat-page.html` and `chat-page.css`: provide the form template used by `ChatInput` and the bounded expanding layout.
 
@@ -41,7 +41,7 @@ Use these update events:
 
 ```ts
 type ChatInputUpdateEvent =
-  | { type: "input_changed" }
+  | { type: "text_updated" }
   | { type: "panel_resized"; maxHeight: number }
   | { type: "clear" }
   | { type: "set_disabled"; disabled: boolean };
@@ -50,10 +50,10 @@ type ChatInputUpdateEvent =
 The first three events cover the requested sizing scenarios. `set_disabled` preserves existing chat control behavior while keeping all textarea mutations inside its owning component.
 
 - The constructor receives only a permanent empty mount and the `onSubmit(message: string)` callback owned by `ChatWindow`. Clone the form, label, textarea, and Send button from the existing template and attach the complete form beneath the mount. Retain the form, textarea, and Send button references needed for event handling and updates. The child has no panel reference and does not inspect ancestor DOM.
-- Keep the draft value in the textarea. Store the latest supplied `maxHeight`, element references, width observer, and previous observed width needed for sizing; do not duplicate the draft or calculated textarea height. Initialize `maxHeight` from the preferred one-line CSS height until the parent supplies the first measured limit.
-- Bind the textarea's `input` event to `this.updateState({ type: "input_changed" })`. Typing, paste, cut, and undo then share this path.
+- Keep the draft value in the textarea. Store the latest supplied `maxHeight`, element references, width observer, and previous observed width needed for sizing; do not duplicate the draft or calculated textarea height. Initialize `maxHeight` to zero and leave the CSS one-line height in effect until the parent supplies the first measured limit; this also supports construction while the mount is detached.
+- Bind the textarea's `input` event to `this.updateState({ type: "text_updated" })`. Typing, paste, cut, and undo then share this path.
 - Create a local `ResizeObserver` that watches only the textarea's width. When it changes, dispatch `this.updateState({ type: "panel_resized", maxHeight: this.maxHeight })` to reflow using the latest parent-supplied height limit. Ignore changes to the textarea's own height so autosizing does not repeatedly trigger itself. Record zero-width transitions so reattaching at the previous width still recalculates. The observer follows the existing retained component's lifetime.
-- In `updateState()`, use an explicit `if`/`else if` chain. `input_changed` calls the private sizing helper. `panel_resized` stores the supplied `maxHeight` and calls the helper; this event handles both new parent-supplied limits and local width changes. `clear` empties the textarea and calls the same helper. `set_disabled` assigns both the textarea's and Send button's disabled state without clearing or resizing the draft.
+- In `updateState()`, use an explicit `if`/`else if` chain. `text_updated` calls the private sizing helper. `panel_resized` stores the supplied `maxHeight` and calls the helper; this event handles both new parent-supplied limits and local width changes. `clear` empties the textarea and calls the same helper. `set_disabled` assigns both the textarea's and Send button's disabled state without clearing or resizing the draft.
 - Bind form submission inside the child: prevent the default submit action and invoke `onSubmit(this.input.value)` when submission is enabled. For plain Enter outside composition, prevent the default newline and call the owned form's `requestSubmit()` when Send is enabled. Enter and clicking Send therefore share one form handler. Leave Shift+Enter and other modified Enter shortcuts to native textarea behavior.
 - Reserve the child's `clear` event for emptying the draft after submission. The child does not clear itself on a submit attempt; `ChatWindow` sends `clear` at the existing value-reset point after workflow validation. The conversation's Clear button and its callback belong entirely to `ChatWindow`.
 - Expose only the component contract to the parent. The child supplies submitted text through `onSubmit(message)`, so no draft getter is needed. Post-construction form/control mutations run through `ChatInput.updateState()`; local input and layout events do not pass through `ChatWindow.updateState()`.
@@ -62,7 +62,7 @@ The three sizing call paths are:
 
 ```text
 Textarea input event
-  -> ChatInput.updateState({ type: "input_changed" })
+  -> ChatInput.updateState({ type: "text_updated" })
   -> resizeChatInput()
 
 ChatWindow's panel ResizeObserver callback
@@ -99,9 +99,9 @@ ChatWindow.submitMessage()
 
 ### `ChatWindow` and `chat-window-dom.ts`
 
-- Have `createInitialDom(mount, handlers)` create the panel, transcript, and composer row containing the Clear button and empty permanent child mount, returning the child mount and panel element. Retain the Clear button cloning and `handlers.onClear` binding, placing the button outside the child's mount and form. Remove form cloning and submission bindings. For the child, this helper creates only the mount; it never queries or mutates the child's form or controls.
-- In `ChatWindow.constructor()`, create the initial DOM, construct `ChatInput` with the returned child mount and `domHandlers.onSubmit`, then pass the child into `new ChatWindowState(...)` before calling `reset()`. This makes the child available at state construction without optional fields or later initialization.
-- After initializing state, register a `ResizeObserver` on the returned panel element. When its content height changes, call `this.state.chatInput.updateState({ type: "panel_resized", maxHeight: panelHeight / 2 })` directly from the callback. The initial observer notification supplies the first measured limit. Observe the full panel rather than the shrinking transcript or growing form so autosizing does not change its own cap. Record and forward zero-height transitions so reattaching at the previous height still updates the child. Retain the observer for the lifetime of `ChatWindow`; no new `ChatWindowUpdateEvent` is needed because the callback delegates the DOM update to the child's update entry point.
+- Have `createInitialDom(mount, handlers)` create the panel, transcript, and composer row containing the Clear button and permanent child mount. Retain the Clear button cloning and `handlers.onClear` binding outside the child. Construct `ChatInput` with the child mount and `handlers.onSubmit`; its constructor creates the form and controls.
+- In the same helper, register a `ResizeObserver` on the panel element. When its content height changes, call `chatInput.updateState({ type: "panel_resized", maxHeight: panelHeight / 2 })` directly from the callback. The initial observer notification supplies the first measured limit. Observe the full panel rather than the shrinking transcript or growing form so autosizing does not change its own cap. Record and forward zero-height transitions so reattaching at the previous height still updates the child. The active observation lasts for the retained panel's lifetime; no observer field or new update event is needed on `ChatWindow`.
+- Return the initialized `ChatInput` from `createInitialDom()`. `ChatWindow.constructor()` passes that instance into `new ChatWindowState(...)` before calling `reset()`. This makes the child available at state construction without optional fields or later initialization.
 - Preserve `ChatWindowDomHandlers.onSubmit(message: string)` and its existing callback that dispatches `submit_message`. `ChatInput` reads its owned textarea and supplies the message; `ChatWindow` does not read form DOM or call a getter. Preserve `onClear()` and its existing conversation-reset event, binding it only in the parent's DOM helper. Keep Clear enabled as it is today; clicking it does not send the child's `clear` event.
 - In `submitMessage()`, replace the direct textarea value assignment with `this.state.chatInput.updateState({ type: "clear" })` before starting either clarification or normal submission work. The submitted message has already been captured, so clearing does not change its contents.
 - Add a `chatInput: ChatInput` argument to `disableChatControls()` and `configChatControls()`. Each caller passes the instance from its `ChatWindowState`. The current call sites are in `ChatWindow.reset()` and `ChatWindow.updateState()`, not the workflow modules; pass `this.state.chatInput` at those sites without relocating them.

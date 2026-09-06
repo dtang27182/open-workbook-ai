@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { ChatInput } from "../src/taskpane/pages/chat/chat-window/chat-input/chat-input";
 import test from "node:test";
 
 import {
@@ -21,7 +22,11 @@ import {
   formatSheetDataAsMarkdown,
 } from "../src/taskpane/pages/chat/chat-window/llm/sheet-markdown";
 import { createExcelTestWorkbook } from "./excel-test-double";
-import { createChatWindowForTest, submitChatMessageForTest } from "./chat-window-test-helpers";
+import {
+  createChatWindowForTest,
+  getChatStateForTest,
+  submitChatMessageForTest,
+} from "./chat-window-test-helpers";
 
 const openrouterKeyStore = new OpenrouterKeyStore();
 
@@ -34,6 +39,157 @@ const sheetValues = [
   ["PRODUCT", "UNITS"],
   ["Aldoxin", 1200],
 ];
+
+test("Chat Input Submits Multiline Text Through Send And Plain Enter", (context) => {
+  const messages: string[] = [];
+  const chatInput = new ChatInput(document.createElement("div"), (message) =>
+    messages.push(message)
+  );
+  document.body.appendChild(chatInput.getMount());
+  context.after(() => chatInput.getMount().remove());
+  const input = chatInput.getMount().querySelector<HTMLTextAreaElement>("textarea")!;
+  const send = chatInput.getMount().querySelector<HTMLButtonElement>("#chat-send")!;
+  input.value = "First line\nSecond line";
+
+  send.click();
+  input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", cancelable: true }));
+  assert.deepEqual(messages, [input.value, input.value]);
+
+  for (const modifiers of [
+    { shiftKey: true },
+    { ctrlKey: true },
+    { altKey: true },
+    { metaKey: true },
+    { isComposing: true },
+  ]) {
+    const event = new window.KeyboardEvent("keydown", {
+      key: "Enter",
+      cancelable: true,
+      ...modifiers,
+    });
+    input.dispatchEvent(event);
+    assert.equal(event.defaultPrevented, false);
+  }
+  assert.equal(messages.length, 2);
+  assert.equal(input.value, "First line\nSecond line");
+});
+
+test("Chat Input Disabling Preserves The Draft And Clearing Reuses The Form", (context) => {
+  const messages: string[] = [];
+  const chatInput = new ChatInput(document.createElement("div"), (message) =>
+    messages.push(message)
+  );
+  document.body.appendChild(chatInput.getMount());
+  context.after(() => chatInput.getMount().remove());
+  const form = chatInput.getMount().querySelector<HTMLFormElement>("form")!;
+  const input = form.querySelector<HTMLTextAreaElement>("textarea")!;
+  const send = form.querySelector<HTMLButtonElement>("#chat-send")!;
+  input.value = "Keep this\ndraft";
+
+  chatInput.updateState({ type: "set_disabled", disabled: true });
+  assert.equal(input.disabled, true);
+  assert.equal(send.disabled, true);
+  send.click();
+  form.requestSubmit();
+  assert.deepEqual(messages, []);
+  assert.equal(input.value, "Keep this\ndraft");
+
+  chatInput.updateState({ type: "set_disabled", disabled: false });
+  assert.equal(input.disabled, false);
+  assert.equal(send.disabled, false);
+  send.click();
+  assert.deepEqual(messages, ["Keep this\ndraft"]);
+
+  chatInput.updateState({ type: "clear" });
+  assert.equal(input.value, "");
+  assert.equal(chatInput.getMount().querySelector("form"), form);
+});
+
+test("Chat Input Caps And Shrinks Its Height Using Supplied Layout Measurements", () => {
+  const mount = document.createElement("div");
+  document.body.appendChild(mount);
+  const chatInput = new ChatInput(mount, () => {});
+  const input = mount.querySelector<HTMLTextAreaElement>("textarea")!;
+  // jsdom supplies no layout; simulate measurements to check sizing decisions.
+  input.style.setProperty("--chat-input-min-height", "34px");
+  input.style.border = "1px solid black";
+  input.value = "A multiline draft";
+  let scrollHeight = 140;
+  Object.defineProperty(input, "clientWidth", { value: 200 });
+  Object.defineProperty(input, "scrollHeight", { get: () => scrollHeight });
+
+  try {
+    chatInput.updateState({ type: "panel_resized", maxHeight: 100 });
+    assert.equal(input.style.height, "100px");
+    assert.equal(input.style.overflowY, "auto");
+
+    chatInput.updateState({ type: "panel_resized", maxHeight: 200 });
+    assert.equal(input.style.height, "142px");
+    assert.equal(input.style.overflowY, "hidden");
+
+    scrollHeight = 50;
+    input.dispatchEvent(new window.Event("input"));
+    assert.equal(input.style.height, "52px");
+
+    // Even when the placeholder wraps, an empty draft stays at one line.
+    scrollHeight = 80;
+    chatInput.updateState({ type: "clear" });
+    assert.equal(input.style.height, "34px");
+
+    chatInput.updateState({ type: "panel_resized", maxHeight: 20 });
+    assert.equal(input.style.height, "20px");
+    assert.equal(input.style.minHeight, "20px");
+  } finally {
+    mount.remove();
+  }
+});
+
+test("Chat Window Retains Its Draft On Clear And Captures Multiline Submission Before Clearing", async () => {
+  const workbook = createWorkbook();
+  const chatWindow = createChatWindowForTest(workbook.excelApi, openrouterKeyStore);
+  const form = chatWindow.getMount().querySelector<HTMLFormElement>("form")!;
+  const input = form.querySelector<HTMLTextAreaElement>("textarea")!;
+  const send = form.querySelector<HTMLButtonElement>("#chat-send")!;
+  const clear = chatWindow.getMount().querySelector<HTMLButtonElement>("#chat-clear")!;
+  const draft = "Make all column headers lower case.\nKeep the remaining cells unchanged.";
+  input.value = draft;
+  clear.click();
+  assert.equal(form.contains(clear), false);
+  assert.equal(input.value, draft);
+  assert.equal(chatWindow.getMount().querySelector("form"), form);
+
+  const mocks = installMocks();
+  try {
+    const submission = submitChatMessageForTest(chatWindow, draft);
+    assert.equal(input.value, "");
+    assert.equal(input.disabled, true);
+    assert.equal(send.disabled, true);
+    await submission;
+    assert.equal(input.disabled, true);
+    assert.equal(send.disabled, true);
+    assert.equal(clear.disabled, false);
+    assert.ok(
+      getChatStateForTest(chatWindow).transcript.some(
+        (entry) => entry.kind === "message" && entry.source === "human" && entry.text === draft
+      )
+    );
+    assert.ok(
+      mocks.requests.some((request) =>
+        request.input.some((item) =>
+          JSON.stringify(item).includes("Keep the remaining cells unchanged.")
+        )
+      )
+    );
+
+    await chatWindow.updateState({ type: "clear" });
+    assert.equal(input.disabled, false);
+    assert.equal(send.disabled, false);
+    assert.equal(chatWindow.getMount().querySelector("form"), form);
+  } finally {
+    await waitForBackgroundWork();
+    mocks.restore();
+  }
+});
 
 test("Model Proposed Updates Are Reflected In The Generated Diff Sheet", async () => {
   const workbook = createWorkbook();

@@ -1,4 +1,4 @@
-/* global console, HTMLInputElement, HTMLElement */
+/* global console, HTMLElement */
 
 import { Component } from "../../../component";
 import { type CellEdit, type ExcelApi, type SheetSnapshot, ExcelManager } from "./excel-manager";
@@ -62,13 +62,14 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
         void this.updateState({ type: "restore_to_point", restorePointId });
       },
     };
+    const chatInput = createInitialDom(mount, domHandlers);
     this.state = new ChatWindowState(
       mount,
       domHandlers,
       new ExcelManager(excelApi),
-      new LLMManager(keyStore)
+      new LLMManager(keyStore),
+      chatInput
     );
-    createInitialDom(this.state.mount, this.state.domHandlers);
     this.reset();
   }
 
@@ -97,7 +98,8 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
       this.state.mount,
       this.state.chatState.transcript,
       this.state.chatState.workflowState,
-      this.state.domHandlers
+      this.state.domHandlers,
+      this.state.chatInput
     );
   }
 
@@ -113,7 +115,8 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
       disableChatControls(
         this.state.mount,
         this.state.chatState.transcript,
-        this.state.domHandlers
+        this.state.domHandlers,
+        this.state.chatInput
       );
       try {
         this.validateInputForCurrentState(event);
@@ -135,14 +138,15 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
           this.state.mount,
           this.state.chatState.transcript,
           this.state.chatState.workflowState,
-          this.state.domHandlers
+          this.state.domHandlers,
+          this.state.chatInput
         );
       }
     }
   }
 
   private async submitMessage(message: string): Promise<void> {
-    this.state.mount.querySelector<HTMLInputElement>("#chat-input")!.value = "";
+    this.state.chatInput.updateState({ type: "clear" });
     if (this.state.chatState.workflowState === "awaiting_clarification") {
       await runClarificationWorkflow(this.state, message);
       return;

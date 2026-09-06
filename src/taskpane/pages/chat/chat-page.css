@@ -173,13 +173,36 @@
   flex: 0 0 auto;
 }
 
-.chat-form {
+.chat-composer {
   display: flex;
   flex: 0 0 auto;
+  align-items: flex-end;
   gap: 8px;
 }
 
-.chat-form input {
+.chat-input-mount {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-form {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.chat-form textarea {
+  --chat-input-min-height: 34px;
+  box-sizing: border-box;
+  height: var(--chat-input-min-height);
+  min-height: var(--chat-input-min-height);
+  resize: none;
+  overflow-y: hidden;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font-family: inherit;
+  line-height: 18px;
   flex: 1;
   min-width: 0;
   padding: 7px 8px;

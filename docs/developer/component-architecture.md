@@ -1,12 +1,18 @@
 # Component Architecture
 
-Status: describes the current component contract and implementation under `src/taskpane`.
+Status: defines the component contract for `src/taskpane`. Examples illustrate the contract using the add-in's structure; they are not a complete description of its implementation.
 
 Implementation guidance: [Component Architecture Implementation Guide](./component-architecture-implementation-guide.md).
 
+## Scope and Maintenance
+
+This document defines the rules for component boundaries, construction, state updates, DOM ownership, and event-handler ownership. Keep these rules authoritative and use a small number of representative examples to explain them.
+
+Update this document when the component contract changes or an example needs correction to illustrate that contract. Do not update it merely because a feature adds or changes components, events, state fields, helpers, control behavior, or layout calculations. Do not maintain exhaustive component trees, event lists, dependency wiring, or workflow descriptions here. Implementation details belong in source code, feature plans, and behavior specifications; broader application responsibilities are described in [Application Architecture](./application-architecture.md).
+
 ## Architecture
 
-The taskpane is a tree of components:
+The taskpane is a tree of components. A representative part of the add-in's structure is:
 
 ```text
 TaskpaneComponent
@@ -14,13 +20,14 @@ TaskpaneComponent
 `-- ChatPage
     |-- ChatHeader
     `-- ChatWindow
+        `-- ChatInput
 ```
 
 Each component owns its state, if any, and the DOM below a mount element supplied at construction and stored by the component. State transitions and UI updates happen together: after changing its state, a component creates, replaces, or edits the DOM under its mount so that the DOM represents the new state. A retained component's mount can be detached while its page is inactive.
 
-Managers such as `LLMManager`, `ExcelManager`, and `RestoreManager`, along with `OpenRouterClient` and key storage, remain outside the visual component tree. They handle model requests, worksheet operations, restore checkpoints, and credentials rather than component rendering.
+Services such as `LLMManager` and `ExcelManager` remain outside the visual component tree. They handle model requests and worksheet operations rather than component rendering.
 
-Chat workflow functions are different from these managers: they receive `ChatWindowState` and can update its chat state and DOM through helpers. They run within `ChatWindow.updateState()`'s call path. `ChatWindowState` holds the mount, handlers, manager references, and restorable `ChatState`; it is not another component.
+Components can delegate work to helpers, including asynchronous workflows. Helpers that mutate component state or DOM run within the owning component's `updateState()` call path. For example, chat workflows operate on state supplied by `ChatWindow`; the state holder is not itself another component.
 
 ## Component Contract
 
@@ -47,7 +54,7 @@ After construction, `updateState()` is the entry point for modifying a component
 
 A parent can update its own state and DOM before or after updating its children, according to the needs of the transition. Parent components normally create their child mounts once and reuse them for the lifetime of the child instances.
 
-Components without update events can implement `Component<never>` with a no-op `updateState()`. `ChatPage` and `ChatHeader` currently do this: they construct their DOM and bind or pass through handlers, but have no post-construction transitions of their own.
+Components without update events can implement `Component<never>` with a no-op `updateState()`. A component used only for composition, such as `ChatPage`, can construct its DOM and bind or pass through handlers without having post-construction transitions of its own.
 
 ## Construction and Initialization
 
@@ -70,15 +77,13 @@ constructor(mount: HTMLElement, onSignOut: () => void, keyStore: OpenrouterKeySt
 
 Do not add empty configuration objects merely to make constructors uniform. A leaf with no dependencies can accept only its mount.
 
-`TaskpaneComponent` constructs the shared key store. It passes that store through `ChatPage` to `ChatWindow`, which constructs its `LLMManager`; the manager constructs its `OpenRouterClient`. `ChatWindow` also accepts an optional Excel API dependency for tests.
-
 ## Parent Composition and Update Flow
 
 Parents compose the application by owning child instances and creating their mount elements. Updates normally reuse the mounts and child instances established during construction.
 
-`TaskpaneComponent` constructs both pages once and attaches the active page's existing mount. During sign-in it sends `sign_in_started`, then `sign_in_succeeded` or `sign_in_failed`, to `OpenRouterAuthPage`. During sign-out it clears the key, resets the auth page, and switches the attached page mount. These page switches do not clear or reconstruct `ChatWindow`.
+For example, `TaskpaneComponent` can switch between the auth and chat pages by attaching the active page's existing mount. A page switch need not reconstruct the child components or discard their state.
 
-`ChatWindow` handles its own events without routing them through `ChatPage`. It disables chat controls during asynchronous actions, delegates to workflow functions, and configures the controls again when the action completes. Rendering can happen repeatedly during an action, such as when streamed response text arrives.
+A child handles events affecting only its own state through its own `updateState()`; those events do not need to pass through its parent. An asynchronous update can render more than once, such as when `ChatWindow` receives streamed response text.
 
 The exact child events depend on the behavior each child owns. A parent should call only the children affected by a transition. Children do not read sibling state or manipulate sibling DOM; the parent connects them through explicit events and values returned by read-only helper methods.
 
@@ -96,22 +101,6 @@ onSubmit: (message) => {
 },
 ```
 
-### Taskpane events
+DOM ownership and action ownership can differ. For example, `ChatInput` owns its form and binds a submit callback supplied by `ChatWindow`, because submission affects the wider conversation. Local input presentation updates belong to `ChatInput` and use its own update entry point.
 
-`TaskpaneComponent` owns sign in and sign out because those operations affect its active-page state, credentials, and auth-page state. It supplies the relevant handlers as it constructs `OpenRouterAuthPage` and `ChatPage`; `ChatPage` passes the sign-out handler to `ChatHeader`.
-
-### Chat events
-
-`ChatWindow` owns the `submit_message`, `clear`, `accept_pending_diff`, `reject_pending_diff`, and `restore_to_point` events because those operations affect its state. Its DOM helpers bind the callbacks supplied by its constructor to the corresponding controls. Submit and clarification workflows both call the module-level `processModelResponse()` function in `chat-window.ts` to apply model completion results.
-
-`ChatHeader` owns the heading, provider details, and sign-out button DOM. Its only action handler is the sign-out callback supplied by `TaskpaneComponent` through `ChatPage`. The clear control belongs to `ChatWindow`, not `ChatHeader`.
-
-Application initialization constructs the top-level component with the application mount, and the constructor builds the initial component tree:
-
-```ts
-Office.onReady(() => {
-  const appBody = document.getElementById("app-body")!;
-  new TaskpaneComponent(appBody);
-  appBody.hidden = false;
-});
-```
+An action spanning pages belongs higher in the tree. For example, sign-out belongs to `TaskpaneComponent` because it affects which page is active, even when a descendant renders the button. Intermediate components pass the ancestor-owned handler to the component that binds it.

@@ -1,5 +1,6 @@
-/* global document, HTMLButtonElement, HTMLFormElement, HTMLInputElement, HTMLElement, structuredClone */
+/* global document, HTMLButtonElement, HTMLElement, ResizeObserver, structuredClone */
 
+import { ChatInput } from "../chat-input/chat-input";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
 import type { ChatWorkflowStateVals } from "../chat-window-state";
@@ -14,23 +15,34 @@ export type ChatWindowDomHandlers = {
   onRestore: (restorePointId: number) => void;
 };
 
-export function createInitialDom(mount: HTMLElement, handlers: ChatWindowDomHandlers): void {
+export function createInitialDom(mount: HTMLElement, handlers: ChatWindowDomHandlers): ChatInput {
   const element = document.createElement("div");
   const messages = cloneChatPageElement<HTMLElement>("#chat-messages");
-  const form = cloneChatPageElement<HTMLFormElement>("#chat-form");
+  const composer = document.createElement("div");
+  const chatInputMount = document.createElement("div");
   const clearButton = cloneChatPageElement<HTMLButtonElement>("#chat-clear");
-  const input = form.querySelector<HTMLInputElement>("#chat-input")!;
 
   element.id = "chat-window";
   element.className = "chat-window";
   clearButton.onclick = handlers.onClear;
-  form.onsubmit = (event) => {
-    event.preventDefault();
-    handlers.onSubmit(input.value);
-  };
-  form.prepend(clearButton);
-  element.append(messages, form);
+  composer.className = "chat-composer";
+  chatInputMount.className = "chat-input-mount";
+  composer.append(clearButton, chatInputMount);
+  element.append(messages, composer);
   mount.replaceChildren(element);
+  const chatInput = new ChatInput(chatInputMount, handlers.onSubmit);
+  let previousHeight = 0;
+  const panelObserver = new ResizeObserver(([entry]) => {
+    if (entry.contentRect.height !== previousHeight) {
+      previousHeight = entry.contentRect.height;
+      chatInput.updateState({
+        type: "panel_resized",
+        maxHeight: entry.contentRect.height / 2,
+      });
+    }
+  });
+  panelObserver.observe(element);
+  return chatInput;
 }
 
 export function renderChatTranscript(
@@ -61,15 +73,15 @@ export function renderChatTranscript(
 export function disableChatControls(
   mount: HTMLElement,
   entries: ChatTranscriptEntry[],
-  handlers: ChatWindowDomHandlers
+  handlers: ChatWindowDomHandlers,
+  chatInput: ChatInput
 ): void {
   entries.forEach((entry) => {
     if (entry.kind === "restore" || entry.kind === "diff_review") {
       entry.disabled = true;
     }
   });
-  mount.querySelector<HTMLInputElement>("#chat-input")!.disabled = true;
-  mount.querySelector<HTMLButtonElement>("#chat-send")!.disabled = true;
+  chatInput.updateState({ type: "set_disabled", disabled: true });
   renderChatTranscript(mount, entries, handlers);
 }
 
@@ -77,7 +89,8 @@ export function configChatControls(
   mount: HTMLElement,
   entries: ChatTranscriptEntry[],
   state: ChatWorkflowStateVals,
-  handlers: ChatWindowDomHandlers
+  handlers: ChatWindowDomHandlers,
+  chatInput: ChatInput
 ): void {
   entries.forEach((entry) => {
     if (entry.kind === "restore" || entry.kind === "diff_review") {
@@ -87,8 +100,7 @@ export function configChatControls(
   renderChatTranscript(mount, entries, handlers);
   const isPendingEdit = state === "pending_edit" || state === "pending_edit_preprocessed";
 
-  mount.querySelector<HTMLInputElement>("#chat-input")!.disabled = isPendingEdit;
-  mount.querySelector<HTMLButtonElement>("#chat-send")!.disabled = isPendingEdit;
+  chatInput.updateState({ type: "set_disabled", disabled: isPendingEdit });
 }
 
 function createChatMessage(entry: ChatMessageTranscriptItem): HTMLElement {

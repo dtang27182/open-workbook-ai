@@ -1,5 +1,6 @@
 /* global HTMLElement */
 
+import type { ChatInput } from "./chat-input/chat-input";
 import type { ChatWindowDomHandlers } from "./dom/chat-window-dom";
 import { RestoreManager } from "./restore-manager";
 import type { ChatTranscriptItem } from "./dom/transcript-helpers";
@@ -30,6 +31,7 @@ export type ChatState = {
 
 export class ChatWindowState {
   readonly mount: HTMLElement;
+  readonly chatInput: ChatInput;
   readonly domHandlers: ChatWindowDomHandlers;
   readonly excelManager: ExcelManager;
   readonly llmManager: LLMManager;
@@ -46,9 +48,11 @@ export class ChatWindowState {
     mount: HTMLElement,
     domHandlers: ChatWindowDomHandlers,
     excelManager: ExcelManager,
-    llmManager: LLMManager
+    llmManager: LLMManager,
+    chatInput: ChatInput
   ) {
     this.mount = mount;
+    this.chatInput = chatInput;
     this.domHandlers = domHandlers;
     this.excelManager = excelManager;
     this.llmManager = llmManager;
