@@ -61,6 +61,22 @@ your worksheets. No coding or developer tools are needed.
 
 You're ready to use the add-in. You can skip the developer instructions below.
 
+### Example Prompts
+
+Copy a prompt into the add-in and adapt it to your worksheet.
+
+#### Analysis
+
+> Summarize the key results in this worksheet. Explain the main trends and how the assumptions and formulas drive the numbers.
+
+#### Updates
+
+> Update the forecast so monthly sales growth decreases evenly from 6% in January to 2% in June. Recalculate using the new assumptions.
+
+#### What-if scenarios
+
+> What if unit costs rose by 10% and we raised prices by 5%? Keep sales volume unchanged and compare the impact on profit with the current forecast.
+
 ## Data and Security
 
 The add-in sends the active worksheet's used-range values and formulas, the current user
