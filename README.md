@@ -80,10 +80,6 @@ manage or revoke the key through your OpenRouter account.
 - Formula inference, edits, comparisons, and analysis are model-generated and may be
   incomplete or incorrect. Review every proposed change and scenario before relying on it.
 - Large worksheets may exceed model context or output limits.
-- Chat history, preprocessing status, and restore checkpoints are not persisted across a
-  task-pane reload. **Clear** also resets that in-memory state but does not change workbook
-  contents.
-- Scenario worksheets are created immediately and have no in-app restore control.
 
 ## For Developers
 
