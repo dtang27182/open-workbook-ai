@@ -317,7 +317,8 @@ export async function processModelResponse(
       state.mount,
       state.chatState.transcript,
       state.domHandlers,
-      workflowId
+      workflowId,
+      diff.sheetName
     );
   }
 }

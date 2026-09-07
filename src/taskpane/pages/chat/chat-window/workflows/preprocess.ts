@@ -1,11 +1,9 @@
 import type { CellEdit, SheetSnapshot } from "../excel-manager";
-import {
-  formatFormulaInferencePlan,
-  formatFormulaInferenceRegionResult,
-} from "../llm/preprocess-formula-inference";
+import { formatFormulaInferenceRegionResult } from "../llm/preprocess-formula-inference";
 import { renderChatTranscript } from "../dom/chat-window-dom";
 import {
   appendDiffReviewTranscriptItemAndRender,
+  appendFormulaInferencePlanAndRender,
   appendMessageAndRender,
   appendWorkingTranscriptItem,
   getWorkflowHumanMessage,
@@ -24,12 +22,11 @@ export async function runPreprocessWorkflow(
   let cellEdits: CellEdit[] | undefined;
   for await (const event of state.llmManager.runPreprocessPrompt(originalSheet)) {
     if (event.type === "detection_complete") {
-      appendMessageAndRender(
+      appendFormulaInferencePlanAndRender(
         state.mount,
         state.chatState.transcript,
         state.domHandlers,
-        "system",
-        formatFormulaInferencePlan(event.plan),
+        event.plan,
         workflowId
       );
     } else if (event.type === "region_complete") {
@@ -95,7 +92,8 @@ async function finalizeTransition(
       state.mount,
       state.chatState.transcript,
       state.domHandlers,
-      workflowId
+      workflowId,
+      diff.sheetName
     );
   } else {
     await runSubmitMessageWorkflow(

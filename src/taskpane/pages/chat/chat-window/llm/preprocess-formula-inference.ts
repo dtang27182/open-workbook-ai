@@ -32,21 +32,6 @@ export type FormulaGeneratorResult = {
   functionSource: string;
 };
 
-export function formatFormulaInferencePlan(plan: FormulaInferencePlan): string {
-  let message = `**Formula inference:** ${
-    plan.shouldInferFormulas ? "Required" : "Not required"
-  }\n\n${plan.summary}\n\n**Confidence:** ${plan.confidence}`;
-  if (plan.regions.length > 0) {
-    message += `\n\n**Inference plan**\n\n${plan.regions
-      .map(
-        (region) =>
-          `- \`${region.targetRange}\` — ${region.relationship}\n  - Structure: ${region.structure}\n  - Sources: ${region.sourceRanges.join(", ")}\n  - Evidence: ${region.evidenceCells.join(", ")}`
-      )
-      .join("\n")}`;
-  }
-  return message;
-}
-
 export function formatFormulaInferenceRegionResult(
   region: FormulaInferenceRegion,
   cellEditCount: number

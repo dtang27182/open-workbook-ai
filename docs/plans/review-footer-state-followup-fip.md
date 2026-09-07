@@ -24,7 +24,7 @@ New interface points to create:
 
 ## Implementation Details
 
-- Keep the component hierarchy and permanent footer/composer containers established by the visual redesign. Keep all mutations within `ChatWindow.updateState()` and its helper/workflow call paths.
+- Keep the component hierarchy, permanent review footer, and input mount established by the visual redesign. The input mount itself carries the composer styling and visibility; there is no extra composer wrapper. Keep all mutations within `ChatWindow.updateState()` and its helper/workflow call paths.
 - Use the existing `pendingEdit` as the source of the diff/source sheet names and workflow ID. Do not copy those values into a second pending-edit model or infer them from transcript messages.
 - Specify the minimal non-transcript presentation state needed for footer visibility and disabled controls. Map both pending workflow states, action start/completion, errors, clear, and restore before choosing its exact shape.
 - Preserve the distinction between a pending edit and a visible review action: the current accept/reject workflows remove review controls before clearing `pendingEdit`, and errors can leave `pendingEdit` populated. Footer visibility must not depend solely on that object's presence.

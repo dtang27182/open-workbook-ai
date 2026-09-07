@@ -1,16 +1,31 @@
 /* global HTMLElement */
 
 import type { RestorePoint } from "../restore-manager";
+import type { FormulaInferencePlan } from "../llm/preprocess-formula-inference";
 import { ChatWindowDomHandlers, renderChatTranscript } from "./chat-window-dom";
 
 export type ChatTranscriptSource = "human" | "system";
 
+export type ChatFormulaInferenceTranscriptItem = {
+  kind: "formula_inference";
+  plan: FormulaInferencePlan;
+  workflowId: number;
+};
+
+export type ChatMessagePresentation = {
+  kind: "edit_decision";
+  decision: "accepted" | "rejected";
+  sourceSheetName: string;
+};
+
 export type ChatTranscriptItem =
+  | ChatFormulaInferenceTranscriptItem
   | {
       kind: "message";
       source: ChatTranscriptSource;
       text: string;
       workflowId: number;
+      presentation?: ChatMessagePresentation;
     }
   | {
       kind: "restore";
@@ -21,6 +36,7 @@ export type ChatTranscriptItem =
   | {
       kind: "diff_review";
       workflowId: number;
+      diffSheetName: string;
       disabled: boolean;
     }
   | {
@@ -42,17 +58,30 @@ export function appendMessageAndRender(
   handlers: ChatWindowDomHandlers,
   source: "human" | "system",
   text: string,
-  workflowId: number
+  workflowId: number,
+  presentation?: ChatMessagePresentation
 ): ChatMessageTranscriptItem {
   const entry: ChatMessageTranscriptItem = {
     kind: "message",
     source,
     text,
     workflowId,
+    presentation,
   };
   transcript.push(entry);
   renderChatTranscript(mount, transcript, handlers);
   return entry;
+}
+
+export function appendFormulaInferencePlanAndRender(
+  mount: HTMLElement,
+  transcript: ChatTranscriptEntry[],
+  handlers: ChatWindowDomHandlers,
+  plan: FormulaInferencePlan,
+  workflowId: number
+): void {
+  transcript.push({ kind: "formula_inference", plan, workflowId });
+  renderChatTranscript(mount, transcript, handlers);
 }
 
 export function upsertTranscriptMessageAndRender(
@@ -89,11 +118,13 @@ export function appendDiffReviewTranscriptItemAndRender(
   mount: HTMLElement,
   transcript: ChatTranscriptEntry[],
   handlers: ChatWindowDomHandlers,
-  workflowId: number
+  workflowId: number,
+  diffSheetName: string
 ): void {
   transcript.push({
     kind: "diff_review",
     workflowId,
+    diffSheetName,
     disabled: true,
   });
   renderChatTranscript(mount, transcript, handlers);

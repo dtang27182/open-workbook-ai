@@ -44,7 +44,12 @@ async function finalize(state: ChatWindowState, pendingEdit: PendingEdit): Promi
     state.domHandlers,
     "system",
     "Rejected changes.",
-    pendingEdit.workflowId
+    pendingEdit.workflowId,
+    {
+      kind: "edit_decision",
+      decision: "rejected",
+      sourceSheetName: pendingEdit.sourceSheetName,
+    }
   );
   appendUserDecisionLlmMessage(state.chatState, "Rejected changes.", pendingEdit.workflowId);
 

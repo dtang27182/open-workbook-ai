@@ -15,6 +15,18 @@ import {
   ExcelManager,
 } from "../src/taskpane/pages/chat/chat-window/excel-manager";
 import type { ChatState } from "../src/taskpane/pages/chat/chat-window/chat-window-state";
+import {
+  type ChatWindowDomHandlers,
+  configChatControls,
+  createInitialDom,
+  disableChatControls,
+  renderChatTranscript,
+} from "../src/taskpane/pages/chat/chat-window/dom/chat-window-dom";
+import type { ChatTranscriptEntry } from "../src/taskpane/pages/chat/chat-window/dom/transcript-helpers";
+import type {
+  FormulaInferencePlan,
+  PreprocessPromptEvent,
+} from "../src/taskpane/pages/chat/chat-window/llm/preprocess-formula-inference";
 import { OpenrouterKeyStore } from "../src/taskpane/pages/openrouter-auth/openrouter-api-key";
 import { RestoreManager } from "../src/taskpane/pages/chat/chat-window/restore-manager";
 import {
@@ -211,6 +223,305 @@ test("Model Proposed Updates Are Reflected In The Generated Diff Sheet", async (
     assert.equal(workbook.getActiveSheetName(), "Diff 1");
     assert.equal(workbook.getCellFormat("Diff 1", "A1").fillColor, "#00B050");
     assert.equal(workbook.getCellFormat("Diff 1", "B1").fillColor, "#00B050");
+  } finally {
+    await waitForBackgroundWork();
+    mocks.restore();
+  }
+});
+
+test("Review Footer Replaces The Composer And Preserves Control Bindings And Drafts", () => {
+  const mount = document.createElement("div");
+  const actions: string[] = [];
+  const handlers: ChatWindowDomHandlers = {
+    onClear: () => actions.push("clear"),
+    onSubmit: () => actions.push("submit"),
+    onAccept: () => actions.push("accept"),
+    onReject: () => actions.push("reject"),
+    onRestore: (id) => actions.push(`restore ${id}`),
+  };
+  const chatInput = createInitialDom(mount, handlers);
+  const form = mount.querySelector("form")!;
+  const input = mount.querySelector("textarea")!;
+  const chatInputMount = chatInput.getMount();
+  const footer = mount.querySelector<HTMLElement>(".chat-review-footer")!;
+  const entries: ChatTranscriptEntry[] = [
+    { kind: "restore", restorePointId: 7, workflowId: 1, disabled: false },
+    { kind: "diff_review", workflowId: 2, diffSheetName: "Diff <2>", disabled: false },
+  ];
+  input.value = "Keep this\nunsent draft";
+  configChatControls(mount, entries, "pending_edit", handlers, chatInput);
+
+  assert.equal(chatInputMount.hidden, true);
+  assert.equal(footer.hidden, false);
+  assert.equal(input.disabled, true);
+  assert.equal(mount.querySelectorAll(".chat-diff-action").length, 2);
+  assert.equal(mount.querySelector("#chat-messages .chat-diff-action"), null);
+  assert.equal(form.contains(footer), false);
+  assert.equal(mount.querySelector(".chat-scope .chat-sheet-name")!.textContent, "Diff <2>");
+  footer.querySelector<HTMLButtonElement>("button")!.click();
+  footer.querySelectorAll<HTMLButtonElement>("button")[1].click();
+  mount.querySelector<HTMLButtonElement>(".chat-message-restore")!.click();
+  assert.deepEqual(actions, ["accept", "reject", "restore 7"]);
+
+  disableChatControls(mount, entries, handlers, chatInput);
+  mount
+    .querySelectorAll<HTMLButtonElement>(".chat-diff-action, .chat-message-restore")
+    .forEach((button) => {
+      assert.equal(button.disabled, true);
+      button.click();
+    });
+  mount.querySelector<HTMLButtonElement>("#chat-clear")!.click();
+  assert.deepEqual(actions, ["accept", "reject", "restore 7", "clear"]);
+
+  configChatControls(mount, [], "answered", handlers, chatInput);
+  assert.equal(footer.hidden, true);
+  assert.equal(footer.childElementCount, 0);
+  assert.equal(chatInputMount.hidden, false);
+  assert.equal(input.disabled, false);
+  assert.equal(input.value, "Keep this\nunsent draft");
+  assert.equal(mount.querySelector("form"), form);
+  assert.equal(mount.querySelector(".chat-scope")!.textContent, "Active worksheet");
+});
+
+test("Inference Cards Render Structured Fields And Confidence Without Interpreting HTML", () => {
+  const chatWindow = createChatWindowForTest(createWorkbook().excelApi, openrouterKeyStore);
+  const handlers: ChatWindowDomHandlers = {
+    onClear() {},
+    onSubmit() {},
+    onAccept() {},
+    onReject() {},
+    onRestore() {},
+  };
+  const plan: FormulaInferencePlan = {
+    shouldInferFormulas: true,
+    confidence: "high",
+    summary: "Repeated <img src=x onerror=alert(1)> calculations",
+    regions: [
+      {
+        targetRange: "B2:B3",
+        structure: "Monthly <b>outputs</b>",
+        relationship: "Multiply inputs <script>alert(1)</script>",
+        sourceRanges: ["A2:A3", "C2:C3"],
+        evidenceCells: ["B2", "B3"],
+      },
+    ],
+  };
+  for (const confidence of ["low", "medium", "high"] as const) {
+    renderChatTranscript(
+      chatWindow.getMount(),
+      [{ kind: "formula_inference", workflowId: 1, plan: { ...plan, confidence } }],
+      handlers
+    );
+    const message = chatWindow.getMount().querySelector(".chat-formula-inference")!;
+    assert.equal(
+      message.querySelectorAll(".chat-confidence-bar.filled").length,
+      { low: 1, medium: 2, high: 3 }[confidence]
+    );
+    assert.equal(message.querySelector(".chat-confidence-value")!.textContent, confidence);
+    assert.ok(message.textContent.includes(plan.summary));
+    const card = message.querySelector(".chat-inference-card")!;
+    for (const text of [
+      plan.regions[0].targetRange,
+      plan.regions[0].structure,
+      plan.regions[0].relationship,
+      ...plan.regions[0].sourceRanges,
+      ...plan.regions[0].evidenceCells,
+    ]) {
+      assert.ok(card.textContent.includes(text));
+    }
+    assert.equal(card.closest(".chat-message-text"), null);
+    assert.equal(message.querySelector("img, script, b"), null);
+  }
+  renderChatTranscript(
+    chatWindow.getMount(),
+    [
+      {
+        kind: "formula_inference",
+        workflowId: 1,
+        plan: { ...plan, shouldInferFormulas: false, regions: [] },
+      },
+      {
+        kind: "message",
+        source: "system",
+        workflowId: 1,
+        text: "Accepted changes. **Confidence:** high\n\n<script>alert(1)</script>",
+      },
+      { kind: "message", source: "human", workflowId: 1, text: "<b>My draft</b>\nSecond line" },
+    ],
+    handlers
+  );
+  assert.equal(chatWindow.getMount().querySelectorAll(".chat-inference-card").length, 0);
+  assert.ok(chatWindow.getMount().textContent.includes("Not required"));
+  assert.equal(chatWindow.getMount().querySelector(".chat-edit-decision, script"), null);
+  assert.equal(chatWindow.getMount().querySelector(".human .chat-message-source"), null);
+  assert.equal(
+    chatWindow.getMount().querySelector(".human .chat-message-text")!.textContent,
+    "<b>My draft</b>\nSecond line"
+  );
+});
+
+test("Review Decisions Keep Worksheet Effects And The Existing Restore Boundary", async () => {
+  for (const decision of ["accept", "reject"] as const) {
+    const workbook = createWorkbook();
+    const chatWindow = createChatWindowForTest(workbook.excelApi, openrouterKeyStore);
+    const mocks = installMocks((request) => {
+      if ((request.text as { format: { type: string } }).format.type === "text") {
+        return createOutputTextResponse("Updated analysis.");
+      } else {
+        return getOpenRouterResponseBody(request);
+      }
+    });
+    try {
+      await submitChatMessageForTest(chatWindow, "Lowercase the headers.");
+      const footer = chatWindow.getMount().querySelector<HTMLElement>(".chat-review-footer")!;
+      footer.querySelectorAll<HTMLButtonElement>("button")[decision === "accept" ? 0 : 1].click();
+      assert.equal(
+        chatWindow.getMount().querySelector<HTMLTextAreaElement>("textarea")!.disabled,
+        true
+      );
+      await waitForBackgroundWork();
+      assert.equal(footer.hidden, true);
+      assert.equal(workbook.getActiveSheetName(), "Sheet1");
+      assert.throws(() => workbook.getSheet("Diff 1"));
+      assert.equal(chatWindow.getMount().querySelectorAll(".chat-edit-decision").length, 1);
+      assert.equal(
+        chatWindow.getMount().querySelector(".chat-edit-decision .chat-sheet-name")!.textContent,
+        "Sheet1"
+      );
+      const chatState = getChatStateForTest(chatWindow);
+      assert.ok(
+        chatState.llmConversationMessages.some(
+          (message) =>
+            "text" in message &&
+            message.text === (decision === "accept" ? "Accepted changes." : "Rejected changes.")
+        )
+      );
+      assert.ok(chatState.llmConversationMessages.every((message) => !("presentation" in message)));
+      if (decision === "accept") {
+        assert.deepEqual(workbook.getSheet("Sheet1").formulas[0], ["product", "units"]);
+        assert.equal(mocks.requests.length, 3);
+        const restoreIndex = chatState.transcript.findIndex((entry) => entry.kind === "restore");
+        // With no preprocessing edits, the main-query checkpoint already contains the request.
+        assert.equal(restoreIndex, 2);
+        assert.ok(
+          chatWindow
+            .getMount()
+            .querySelector(".chat-restore-divider")!
+            .previousElementSibling!.classList.contains("human")
+        );
+        await submitChatMessageForTest(chatWindow, "Another edit.");
+        assert.equal(footer.hidden, false);
+        chatWindow.getMount().querySelector<HTMLButtonElement>(".chat-message-restore")!.click();
+        await waitForBackgroundWork();
+        assert.equal(footer.hidden, true);
+        assert.deepEqual(workbook.getSheet("Sheet1").formulas, sheetFormulas);
+        assert.equal(chatWindow.getMount().querySelector(".chat-edit-decision"), null);
+        assert.equal(getChatStateForTest(chatWindow).transcript.length, 2);
+      } else if (decision === "reject") {
+        assert.deepEqual(workbook.getSheet("Sheet1").formulas, sheetFormulas);
+        assert.equal(mocks.requests.length, 2);
+        assert.equal(chatWindow.getMount().querySelector(".chat-message-restore"), null);
+      }
+    } finally {
+      await waitForBackgroundWork();
+      mocks.restore();
+    }
+  }
+});
+
+test("Preprocessing Keeps One Structured Plan Through Decisions And Later Restore", async (context) => {
+  const plan: FormulaInferencePlan = {
+    shouldInferFormulas: true,
+    confidence: "medium",
+    summary: "Infer the repeated total.",
+    regions: [
+      {
+        targetRange: "B2",
+        structure: "Total",
+        relationship: "Double the input",
+        sourceRanges: ["B1"],
+        evidenceCells: ["B2"],
+      },
+    ],
+  };
+  context.mock.method(
+    LLMManager.prototype,
+    "runPreprocessPrompt",
+    async function* (): AsyncGenerator<PreprocessPromptEvent> {
+      yield { type: "detection_complete", plan };
+      yield { type: "region_complete", region: plan.regions[0], cellEditCount: 1 };
+      yield { type: "complete", cellEdits: [{ address: "B2", newFormula: "=600*2" }] };
+    }
+  );
+  for (const decision of ["accept_pending_diff", "reject_pending_diff"] as const) {
+    const workbook = createWorkbook();
+    const chatWindow = createChatWindowForTest(workbook.excelApi, openrouterKeyStore);
+    const mocks = installMocks();
+    try {
+      await submitChatMessageForTest(chatWindow, "Lowercase the headers.");
+      assert.equal(getChatStateForTest(chatWindow).workflowState, "pending_edit_preprocessed");
+      assert.equal(chatWindow.getMount().querySelectorAll(".chat-formula-inference").length, 1);
+      assert.equal(mocks.requests.length, 0);
+      await chatWindow.updateState({ type: decision });
+      const chatState = getChatStateForTest(chatWindow);
+      assert.equal(chatState.workflowState, "pending_edit");
+      assert.equal(mocks.requests.length, 1);
+      assert.equal(chatWindow.getMount().querySelectorAll(".chat-diff-action").length, 2);
+      const inference = chatState.transcript.filter((entry) => entry.kind === "formula_inference");
+      assert.equal(inference.length, 1);
+      assert.deepEqual(inference[0].plan, plan);
+      const pendingWorkflowId = chatState.pendingEdit!.workflowId;
+      assert.equal(inference[0].workflowId, pendingWorkflowId);
+      await chatWindow.updateState({ type: "reject_pending_diff" });
+      assert.equal(chatWindow.getMount().querySelectorAll(".chat-edit-decision").length, 2);
+      assert.equal(
+        chatWindow.getMount().querySelector<HTMLElement>(".chat-review-footer")!.hidden,
+        true
+      );
+      if (decision === "accept_pending_diff") {
+        assert.ok(
+          chatWindow
+            .getMount()
+            .querySelector(".chat-restore-divider")!
+            .nextElementSibling!.classList.contains("human")
+        );
+        chatWindow.getMount().querySelector<HTMLButtonElement>(".chat-message-restore")!.click();
+        await waitForBackgroundWork();
+        assert.deepEqual(workbook.getSheet("Sheet1").formulas, sheetFormulas);
+        assert.equal(chatWindow.getMount().querySelector(".chat-formula-inference"), null);
+      } else if (decision === "reject_pending_diff") {
+        assert.equal(chatWindow.getMount().querySelector(".chat-message-restore"), null);
+        assert.deepEqual(workbook.getSheet("Sheet1").formulas, sheetFormulas);
+      }
+    } finally {
+      await waitForBackgroundWork();
+      mocks.restore();
+    }
+  }
+});
+
+test("Failed Review Removes Footer Even When Pending Edit Data Remains", async (context) => {
+  const chatWindow = createChatWindowForTest(createWorkbook().excelApi, openrouterKeyStore);
+  const mocks = installMocks();
+  context.mock.method(ExcelManager.prototype, "deleteDiffSheet", async () => {
+    throw new Error("Worksheet unavailable");
+  });
+  try {
+    await submitChatMessageForTest(chatWindow, "Lowercase the headers.");
+    await chatWindow.updateState({ type: "reject_pending_diff" });
+    assert.equal(getChatStateForTest(chatWindow).workflowState, "errored");
+    assert.ok(getChatStateForTest(chatWindow).pendingEdit);
+    assert.equal(
+      chatWindow.getMount().querySelector<HTMLElement>(".chat-review-footer")!.hidden,
+      true
+    );
+    assert.equal(chatWindow.getMount().querySelector<HTMLElement>(".chat-input-mount")!.hidden, false);
+    assert.equal(
+      chatWindow.getMount().querySelector(".chat-scope")!.textContent,
+      "Active worksheet"
+    );
+    assert.equal(chatWindow.getMount().querySelector(".chat-edit-decision"), null);
+    assert.equal(chatWindow.getMount().querySelector("textarea")!.disabled, false);
   } finally {
     await waitForBackgroundWork();
     mocks.restore();
