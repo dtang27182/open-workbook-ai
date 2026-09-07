@@ -8,3 +8,4 @@ experiment-harness/runs/*
 .DS_Store
 .benchmark/
 /personal-plans/
+/design_handoff_taskpane_mvp/
