@@ -7,3 +7,4 @@ experiment-harness/runs/*
 .vscode
 .DS_Store
 .benchmark/
+/personal-plans/
