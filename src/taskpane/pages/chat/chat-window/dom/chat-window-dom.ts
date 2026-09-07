@@ -17,18 +17,18 @@ export type ChatWindowDomHandlers = {
 
 export function createInitialDom(mount: HTMLElement, handlers: ChatWindowDomHandlers): ChatInput {
   const element = document.createElement("div");
+  const providerDetails = cloneChatPageElement<HTMLElement>(".provider-link-details");
   const messages = cloneChatPageElement<HTMLElement>("#chat-messages");
   const composer = document.createElement("div");
   const chatInputMount = document.createElement("div");
-  const clearButton = cloneChatPageElement<HTMLButtonElement>("#chat-clear");
 
   element.id = "chat-window";
   element.className = "chat-window";
-  clearButton.onclick = handlers.onClear;
+  providerDetails.querySelector<HTMLButtonElement>("#chat-clear")!.onclick = handlers.onClear;
   composer.className = "chat-composer";
   chatInputMount.className = "chat-input-mount";
-  composer.append(clearButton, chatInputMount);
-  element.append(messages, composer);
+  composer.append(chatInputMount);
+  element.append(providerDetails, messages, composer);
   mount.replaceChildren(element);
   const chatInput = new ChatInput(chatInputMount, handlers.onSubmit);
   let previousHeight = 0;
