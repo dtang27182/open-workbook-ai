@@ -1,10 +1,9 @@
 import type { PendingEdit, ChatWindowState } from "../chat-window-state";
-import { renderChatTranscript } from "../dom/chat-window-dom";
+import { renderChatTranscript, updateReviewWarning } from "../dom/chat-window-dom";
 import {
   appendMessageAndRender,
   appendWorkingTranscriptItem,
   getWorkflowHumanMessage,
-  removeDiffReviewTranscriptItem,
   removeWorkingTranscriptItem,
 } from "../dom/transcript-helpers";
 import { appendUserDecisionLlmMessage } from "../chat-window";
@@ -18,7 +17,6 @@ export async function runRejectDiffWorkflow(state: ChatWindowState): Promise<voi
 }
 
 async function setup(state: ChatWindowState, pendingEdit: PendingEdit): Promise<void> {
-  removeDiffReviewTranscriptItem(state.chatState.transcript, pendingEdit.workflowId);
   appendWorkingTranscriptItem(
     state.chatState.transcript,
     "Rejecting changes...",
@@ -36,6 +34,7 @@ async function finalize(state: ChatWindowState, pendingEdit: PendingEdit): Promi
   state.restoreManager.discardPotentialRestorePoint(pendingEdit.workflowId);
   state.chatState.pendingEdit = undefined;
   state.chatState.workflowState = "answered";
+  updateReviewWarning(state.mount, undefined);
 
   removeWorkingTranscriptItem(state.chatState.transcript, pendingEdit.workflowId);
   appendMessageAndRender(

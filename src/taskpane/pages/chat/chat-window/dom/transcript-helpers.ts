@@ -34,12 +34,6 @@ export type ChatTranscriptItem =
       disabled: boolean;
     }
   | {
-      kind: "diff_review";
-      workflowId: number;
-      diffSheetName: string;
-      disabled: boolean;
-    }
-  | {
       kind: "working";
       source: "system";
       text: string;
@@ -112,32 +106,6 @@ export function insertRestoreTranscriptItemAndRender(
     disabled: true,
   });
   renderChatTranscript(mount, transcript, handlers);
-}
-
-export function appendDiffReviewTranscriptItemAndRender(
-  mount: HTMLElement,
-  transcript: ChatTranscriptEntry[],
-  handlers: ChatWindowDomHandlers,
-  workflowId: number,
-  diffSheetName: string
-): void {
-  transcript.push({
-    kind: "diff_review",
-    workflowId,
-    diffSheetName,
-    disabled: true,
-  });
-  renderChatTranscript(mount, transcript, handlers);
-}
-
-export function removeDiffReviewTranscriptItem(
-  transcript: ChatTranscriptEntry[],
-  workflowId: number
-): void {
-  const entryIndex = transcript.findIndex(
-    (entry) => entry.kind === "diff_review" && entry.workflowId === workflowId
-  );
-  transcript.splice(entryIndex, 1);
 }
 
 export function appendWorkingTranscriptItem(

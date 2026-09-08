@@ -3,13 +3,12 @@
 import type { PendingEdit, ChatWindowState } from "../chat-window-state";
 import type { SheetSnapshot } from "../excel-manager";
 import type { RestorePoint } from "../restore-manager";
-import { renderChatTranscript } from "../dom/chat-window-dom";
+import { renderChatTranscript, updateReviewWarning } from "../dom/chat-window-dom";
 import {
   appendMessageAndRender,
   appendWorkingTranscriptItem,
   getWorkflowHumanMessage,
   insertRestoreTranscriptItemAndRender,
-  removeDiffReviewTranscriptItem,
   removeWorkingTranscriptItem,
 } from "../dom/transcript-helpers";
 import { appendAssistantLlmMessage, appendUserDecisionLlmMessage } from "../chat-window";
@@ -34,7 +33,6 @@ export async function runAcceptDiffWorkflow(state: ChatWindowState): Promise<voi
 }
 
 async function setup(state: ChatWindowState, pendingEdit: PendingEdit): Promise<void> {
-  removeDiffReviewTranscriptItem(state.chatState.transcript, pendingEdit.workflowId);
   appendWorkingTranscriptItem(
     state.chatState.transcript,
     "Applying changes...",
@@ -56,6 +54,7 @@ async function finalize(state: ChatWindowState, pendingEdit: PendingEdit): Promi
   const restorePoint = state.restoreManager.promotePotentialRestorePoint(pendingEdit.workflowId);
   state.chatState.pendingEdit = undefined;
   state.chatState.workflowState = "answered";
+  updateReviewWarning(state.mount, undefined);
 
   removeWorkingTranscriptItem(state.chatState.transcript, pendingEdit.workflowId);
   insertRestoreTranscriptItemAndRender(

@@ -14,7 +14,7 @@ The component contract is defined in [Component Architecture](./component-archit
 
 ## Workflow State Transitions
 
-New requests start from `answered` or `errored`. Submit and clarification workflows share `processModelResponse()` to choose the next state. Controls are disabled while an action runs; there is no separate busy or scenario state.
+New requests start from `answered` or `errored`. Submit and clarification workflows share `processModelResponse()` to choose the next state. Controls are disabled while an action runs; there is no separate busy or scenario state. Accept/Reject buttons are constructed once outside the transcript. At action start, `disableChatControls()` hides their container and shows disabled input. On completion, `configChatControls()` uses the current workflow state to show review for either pending-edit state or enable input otherwise. `updateReviewWarning()` runs beside state assignments: it shows the diff name on entering pending review and clears or restores the warning on successful decisions, errors, Clear, and Restore. Starting an action does not clear the warning while the edit remains pending. Transcript updates do not change these controls, and review buttons are not part of transcript history or restore snapshots.
 
 | Outcome or action               | Next state               | Effect                                                                                                      |
 | ------------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------- |

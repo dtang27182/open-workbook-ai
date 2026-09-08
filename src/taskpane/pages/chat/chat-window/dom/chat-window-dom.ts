@@ -32,6 +32,7 @@ export function createInitialDom(mount: HTMLElement, handlers: ChatWindowDomHand
   providerDetails.querySelector<HTMLButtonElement>("#chat-clear")!.onclick = handlers.onClear;
   reviewFooter.className = "chat-review-footer";
   reviewFooter.hidden = true;
+  reviewFooter.appendChild(createReviewButtons(handlers));
   chatInputMount.className = "chat-input-mount";
   element.append(providerDetails, messages, chatInputMount, reviewFooter);
   mount.replaceChildren(element);
@@ -56,24 +57,6 @@ export function renderChatTranscript(
   handlers: ChatWindowDomHandlers
 ): void {
   const messages = mount.querySelector<HTMLElement>("#chat-messages")!;
-  const chatInputMount = mount.querySelector<HTMLElement>(".chat-input-mount")!;
-  const reviewFooter = mount.querySelector<HTMLElement>(".chat-review-footer")!;
-  const scopeStrip = mount.querySelector<HTMLElement>(".provider-link-details")!;
-  const scope = scopeStrip.querySelector<HTMLElement>(".chat-scope")!;
-  const review = entries.find((entry) => entry.kind === "diff_review");
-
-  chatInputMount.hidden = review !== undefined;
-  reviewFooter.hidden = review === undefined;
-  reviewFooter.replaceChildren();
-  scopeStrip.classList.toggle("review-pending", review !== undefined);
-  if (review) {
-    const sheetName = document.createElement("span");
-    sheetName.className = "chat-sheet-name";
-    sheetName.textContent = review.diffSheetName;
-    scope.replaceChildren("Changes staged on ", sheetName, " — original untouched");
-  } else {
-    scope.textContent = "Active worksheet";
-  }
 
   messages.innerHTML = "";
   structuredClone(entries).forEach((entry) => {
@@ -83,8 +66,6 @@ export function renderChatTranscript(
       messages.appendChild(createChatMessage(entry));
     } else if (entry.kind === "formula_inference") {
       messages.appendChild(createFormulaInferenceMessage(entry));
-    } else if (entry.kind === "diff_review") {
-      reviewFooter.appendChild(createDiffReviewDivider(entry.disabled, handlers));
     } else if (entry.kind === "working") {
       messages.appendChild(createWorkingMessage(entry));
     }
@@ -99,11 +80,13 @@ export function disableChatControls(
   chatInput: ChatInput
 ): void {
   entries.forEach((entry) => {
-    if (entry.kind === "restore" || entry.kind === "diff_review") {
+    if (entry.kind === "restore") {
       entry.disabled = true;
     }
   });
   chatInput.updateState({ type: "set_disabled", disabled: true });
+  mount.querySelector<HTMLElement>(".chat-input-mount")!.hidden = false;
+  mount.querySelector<HTMLElement>(".chat-review-footer")!.hidden = true;
   renderChatTranscript(mount, entries, handlers);
 }
 
@@ -115,7 +98,7 @@ export function configChatControls(
   chatInput: ChatInput
 ): void {
   entries.forEach((entry) => {
-    if (entry.kind === "restore" || entry.kind === "diff_review") {
+    if (entry.kind === "restore") {
       entry.disabled = false;
     }
   });
@@ -123,6 +106,22 @@ export function configChatControls(
   const isPendingEdit = state === "pending_edit" || state === "pending_edit_preprocessed";
 
   chatInput.updateState({ type: "set_disabled", disabled: isPendingEdit });
+  mount.querySelector<HTMLElement>(".chat-input-mount")!.hidden = isPendingEdit;
+  mount.querySelector<HTMLElement>(".chat-review-footer")!.hidden = !isPendingEdit;
+}
+
+export function updateReviewWarning(mount: HTMLElement, diffSheetName: string | undefined): void {
+  const scopeStrip = mount.querySelector<HTMLElement>(".provider-link-details")!;
+  const scope = scopeStrip.querySelector<HTMLElement>(".chat-scope")!;
+  scopeStrip.classList.toggle("review-pending", diffSheetName !== undefined);
+  if (diffSheetName !== undefined) {
+    const sheetName = document.createElement("span");
+    sheetName.className = "chat-sheet-name";
+    sheetName.textContent = diffSheetName;
+    scope.replaceChildren("Changes staged on ", sheetName, " — original untouched");
+  } else {
+    scope.textContent = "Active worksheet";
+  }
 }
 
 function createChatMessage(entry: ChatMessageTranscriptItem): HTMLElement {
@@ -288,7 +287,7 @@ function createRestoreDivider(
   return divider;
 }
 
-function createDiffReviewDivider(disabled: boolean, handlers: ChatWindowDomHandlers): HTMLElement {
+function createReviewButtons(handlers: ChatWindowDomHandlers): HTMLElement {
   const divider = document.createElement("div");
   const acceptButton = document.createElement("button");
   const rejectButton = document.createElement("button");
@@ -296,12 +295,10 @@ function createDiffReviewDivider(disabled: boolean, handlers: ChatWindowDomHandl
   divider.className = "chat-diff-actions";
   acceptButton.className = "btn chat-diff-action";
   acceptButton.type = "button";
-  acceptButton.disabled = disabled;
   acceptButton.textContent = "Accept";
   acceptButton.onclick = handlers.onAccept;
   rejectButton.className = "btn btn-secondary chat-diff-action";
   rejectButton.type = "button";
-  rejectButton.disabled = disabled;
   rejectButton.textContent = "Reject";
   rejectButton.onclick = handlers.onReject;
   divider.appendChild(acceptButton);

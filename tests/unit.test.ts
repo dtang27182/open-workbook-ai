@@ -21,6 +21,7 @@ import {
   createInitialDom,
   disableChatControls,
   renderChatTranscript,
+  updateReviewWarning,
 } from "../src/taskpane/pages/chat/chat-window/dom/chat-window-dom";
 import type { ChatTranscriptEntry } from "../src/taskpane/pages/chat/chat-window/dom/transcript-helpers";
 import type {
@@ -163,6 +164,7 @@ test("Chat Window Retains Its Draft On Clear And Captures Multiline Submission B
   const input = form.querySelector<HTMLTextAreaElement>("textarea")!;
   const send = form.querySelector<HTMLButtonElement>("#chat-send")!;
   const clear = chatWindow.getMount().querySelector<HTMLButtonElement>("#chat-clear")!;
+  const reviewButtons = Array.from(chatWindow.getMount().querySelectorAll(".chat-diff-action"));
   const draft = "Make all column headers lower case.\nKeep the remaining cells unchanged.";
   input.value = draft;
   clear.click();
@@ -194,8 +196,16 @@ test("Chat Window Retains Its Draft On Clear And Captures Multiline Submission B
     );
 
     await chatWindow.updateState({ type: "clear" });
+    reviewButtons.forEach((button, index) => {
+      assert.equal(chatWindow.getMount().querySelectorAll(".chat-diff-action")[index], button);
+    });
+    assert.equal(
+      chatWindow.getMount().querySelector<HTMLElement>(".chat-review-footer")!.hidden,
+      true
+    );
     assert.equal(input.disabled, false);
     assert.equal(send.disabled, false);
+    assert.equal(chatWindow.getMount().querySelector(".chat-scope")!.textContent, "Active worksheet");
     assert.equal(chatWindow.getMount().querySelector("form"), form);
   } finally {
     await waitForBackgroundWork();
@@ -229,7 +239,7 @@ test("Model Proposed Updates Are Reflected In The Generated Diff Sheet", async (
   }
 });
 
-test("Review Footer Replaces The Composer And Preserves Control Bindings And Drafts", () => {
+test("Review Footer Replaces The Composer And Preserves Control Bindings And Drafts", (context) => {
   const mount = document.createElement("div");
   const actions: string[] = [];
   const handlers: ChatWindowDomHandlers = {
@@ -240,15 +250,20 @@ test("Review Footer Replaces The Composer And Preserves Control Bindings And Dra
     onRestore: (id) => actions.push(`restore ${id}`),
   };
   const chatInput = createInitialDom(mount, handlers);
+  document.body.appendChild(mount);
+  context.after(() => mount.remove());
   const form = mount.querySelector("form")!;
   const input = mount.querySelector("textarea")!;
   const chatInputMount = chatInput.getMount();
   const footer = mount.querySelector<HTMLElement>(".chat-review-footer")!;
+  const buttons = Array.from(footer.querySelectorAll<HTMLButtonElement>("button"));
+  assert.equal(footer.hidden, true);
   const entries: ChatTranscriptEntry[] = [
     { kind: "restore", restorePointId: 7, workflowId: 1, disabled: false },
-    { kind: "diff_review", workflowId: 2, diffSheetName: "Diff <2>", disabled: false },
   ];
   input.value = "Keep this\nunsent draft";
+  updateReviewWarning(mount, "Diff <2>");
+  assert.equal(footer.hidden, true);
   configChatControls(mount, entries, "pending_edit", handlers, chatInput);
 
   assert.equal(chatInputMount.hidden, true);
@@ -258,14 +273,27 @@ test("Review Footer Replaces The Composer And Preserves Control Bindings And Dra
   assert.equal(mount.querySelector("#chat-messages .chat-diff-action"), null);
   assert.equal(form.contains(footer), false);
   assert.equal(mount.querySelector(".chat-scope .chat-sheet-name")!.textContent, "Diff <2>");
+  buttons[0].focus();
+  renderChatTranscript(mount, [], handlers);
+  assert.equal(document.activeElement, buttons[0]);
+  assert.equal(footer.hidden, false);
+  assert.equal(input.disabled, true);
+  assert.equal(mount.querySelector(".chat-scope .chat-sheet-name")!.textContent, "Diff <2>");
+  renderChatTranscript(mount, entries, handlers);
   footer.querySelector<HTMLButtonElement>("button")!.click();
   footer.querySelectorAll<HTMLButtonElement>("button")[1].click();
   mount.querySelector<HTMLButtonElement>(".chat-message-restore")!.click();
   assert.deepEqual(actions, ["accept", "reject", "restore 7"]);
 
   disableChatControls(mount, entries, handlers, chatInput);
+  entries.push({ kind: "working", source: "system", text: "Processing...", workflowId: 2 });
+  renderChatTranscript(mount, entries, handlers);
+  assert.equal(footer.hidden, true);
+  assert.equal(chatInputMount.hidden, false);
+  assert.equal(input.disabled, true);
+  assert.equal(mount.querySelector(".chat-scope .chat-sheet-name")!.textContent, "Diff <2>");
   mount
-    .querySelectorAll<HTMLButtonElement>(".chat-diff-action, .chat-message-restore")
+    .querySelectorAll<HTMLButtonElement>(".chat-message-restore")
     .forEach((button) => {
       assert.equal(button.disabled, true);
       button.click();
@@ -273,13 +301,42 @@ test("Review Footer Replaces The Composer And Preserves Control Bindings And Dra
   mount.querySelector<HTMLButtonElement>("#chat-clear")!.click();
   assert.deepEqual(actions, ["accept", "reject", "restore 7", "clear"]);
 
-  configChatControls(mount, [], "answered", handlers, chatInput);
+  updateReviewWarning(mount, "Diff <3>");
+  for (const state of [
+    "pending_edit_preprocessed",
+    "pending_edit",
+    "awaiting_clarification",
+    "errored",
+    "answered",
+  ] as const) {
+    configChatControls(mount, [], state, handlers, chatInput);
+    const pending = state === "pending_edit" || state === "pending_edit_preprocessed";
+    assert.equal(footer.hidden, !pending);
+    assert.equal(chatInputMount.hidden, pending);
+    assert.equal(input.disabled, pending);
+    assert.equal(mount.querySelector<HTMLButtonElement>("#chat-send")!.disabled, pending);
+    assert.equal(
+      mount.querySelector(".provider-link-details")!.classList.contains("review-pending"),
+      true
+    );
+    buttons.forEach((button, index) => {
+      assert.equal(footer.querySelectorAll("button")[index], button);
+    });
+    if (pending) {
+      mount.querySelector<HTMLButtonElement>("#chat-send")!.click();
+      input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", cancelable: true }));
+      form.requestSubmit();
+      assert.deepEqual(actions, ["accept", "reject", "restore 7", "clear"]);
+      assert.equal(mount.querySelector(".chat-sheet-name")!.textContent, "Diff <3>");
+    }
+  }
   assert.equal(footer.hidden, true);
-  assert.equal(footer.childElementCount, 0);
+  assert.equal(footer.querySelectorAll("button").length, 2);
   assert.equal(chatInputMount.hidden, false);
   assert.equal(input.disabled, false);
   assert.equal(input.value, "Keep this\nunsent draft");
   assert.equal(mount.querySelector("form"), form);
+  updateReviewWarning(mount, undefined);
   assert.equal(mount.querySelector(".chat-scope")!.textContent, "Active worksheet");
 });
 
@@ -374,6 +431,7 @@ test("Review Decisions Keep Worksheet Effects And The Existing Restore Boundary"
     try {
       await submitChatMessageForTest(chatWindow, "Lowercase the headers.");
       const footer = chatWindow.getMount().querySelector<HTMLElement>(".chat-review-footer")!;
+      const buttons = Array.from(footer.querySelectorAll("button"));
       footer.querySelectorAll<HTMLButtonElement>("button")[decision === "accept" ? 0 : 1].click();
       assert.equal(
         chatWindow.getMount().querySelector<HTMLTextAreaElement>("textarea")!.disabled,
@@ -417,6 +475,10 @@ test("Review Decisions Keep Worksheet Effects And The Existing Restore Boundary"
         assert.deepEqual(workbook.getSheet("Sheet1").formulas, sheetFormulas);
         assert.equal(chatWindow.getMount().querySelector(".chat-edit-decision"), null);
         assert.equal(getChatStateForTest(chatWindow).transcript.length, 2);
+        assert.equal(chatWindow.getMount().querySelector(".chat-scope")!.textContent, "Active worksheet");
+        buttons.forEach((button, index) => {
+          assert.equal(footer.querySelectorAll("button")[index], button);
+        });
       } else if (decision === "reject") {
         assert.deepEqual(workbook.getSheet("Sheet1").formulas, sheetFormulas);
         assert.equal(mocks.requests.length, 2);
@@ -456,17 +518,45 @@ test("Preprocessing Keeps One Structured Plan Through Decisions And Later Restor
   for (const decision of ["accept_pending_diff", "reject_pending_diff"] as const) {
     const workbook = createWorkbook();
     const chatWindow = createChatWindowForTest(workbook.excelApi, openrouterKeyStore);
-    const mocks = installMocks();
+    const mocks = installMocks((request) => {
+      assert.equal(chatWindow.getMount().querySelector(".chat-scope")!.textContent, "Active worksheet");
+      assert.equal(chatWindow.getMount().querySelector("textarea")!.disabled, true);
+      assert.equal(
+        chatWindow.getMount().querySelector<HTMLElement>(".chat-review-footer")!.hidden,
+        true
+      );
+      return getOpenRouterResponseBody(request);
+    });
     try {
       await submitChatMessageForTest(chatWindow, "Lowercase the headers.");
       assert.equal(getChatStateForTest(chatWindow).workflowState, "pending_edit_preprocessed");
       assert.equal(chatWindow.getMount().querySelectorAll(".chat-formula-inference").length, 1);
       assert.equal(mocks.requests.length, 0);
-      await chatWindow.updateState({ type: decision });
+      const buttons = Array.from(chatWindow.getMount().querySelectorAll(".chat-diff-action"));
+      const firstDiffName = getChatStateForTest(chatWindow).pendingEdit!.diffSheetName;
+      assert.equal(
+        chatWindow.getMount().querySelector(".chat-scope .chat-sheet-name")!.textContent,
+        firstDiffName
+      );
+      const review = chatWindow.updateState({ type: decision });
+      assert.equal(
+        chatWindow.getMount().querySelector<HTMLElement>(".chat-review-footer")!.hidden,
+        true
+      );
+      await review;
       const chatState = getChatStateForTest(chatWindow);
       assert.equal(chatState.workflowState, "pending_edit");
       assert.equal(mocks.requests.length, 1);
       assert.equal(chatWindow.getMount().querySelectorAll(".chat-diff-action").length, 2);
+      buttons.forEach((button, index) => {
+        assert.equal(chatWindow.getMount().querySelectorAll(".chat-diff-action")[index], button);
+      });
+      assert.notEqual(chatState.pendingEdit!.diffSheetName, firstDiffName);
+      assert.equal(
+        chatWindow.getMount().querySelector(".chat-scope .chat-sheet-name")!.textContent,
+        chatState.pendingEdit!.diffSheetName
+      );
+      assert.ok(chatState.transcript.every((entry) => entry.kind !== ("diff_review" as string)));
       const inference = chatState.transcript.filter((entry) => entry.kind === "formula_inference");
       assert.equal(inference.length, 1);
       assert.deepEqual(inference[0].plan, plan);
@@ -497,6 +587,115 @@ test("Preprocessing Keeps One Structured Plan Through Decisions And Later Restor
       await waitForBackgroundWork();
       mocks.restore();
     }
+  }
+});
+
+test(
+  "Accepted Review Keeps Controls Disabled Until Analysis Completes",
+  { timeout: 5000 },
+  async (context) => {
+    const chatWindow = createChatWindowForTest(createWorkbook().excelApi, openrouterKeyStore);
+    const mocks = installMocks();
+    let finishAnalysis!: () => void;
+    const analysis = new Promise<string>((resolve) => {
+      finishAnalysis = () => resolve("Updated analysis.");
+    });
+    let signalAnalysisStarted!: () => void;
+    const analysisStarted = new Promise<void>((resolve) => {
+      signalAnalysisStarted = resolve;
+    });
+    context.mock.method(LLMManager.prototype, "runUpdateAnalysisPrompt", () => {
+      signalAnalysisStarted();
+      return analysis;
+    });
+    let acceptance: Promise<void> | undefined;
+    try {
+      await submitChatMessageForTest(chatWindow, "Lowercase the headers.");
+      const mount = chatWindow.getMount();
+      const footer = mount.querySelector<HTMLElement>(".chat-review-footer")!;
+      const buttons = Array.from(footer.querySelectorAll<HTMLButtonElement>("button"));
+      acceptance = chatWindow.updateState({ type: "accept_pending_diff" });
+      assert.equal(footer.hidden, true);
+      await analysisStarted;
+
+      // Acceptance has appended a confirmation, a Restore divider, and working text.
+      // Although the workflow state is answered, analysis still owns the action.
+      assert.equal(getChatStateForTest(chatWindow).workflowState, "answered");
+      assert.ok(mount.querySelector(".chat-edit-decision.accepted"));
+      assert.equal(mount.querySelector(".chat-scope")!.textContent, "Active worksheet");
+      assert.ok(mount.querySelector(".chat-working"));
+      assert.equal(footer.hidden, true);
+      assert.equal(mount.querySelector<HTMLElement>(".chat-input-mount")!.hidden, false);
+      const input = mount.querySelector("textarea")!;
+      input.value = "Keep this draft";
+      assert.equal(input.disabled, true);
+      const requestCount = mocks.requests.length;
+      const transcript = structuredClone(getChatStateForTest(chatWindow).transcript);
+      mount
+        .querySelectorAll<HTMLButtonElement>(".chat-message-restore, #chat-send")
+        .forEach((button) => {
+          assert.equal(button.disabled, true);
+          button.click();
+        });
+      input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", cancelable: true }));
+      mount.querySelector("form")!.requestSubmit();
+      assert.equal(mocks.requests.length, requestCount);
+      assert.deepEqual(getChatStateForTest(chatWindow).transcript, transcript);
+      assert.equal(input.value, "Keep this draft");
+
+      finishAnalysis();
+      await acceptance;
+      assert.equal(input.disabled, false);
+      assert.equal(mount.querySelector<HTMLButtonElement>("#chat-send")!.disabled, false);
+      assert.equal(mount.querySelector<HTMLButtonElement>(".chat-message-restore")!.disabled, false);
+      buttons.forEach((button, index) => {
+        assert.equal(footer.querySelectorAll("button")[index], button);
+      });
+      assert.equal(footer.hidden, true);
+    } finally {
+      finishAnalysis();
+      await acceptance;
+      mocks.restore();
+    }
+  }
+);
+
+test("Review Warning Remains Until Worksheet Rejection Completes", async (context) => {
+  const chatWindow = createChatWindowForTest(createWorkbook().excelApi, openrouterKeyStore);
+  const mocks = installMocks();
+  let finishDeletion!: () => void;
+  const deletion = new Promise<void>((resolve) => {
+    finishDeletion = resolve;
+  });
+  const deleteDiffSheet = ExcelManager.prototype.deleteDiffSheet;
+  context.mock.method(ExcelManager.prototype, "deleteDiffSheet", async function (
+    this: ExcelManager,
+    sourceSheetName: string,
+    diffSheetName: string
+  ) {
+    await deletion;
+    await deleteDiffSheet.call(this, sourceSheetName, diffSheetName);
+  });
+  let rejection: Promise<void> | undefined;
+  try {
+    await submitChatMessageForTest(chatWindow, "Lowercase the headers.");
+    const mount = chatWindow.getMount();
+    const diffName = getChatStateForTest(chatWindow).pendingEdit!.diffSheetName;
+    rejection = chatWindow.updateState({ type: "reject_pending_diff" });
+    await waitForBackgroundWork();
+    assert.equal(getChatStateForTest(chatWindow).workflowState, "pending_edit");
+    assert.equal(mount.querySelector<HTMLElement>(".chat-review-footer")!.hidden, true);
+    assert.equal(mount.querySelector(".chat-scope .chat-sheet-name")!.textContent, diffName);
+    assert.equal(mount.querySelector(".provider-link-details")!.classList.contains("review-pending"), true);
+    finishDeletion();
+    await rejection;
+    assert.equal(getChatStateForTest(chatWindow).workflowState, "answered");
+    assert.equal(mount.querySelector(".chat-scope")!.textContent, "Active worksheet");
+    assert.equal(mount.querySelector(".provider-link-details")!.classList.contains("review-pending"), false);
+  } finally {
+    finishDeletion();
+    await rejection;
+    mocks.restore();
   }
 });
 

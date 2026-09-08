@@ -5,7 +5,6 @@ import { type CellEdit, type ExcelApi, type SheetSnapshot, ExcelManager } from "
 import { type ChatWorkflowStateVals, type ChatState, ChatWindowState } from "./chat-window-state";
 import {
   type ChatMessageTranscriptItem,
-  appendDiffReviewTranscriptItemAndRender,
   appendMessageAndRender,
   appendWorkingTranscriptItem,
   removeWorkingTranscriptItem,
@@ -23,6 +22,7 @@ import {
   createInitialDom,
   disableChatControls,
   renderChatTranscript,
+  updateReviewWarning,
 } from "./dom/chat-window-dom";
 import { OpenrouterKeyStore } from "../../openrouter-auth/openrouter-api-key";
 import { runAcceptDiffWorkflow } from "./workflows/accept-diff";
@@ -92,6 +92,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
       preprocessedSheetNames: [],
       nextWorkflowId: 1,
     };
+    updateReviewWarning(this.state.mount, undefined);
     this.state.restoreManager.clearAllRestorePoints();
     this.state.excelManager.resetSheetNumbers();
     configChatControls(
@@ -170,7 +171,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
       this.state.chatState.transcript = this.state.chatState.transcript.filter(
         (entry) =>
           entry.workflowId !== this.state.chatState.pendingEdit!.workflowId ||
-          (entry.kind !== "diff_review" && entry.kind !== "working")
+          entry.kind !== "working"
       );
     } else {
       this.state.chatState.transcript = this.state.chatState.transcript.filter(
@@ -178,6 +179,7 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
       );
     }
     this.state.chatState.workflowState = "errored";
+    updateReviewWarning(this.state.mount, undefined);
     appendMessageAndRender(
       this.state.mount,
       this.state.chatState.transcript,
@@ -313,13 +315,7 @@ export async function processModelResponse(
       workflowId,
     };
     state.chatState.workflowState = "pending_edit";
-    appendDiffReviewTranscriptItemAndRender(
-      state.mount,
-      state.chatState.transcript,
-      state.domHandlers,
-      workflowId,
-      diff.sheetName
-    );
+    updateReviewWarning(state.mount, state.chatState.pendingEdit.diffSheetName);
   }
 }
 

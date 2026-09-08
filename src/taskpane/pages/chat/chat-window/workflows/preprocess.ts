@@ -1,8 +1,7 @@
 import type { CellEdit, SheetSnapshot } from "../excel-manager";
 import { formatFormulaInferenceRegionResult } from "../llm/preprocess-formula-inference";
-import { renderChatTranscript } from "../dom/chat-window-dom";
+import { renderChatTranscript, updateReviewWarning } from "../dom/chat-window-dom";
 import {
-  appendDiffReviewTranscriptItemAndRender,
   appendFormulaInferencePlanAndRender,
   appendMessageAndRender,
   appendWorkingTranscriptItem,
@@ -88,13 +87,7 @@ async function finalizeTransition(
       workflowId,
     };
     state.chatState.workflowState = "pending_edit_preprocessed";
-    appendDiffReviewTranscriptItemAndRender(
-      state.mount,
-      state.chatState.transcript,
-      state.domHandlers,
-      workflowId,
-      diff.sheetName
-    );
+    updateReviewWarning(state.mount, state.chatState.pendingEdit.diffSheetName);
   } else {
     await runSubmitMessageWorkflow(
       state,
