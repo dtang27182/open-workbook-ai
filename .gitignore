@@ -9,3 +9,5 @@ experiment-harness/runs/*
 .benchmark/
 /personal-plans/
 /design_handoff_taskpane_mvp/
+/ai-coding-toolkit/
+.agents/
