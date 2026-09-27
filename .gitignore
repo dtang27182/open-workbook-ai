@@ -11,3 +11,4 @@ experiment-harness/runs/*
 /design_handoff_taskpane_mvp/
 /ai-coding-toolkit/
 .agents/
+.claude/
