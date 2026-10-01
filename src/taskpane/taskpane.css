@@ -143,6 +143,26 @@ html, body {
   color: #424242;
 }
 
+#open-workbook-help {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+#open-workbook-help span {
+  flex: 1;
+  min-width: 0;
+}
+
+.account-menu-item .account-menu-external-icon {
+  color: var(--ink-tertiary);
+}
+
+.account-menu-divider {
+  height: 1px;
+  margin: 4px 6px;
+  background: #EFEFEF;
+}
+
 .pane, .pane * {
   box-sizing: border-box;
 }

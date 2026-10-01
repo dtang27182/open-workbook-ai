@@ -1,4 +1,4 @@
-/* global document, HTMLButtonElement, HTMLElement */
+/* global document, HTMLAnchorElement, HTMLButtonElement, HTMLElement */
 
 import { Component } from "./component";
 import { ChatPage } from "./pages/chat/chat-page";
@@ -13,7 +13,10 @@ export type TaskpaneState = {
   activePage: TaskpanePageName;
 };
 
-export type TaskpaneUpdateEvent = { type: "sign_in" } | { type: "sign_out" };
+export type TaskpaneUpdateEvent =
+  | { type: "sign_in" }
+  | { type: "sign_out" }
+  | { type: "close_account_menu" };
 
 export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
   private readonly mount: HTMLElement;
@@ -65,6 +68,8 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
       await this.openRouterAuthPage.updateState({ type: "reset" });
       this.state.activePage = "openrouter-auth";
       this.mount.replaceChildren(this.openRouterAuthPage.getMount());
+    } else if (event.type === "close_account_menu") {
+      this.accountMenu.hidePopover();
     }
   }
 
@@ -89,6 +94,10 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
     const chatMount = template.content.querySelector<HTMLElement>("#chat-mount")!;
     const signedInContainer = template.content.querySelector<HTMLElement>(".signed-in-view")!;
     const accountMenu = signedInContainer.querySelector<HTMLElement>(".account-menu")!;
+    const helpLink = signedInContainer.querySelector<HTMLAnchorElement>("#open-workbook-help")!;
+    helpLink.onclick = () => {
+      void this.updateState({ type: "close_account_menu" });
+    };
     const signOutButton =
       signedInContainer.querySelector<HTMLButtonElement>("#openrouter-sign-out")!;
     signOutButton.onclick = this.handleSignOut;
