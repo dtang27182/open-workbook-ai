@@ -28,6 +28,7 @@ import {
 } from "./preprocess-formula-inference";
 import { OpenrouterKeyStore } from "../../../openrouter-auth/openrouter-api-key";
 import { formatSheetAsMarkdown, formatSheetDataAsMarkdown } from "./sheet-markdown";
+import { type MainModelConfig, type MainModelId, mainModelOptions } from "./main-model-options";
 
 type LlmConversationSheetContext = Readonly<{
   range: Readonly<{
@@ -122,12 +123,6 @@ export type SpreadsheetPromptEvent =
   | { type: "creating_scenario_sheet" }
   | SpreadsheetPromptCompletionEvent;
 
-const openRouterModelConfig = {
-  model: "openai/gpt-5.6-sol:exacto",
-  provider: { order: ["openai"], allow_fallbacks: false },
-  reasoning: { effort: "medium" },
-};
-
 const mainQueryInstructions = `You are an Excel spreadsheet assistant. The initial spreadsheet user request is JSON containing userRequest and sheetContext. Use sheetContext.sheetMarkdown for reading the spreadsheet. Formula cells contain the Excel formula followed by the calculated value in [value: ...]. If missing information prevents a reliable response, call ask_clarifying_question with one concise question instead of guessing. Treat the spreadsheet as the primary output.
 
 Choose exactly one response mode.
@@ -179,21 +174,6 @@ const clarificationTool: OpenRouterFunctionTool = {
     additionalProperties: false,
   },
 };
-
-// const openRouterModelConfig = {
-//   model: "anthropic/claude-opus-4.8:nitro",
-//   reasoning: { effort: "medium" },
-// };
-// const openRouterModelConfig = {
-//   model: "openai/gpt-5.4-mini:exacto",
-//   provider: { order: ["openai"], allow_fallbacks: false },
-//   reasoning: { effort: "medium" },
-// };
-// const openRouterModelConfig = {
-//   model: "google/gemini-3.5-flash:exacto",
-//   provider: { order: ["google-ai-studio"], allow_fallbacks: false },
-//   reasoning: { effort: "medium" },
-// };
 
 const mainQueryResponseSchema = {
   format: {
@@ -318,9 +298,16 @@ const scenarioComparisonResponseSchema = {
 
 export class LLMManager {
   private readonly openRouterClient: OpenRouterClient;
+  private mainModelConfig: MainModelConfig = mainModelOptions[0].config;
 
   constructor(keyStore: OpenrouterKeyStore) {
     this.openRouterClient = new OpenRouterClient(keyStore);
+  }
+
+  setMainModel(modelId: MainModelId): void {
+    this.mainModelConfig = mainModelOptions.find(
+      (option) => option.config.model === modelId
+    )!.config;
   }
 
   async *runPreprocessPrompt(sheet: SheetSnapshot): AsyncGenerator<PreprocessPromptEvent> {
@@ -409,7 +396,11 @@ export class LLMManager {
       userRequest: prompt,
       sheetContext,
     });
-    const requestBody = buildMainQueryRequestBody(currentUserContent, llmConversationMessages);
+    const requestBody = buildMainQueryRequestBody(
+      currentUserContent,
+      llmConversationMessages,
+      this.mainModelConfig
+    );
     const compactedLlmConversationMessages = compactLlmConversationHistory(llmConversationMessages);
     const currentUserMessage: LlmConversationMessage = {
       role: "user",
@@ -491,7 +482,10 @@ export class LLMManager {
       workflowId,
     };
     const updatedLlmConversationMessages = [...llmConversationMessages, functionCallOutput];
-    const requestBody = buildClarificationResponseRequestBody(updatedLlmConversationMessages);
+    const requestBody = buildClarificationResponseRequestBody(
+      updatedLlmConversationMessages,
+      this.mainModelConfig
+    );
     let result: OpenRouterResponseBody | undefined;
     let hasStartedCreatingProposedChange = false;
     for await (const event of this.openRouterClient.requestStreamEvents(requestBody)) {
@@ -590,7 +584,7 @@ export class LLMManager {
       };
     });
     const requestBody: OpenRouterRequestBody = {
-      ...openRouterModelConfig,
+      ...this.mainModelConfig,
       instructions: `You add a comparison section to an Excel scenario worksheet and provide a user-facing analysis. The current user message content is JSON containing the original user request, exact worksheet names, the first available comparison cell, and selected recalculated ranges from the original and scenario worksheets.
 
 Return cellEdits containing only new comparison cells at or below comparisonStartCell on the scenario worksheet. Do not modify the existing scenario model. Add clear labels and compare the relevant original values, scenario values, and differences. Baseline-value formulas must explicitly reference the original worksheet, scenario-value formulas must explicitly reference the scenario worksheet, and difference formulas must explicitly reference both. Use the exact worksheet names supplied in the request and quote worksheet names correctly in Excel formulas. Do not reconstruct original values from the scenario worksheet. Each cell edit address must be an A1 address on the scenario worksheet. newFormula is assigned through Office.js Range.formulas, so it must be exactly the literal cell value or exactly one valid Excel formula.
@@ -664,7 +658,8 @@ Return analysis as concise GitHub-flavored Markdown that directly answers the us
         userRequest,
         originalSheet,
         updatedSheet,
-        llmConversationMessages
+        llmConversationMessages,
+        this.mainModelConfig
       )
     );
     return extractOpenRouterText(result);
@@ -814,10 +809,11 @@ function getMainQueryResponseText(response: ModelSpreadsheetResponse): string {
 
 function buildMainQueryRequestBody(
   currentUserContent: string,
-  llmConversationMessages: LlmConversationHistory
+  llmConversationMessages: LlmConversationHistory,
+  modelConfig: MainModelConfig
 ): OpenRouterRequestBody {
   return {
-    ...openRouterModelConfig,
+    ...modelConfig,
     instructions: mainQueryInstructions,
     input: buildOpenRouterMessages(llmConversationMessages, currentUserContent),
     text: mainQueryResponseSchema,
@@ -829,10 +825,11 @@ function buildMainQueryRequestBody(
 }
 
 function buildClarificationResponseRequestBody(
-  llmConversationMessages: LlmConversationHistory
+  llmConversationMessages: LlmConversationHistory,
+  modelConfig: MainModelConfig
 ): OpenRouterRequestBody {
   return {
-    ...openRouterModelConfig,
+    ...modelConfig,
     instructions: mainQueryInstructions,
     input: buildOpenRouterInputItems(llmConversationMessages),
     text: mainQueryResponseSchema,
@@ -847,7 +844,8 @@ function buildUpdateAnalysisRequestBody(
   userRequest: string,
   originalSheet: SheetSnapshot,
   updatedSheet: SheetSnapshot,
-  llmConversationMessages: LlmConversationHistory
+  llmConversationMessages: LlmConversationHistory,
+  modelConfig: MainModelConfig
 ): OpenRouterRequestBody {
   const input = buildOpenRouterMessages(
     llmConversationMessages,
@@ -865,7 +863,7 @@ function buildUpdateAnalysisRequestBody(
   );
 
   return {
-    ...openRouterModelConfig,
+    ...modelConfig,
     instructions:
       "You analyze an accepted Excel worksheet update after its formulas have recalculated. The current user message content is JSON containing the user's original request and the original and updated worksheet contexts. Directly answer the original request by comparing the original and updated values. Identify the most relevant differences, quantify material changes where possible, mention relevant metrics and periods, and focus on business implications. The update has already been applied, so do not use proposed or conditional language. Do not explain how the edits were constructed. Be concise.",
     input,

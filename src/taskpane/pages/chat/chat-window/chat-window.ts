@@ -25,6 +25,7 @@ import {
   updateReviewWarning,
 } from "./dom/chat-window-dom";
 import { OpenrouterKeyStore } from "../../openrouter-auth/openrouter-api-key";
+import type { MainModelId } from "./llm/main-model-options";
 import { runAcceptDiffWorkflow } from "./workflows/accept-diff";
 import { runClarificationWorkflow } from "./workflows/clarification";
 import { runPreprocessWorkflow } from "./workflows/preprocess";
@@ -39,6 +40,7 @@ export type ChatWindowUpdateEvent =
   | { type: "accept_pending_diff" }
   | { type: "reject_pending_diff" }
   | { type: "restore_to_point"; restorePointId: number }
+  | { type: "select_model"; modelId: MainModelId }
   | { type: "clear" };
 
 export class ChatWindow implements Component<ChatWindowUpdateEvent> {
@@ -51,6 +53,9 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
       },
       onSubmit: (message) => {
         void this.updateState({ type: "submit_message", message });
+      },
+      onModelSelected: (modelId) => {
+        void this.updateState({ type: "select_model", modelId });
       },
       onAccept: () => {
         void this.updateState({ type: "accept_pending_diff" });
@@ -107,6 +112,8 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
   async updateState(event: ChatWindowUpdateEvent): Promise<void> {
     if (event.type === "clear") {
       this.reset();
+    } else if (event.type === "select_model") {
+      this.state.llmManager.setMainModel(event.modelId);
     } else if (
       event.type === "submit_message" ||
       event.type === "accept_pending_diff" ||
@@ -190,7 +197,9 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
     );
   }
 
-  private validateInputForCurrentState(input: Exclude<ChatWindowUpdateEvent, { type: "clear" }>) {
+  private validateInputForCurrentState(
+    input: Exclude<ChatWindowUpdateEvent, { type: "clear" | "select_model" }>
+  ) {
     if (input.type === "submit_message") {
       if (
         !this.isTerminalTurnState(this.state.chatState.workflowState) &&
@@ -222,7 +231,9 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
     }
   }
 
-  private getErrorMessage(input: Exclude<ChatWindowUpdateEvent, { type: "clear" }>): string {
+  private getErrorMessage(
+    input: Exclude<ChatWindowUpdateEvent, { type: "clear" | "select_model" }>
+  ): string {
     if (input.type === "submit_message") {
       return "I could not get an assistant response. Check the active worksheet and OpenRouter configuration, then ask again.";
     }

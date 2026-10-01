@@ -13,5 +13,9 @@
 <form id="chat-form" class="chat-form">
     <label class="visually-hidden" for="chat-input">Ask Open Workbook AI</label>
     <textarea id="chat-input" rows="1" placeholder="Ask about the active worksheet" autocomplete="off"></textarea>
-    <button id="chat-send" class="btn btn-send" type="submit">Send</button>
+    <div class="chat-form-actions">
+        <label class="visually-hidden" for="chat-model">Model</label>
+        <select id="chat-model" class="chat-model-select"></select>
+        <button id="chat-send" class="btn btn-send" type="submit">Send</button>
+    </div>
 </form>

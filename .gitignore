@@ -13,3 +13,4 @@ experiment-harness/runs/*
 .agents/
 .claude/
 *.zip
+docs/plans/features/*

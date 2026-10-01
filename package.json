@@ -28,7 +28,8 @@
     "validate": "office-addin-manifest validate manifest.xml",
     "watch": "vite build --mode development --watch",
     "hld-visualizer": "node ai-coding-toolkit/node_modules/vite/bin/vite.js ai-coding-toolkit/hld-gen-new/visualizer",
-    "diff-visualizer": "node ai-coding-toolkit/node_modules/vite/bin/vite.js ai-coding-toolkit/enrich-diff/visualizer"
+    "diff-visualizer": "node ai-coding-toolkit/node_modules/vite/bin/vite.js ai-coding-toolkit/enrich-diff/visualizer",
+    "adv-diff": "node ai-coding-toolkit/node_modules/vite/bin/vite.js ai-coding-toolkit/advanced-diff-viewer/visualizer"
   },
   "dependencies": {
     "dompurify": "^3.4.12",

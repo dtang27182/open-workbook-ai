@@ -55,8 +55,10 @@ const sheetValues = [
 
 test("Chat Input Submits Multiline Text Through Send And Plain Enter", (context) => {
   const messages: string[] = [];
-  const chatInput = new ChatInput(document.createElement("div"), (message) =>
-    messages.push(message)
+  const chatInput = new ChatInput(
+    document.createElement("div"),
+    (message) => messages.push(message),
+    () => {}
   );
   document.body.appendChild(chatInput.getMount());
   context.after(() => chatInput.getMount().remove());
@@ -89,8 +91,10 @@ test("Chat Input Submits Multiline Text Through Send And Plain Enter", (context)
 
 test("Chat Input Disabling Preserves The Draft And Clearing Reuses The Form", (context) => {
   const messages: string[] = [];
-  const chatInput = new ChatInput(document.createElement("div"), (message) =>
-    messages.push(message)
+  const chatInput = new ChatInput(
+    document.createElement("div"),
+    (message) => messages.push(message),
+    () => {}
   );
   document.body.appendChild(chatInput.getMount());
   context.after(() => chatInput.getMount().remove());
@@ -118,10 +122,82 @@ test("Chat Input Disabling Preserves The Draft And Clearing Reuses The Form", (c
   assert.equal(chatInput.getMount().querySelector("form"), form);
 });
 
+test("Native Model Select Retains Selection Through Review And Clear", async (context) => {
+  const chatWindow = createChatWindowForTest(createWorkbook().excelApi, openrouterKeyStore);
+  const mount = chatWindow.getMount();
+  document.body.appendChild(mount);
+  context.after(() => mount.remove());
+  const select = mount.querySelector<HTMLSelectElement>("#chat-model")!;
+
+  assert.equal(select.value, "openai/gpt-5.6-sol:exacto");
+  assert.equal(select.parentElement!.previousElementSibling!.id, "chat-input");
+  assert.deepEqual(
+    Array.from(select.options, (option) => option.value),
+    [
+      "openai/gpt-5.6-sol:exacto",
+      "anthropic/claude-opus-4.8:nitro",
+      "openai/gpt-5.4-mini:exacto",
+      "google/gemini-3.5-flash:exacto",
+    ]
+  );
+  select.value = "anthropic/claude-opus-4.8:nitro";
+  select.dispatchEvent(new window.Event("change", { bubbles: true }));
+  assert.equal(select.value, "anthropic/claude-opus-4.8:nitro");
+
+  const state = chatWindow["state"];
+  state.chatState.workflowState = "pending_edit";
+  configChatControls(mount, state.chatState.transcript, "pending_edit", state.domHandlers, state.chatInput);
+  assert.equal(state.chatInput.getMount().hidden, true);
+  assert.equal(mount.querySelector<HTMLElement>(".chat-review-footer")!.hidden, false);
+  assert.equal(select.value, "anthropic/claude-opus-4.8:nitro");
+  await chatWindow.updateState({ type: "clear" });
+  assert.equal(select.value, "anthropic/claude-opus-4.8:nitro");
+  assert.equal(state.chatInput.getMount().hidden, false);
+
+  const newChatWindow = createChatWindowForTest(createWorkbook().excelApi, openrouterKeyStore);
+  assert.equal(
+    newChatWindow.getMount().querySelector<HTMLSelectElement>("#chat-model")!.value,
+    "openai/gpt-5.6-sol:exacto"
+  );
+});
+
+test("Selecting A Model In Chat Sends It With The Next Main Request", async () => {
+  const chatWindow = createChatWindowForTest(createWorkbook().excelApi, openrouterKeyStore);
+  const mocks = installMocks((requestBody) => {
+    const format = requestBody.text as { format: { name?: string } };
+    if (format.format.name === "formula_inference_plan") {
+      return createNoEditResponse();
+    } else {
+      return createOutputTextResponse({
+        shouldEditSheet: false,
+        createNewSheet: false,
+        answer: "Answered.",
+        editExplanation: null,
+        cellEdits: [],
+        comparisonRanges: [],
+      });
+    }
+  });
+
+  try {
+    const mount = chatWindow.getMount();
+    const select = mount.querySelector<HTMLSelectElement>("#chat-model")!;
+    select.value = "openai/gpt-5.4-mini:exacto";
+    select.dispatchEvent(new window.Event("change", { bubbles: true }));
+    await submitChatMessageForTest(chatWindow, "Summarize the sheet.");
+    assert.deepEqual(
+      mocks.requests.map(({ model }) => model),
+      ["openai/gpt-5.6-sol:exacto", "openai/gpt-5.4-mini:exacto"]
+    );
+  } finally {
+    mocks.restore();
+  }
+});
+
 test("Chat Input Caps And Shrinks Its Height Using Supplied Layout Measurements", () => {
   const mount = document.createElement("div");
   document.body.appendChild(mount);
-  const chatInput = new ChatInput(mount, () => {});
+  const chatInput = new ChatInput(mount, () => {}, () => {});
   const input = mount.querySelector<HTMLTextAreaElement>("textarea")!;
   // jsdom supplies no layout; simulate measurements to check sizing decisions.
   input.style.setProperty("--chat-input-min-height", "34px");
@@ -245,6 +321,7 @@ test("Review Footer Replaces The Composer And Preserves Control Bindings And Dra
   const handlers: ChatWindowDomHandlers = {
     onClear: () => actions.push("clear"),
     onSubmit: () => actions.push("submit"),
+    onModelSelected: () => actions.push("model"),
     onAccept: () => actions.push("accept"),
     onReject: () => actions.push("reject"),
     onRestore: (id) => actions.push(`restore ${id}`),
@@ -291,6 +368,7 @@ test("Review Footer Replaces The Composer And Preserves Control Bindings And Dra
   assert.equal(footer.hidden, true);
   assert.equal(chatInputMount.hidden, false);
   assert.equal(input.disabled, true);
+  assert.equal(mount.querySelector<HTMLSelectElement>("#chat-model")!.disabled, false);
   assert.equal(mount.querySelector(".chat-scope .chat-sheet-name")!.textContent, "Diff <2>");
   mount
     .querySelectorAll<HTMLButtonElement>(".chat-message-restore")
@@ -345,6 +423,7 @@ test("Inference Cards Render Structured Fields And Confidence Without Interpreti
   const handlers: ChatWindowDomHandlers = {
     onClear() {},
     onSubmit() {},
+    onModelSelected() {},
     onAccept() {},
     onReject() {},
     onRestore() {},
@@ -1060,6 +1139,96 @@ test("LLM Manager Preserves Preprocess Scenario And Update Analysis Operations",
         []
       ),
       "Accepted update analysis."
+    );
+  } finally {
+    mocks.restore();
+  }
+});
+
+test("Selected Model Configures Each Main Request Without Changing Preprocessing", async () => {
+  const manager = new LLMManager(openrouterKeyStore);
+  const sheet = createRestoreManagerSheet("Sheet1");
+  const mocks = installMocks((requestBody) => {
+    const format = requestBody.text as { format: { name?: string } };
+    if (format.format.name === "formula_inference_plan") {
+      return createNoEditResponse();
+    } else if (format.format.name === "scenario_comparison_response") {
+      return createOutputTextResponse({ cellEdits: [], analysis: "Compared." });
+    } else if (format.format.name === "spreadsheet_response") {
+      return createOutputTextResponse({
+        shouldEditSheet: false,
+        createNewSheet: false,
+        answer: "Answered.",
+        editExplanation: null,
+        cellEdits: [],
+        comparisonRanges: [],
+      });
+    } else {
+      return createOutputTextResponse("Analyzed.");
+    }
+  });
+
+  try {
+    manager.setMainModel("anthropic/claude-opus-4.8:nitro");
+    for await (const _event of manager.runMainQueryPrompt("Explain.", 1, sheet, [])) {
+      // Consume the streamed completion.
+    }
+    manager.setMainModel("google/gemini-3.5-flash:exacto");
+    for await (const _event of manager.runClarificationResponsePrompt("FY2028", 1, [
+      {
+        type: "function_call",
+        id: "tool-1",
+        callId: "call-1",
+        name: "ask_clarifying_question",
+        arguments: JSON.stringify({ question: "Which period?" }),
+        workflowId: 1,
+      },
+    ])) {
+      // Consume the streamed completion.
+    }
+    manager.setMainModel("openai/gpt-5.4-mini:exacto");
+    await manager.runScenarioComparisonPrompt(
+      "Compare.",
+      sheet,
+      createRestoreManagerSheet("Scenario 1"),
+      [{ purpose: "Output", address: "A1:A1" }],
+      []
+    );
+    for await (const _event of manager.runPreprocessPrompt(sheet)) {
+      // Consume preprocessing without a proposed edit.
+    }
+    manager.setMainModel("openai/gpt-5.6-sol:exacto");
+    await manager.runUpdateAnalysisPrompt("Analyze.", sheet, sheet, []);
+
+    assert.deepEqual(
+      mocks.requests.map(({ model, provider, reasoning }) => ({ model, provider, reasoning })),
+      [
+        {
+          model: "anthropic/claude-opus-4.8:nitro",
+          provider: undefined,
+          reasoning: { effort: "medium" },
+        },
+        {
+          model: "google/gemini-3.5-flash:exacto",
+          provider: { order: ["google-ai-studio"], allow_fallbacks: false },
+          reasoning: { effort: "medium" },
+        },
+        {
+          model: "openai/gpt-5.4-mini:exacto",
+          provider: { order: ["openai"], allow_fallbacks: false },
+          reasoning: { effort: "medium" },
+        },
+        {
+          model: "openai/gpt-5.6-sol:exacto",
+          provider: { order: ["openai"], allow_fallbacks: false },
+          reasoning: { effort: "medium" },
+        },
+        {
+          model: "openai/gpt-5.6-sol:exacto",
+          provider: { order: ["openai"], allow_fallbacks: false },
+          reasoning: { effort: "medium" },
+        },
+      ]
     );
   } finally {
     mocks.restore();

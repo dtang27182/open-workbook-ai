@@ -11,10 +11,12 @@ import type {
   ChatTranscriptEntry,
 } from "./transcript-helpers";
 import { cloneChatPageElement } from "../../chat-page-template";
+import type { MainModelId } from "../llm/main-model-options";
 
 export type ChatWindowDomHandlers = {
   onClear: () => void;
   onSubmit: (message: string) => void;
+  onModelSelected: (modelId: MainModelId) => void;
   onAccept: () => void;
   onReject: () => void;
   onRestore: (restorePointId: number) => void;
@@ -36,7 +38,7 @@ export function createInitialDom(mount: HTMLElement, handlers: ChatWindowDomHand
   chatInputMount.className = "chat-input-mount";
   element.append(providerDetails, messages, chatInputMount, reviewFooter);
   mount.replaceChildren(element);
-  const chatInput = new ChatInput(chatInputMount, handlers.onSubmit);
+  const chatInput = new ChatInput(chatInputMount, handlers.onSubmit, handlers.onModelSelected);
   let previousHeight = 0;
   const panelObserver = new ResizeObserver(([entry]) => {
     if (entry.contentRect.height !== previousHeight) {

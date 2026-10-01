@@ -1,7 +1,8 @@
-/* global HTMLElement, HTMLFormElement, HTMLTextAreaElement, HTMLButtonElement, ResizeObserver, window */
+/* global document, HTMLElement, HTMLFormElement, HTMLTextAreaElement, HTMLButtonElement, HTMLSelectElement, ResizeObserver, window */
 
 import { Component } from "../../../../component";
 import { cloneChatPageElement } from "../../chat-page-template";
+import { type MainModelId, mainModelOptions } from "../llm/main-model-options";
 
 export type ChatInputUpdateEvent =
   | { type: "text_updated" }
@@ -17,11 +18,23 @@ export class ChatInput implements Component<ChatInputUpdateEvent> {
   private readonly widthObserver: ResizeObserver;
   private maxHeight = 0;
 
-  constructor(mount: HTMLElement, onSubmit: (message: string) => void) {
+  constructor(
+    mount: HTMLElement,
+    onSubmit: (message: string) => void,
+    onModelSelected: (modelId: MainModelId) => void
+  ) {
     this.mount = mount;
     this.form = cloneChatPageElement<HTMLFormElement>("#chat-form");
     this.input = this.form.querySelector<HTMLTextAreaElement>("#chat-input")!;
     this.sendButton = this.form.querySelector<HTMLButtonElement>("#chat-send")!;
+    const modelSelect = this.form.querySelector<HTMLSelectElement>("#chat-model")!;
+    mainModelOptions.forEach((model) => {
+      const option = document.createElement("option");
+      option.value = model.config.model;
+      option.textContent = model.label;
+      modelSelect.appendChild(option);
+    });
+    modelSelect.onchange = () => onModelSelected(modelSelect.value as MainModelId);
     this.mount.replaceChildren(this.form);
 
     this.form.onsubmit = (event) => {
