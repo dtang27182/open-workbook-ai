@@ -10,10 +10,10 @@ export class ChatPage implements Component<never> {
   private readonly chatHeader: ChatHeader;
   private readonly chatWindow: ChatWindow;
 
-  constructor(mount: HTMLElement, onSignOut: () => void, keyStore: OpenrouterKeyStore) {
+  constructor(mount: HTMLElement, keyStore: OpenrouterKeyStore) {
     this.mount = mount;
     const initialDom = this.createInitialDom();
-    this.chatHeader = new ChatHeader(initialDom.chatHeaderMount, onSignOut);
+    this.chatHeader = new ChatHeader(initialDom.chatHeaderMount);
     this.chatWindow = new ChatWindow(initialDom.chatWindowMount, keyStore);
   }
 

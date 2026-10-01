@@ -1,10 +1,11 @@
-/* global document, HTMLElement */
+/* global document, HTMLButtonElement, HTMLElement */
 
 import { Component } from "./component";
 import { ChatPage } from "./pages/chat/chat-page";
 import { OpenRouterAuthPage } from "./pages/openrouter-auth/openrouter-auth-page";
 import { OpenrouterKeyStore } from "./pages/openrouter-auth/openrouter-api-key";
 import { acquireOpenRouterApiKey } from "./pages/openrouter-auth/openrouter-key-exchange";
+import taskpaneComponentHtml from "./taskpane-component.html?raw";
 
 export type TaskpanePageName = "openrouter-auth" | "chat";
 
@@ -19,6 +20,8 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
   private readonly openrouterKeyStore: OpenrouterKeyStore;
   private readonly openRouterAuthPage: OpenRouterAuthPage;
   private readonly chatPage: ChatPage;
+  private readonly signedInContainer: HTMLElement;
+  private readonly accountMenu: HTMLElement;
   private state: TaskpaneState;
 
   constructor(mount: HTMLElement) {
@@ -28,11 +31,13 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
       activePage: this.openrouterKeyStore.hasKey() ? "chat" : "openrouter-auth",
     };
     const initialDom = this.createInitialDom();
+    this.signedInContainer = initialDom.signedInContainer;
+    this.accountMenu = initialDom.accountMenu;
     this.openRouterAuthPage = new OpenRouterAuthPage(
       initialDom.openRouterAuthMount,
       this.handleSignIn
     );
-    this.chatPage = new ChatPage(initialDom.chatMount, this.handleSignOut, this.openrouterKeyStore);
+    this.chatPage = new ChatPage(initialDom.chatMount, this.openrouterKeyStore);
   }
 
   getMount(): HTMLElement {
@@ -46,7 +51,7 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
         this.openrouterKeyStore.set(await acquireOpenRouterApiKey());
         await this.openRouterAuthPage.updateState({ type: "sign_in_succeeded" });
         this.state.activePage = "chat";
-        this.mount.replaceChildren(this.chatPage.getMount());
+        this.mount.replaceChildren(this.signedInContainer);
       } catch (error) {
         await this.openRouterAuthPage.updateState({
           type: "sign_in_failed",
@@ -55,6 +60,7 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
         });
       }
     } else if (event.type === "sign_out") {
+      this.accountMenu.hidePopover();
       this.openrouterKeyStore.clear();
       await this.openRouterAuthPage.updateState({ type: "reset" });
       this.state.activePage = "openrouter-auth";
@@ -73,21 +79,31 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
   private createInitialDom(): {
     openRouterAuthMount: HTMLElement;
     chatMount: HTMLElement;
+    signedInContainer: HTMLElement;
+    accountMenu: HTMLElement;
   } {
-    const openRouterAuthMount = document.createElement("div");
-    const chatMount = document.createElement("div");
+    const template = document.createElement("template");
+    template.innerHTML = taskpaneComponentHtml;
+    const openRouterAuthMount =
+      template.content.querySelector<HTMLElement>("#openrouter-auth-mount")!;
+    const chatMount = template.content.querySelector<HTMLElement>("#chat-mount")!;
+    const signedInContainer = template.content.querySelector<HTMLElement>(".signed-in-view")!;
+    const accountMenu = signedInContainer.querySelector<HTMLElement>(".account-menu")!;
+    const signOutButton =
+      signedInContainer.querySelector<HTMLButtonElement>("#openrouter-sign-out")!;
+    signOutButton.onclick = this.handleSignOut;
 
-    openRouterAuthMount.style.display = "contents";
-    chatMount.style.display = "contents";
     if (this.state.activePage === "openrouter-auth") {
       this.mount.replaceChildren(openRouterAuthMount);
     } else if (this.state.activePage === "chat") {
-      this.mount.replaceChildren(chatMount);
+      this.mount.replaceChildren(signedInContainer);
     }
 
     return {
       openRouterAuthMount,
       chatMount,
+      signedInContainer,
+      accountMenu,
     };
   }
 }

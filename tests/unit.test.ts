@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { ChatInput } from "../src/taskpane/pages/chat/chat-window/chat-input/chat-input";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
+import { TaskpaneComponent } from "../src/taskpane/taskpane-component";
+import { OpenRouterAuthPage } from "../src/taskpane/pages/openrouter-auth/openrouter-auth-page";
 
 import {
   type LlmConversationHistory,
@@ -52,6 +54,70 @@ const sheetValues = [
   ["PRODUCT", "UNITS"],
   ["Aldoxin", 1200],
 ];
+
+test("Menu Sign Out Closes Popover Before Clearing Keys And Retains Chat On Sign In", async (context) => {
+  const { taskpane, mount, trigger, menu, signOut } = createTaskpaneMenuForTest(context);
+  const effects: string[] = [];
+  menu.hidePopover = () => effects.push("hide popover");
+  const chat = mount.querySelector("#chat-page")!;
+  const input = mount.querySelector<HTMLTextAreaElement>("#chat-input")!;
+  const select = mount.querySelector<HTMLSelectElement>("#chat-model")!;
+  input.value = "Retained draft";
+  select.value = "openai/gpt-5.4-mini:exacto";
+  select.dispatchEvent(new window.Event("change", { bubbles: true }));
+  window.localStorage.setItem("open-workbook-ai-openrouter-api-key", "legacy-key");
+  const clear = OpenrouterKeyStore.prototype.clear;
+  context.mock.method(OpenrouterKeyStore.prototype, "clear", function (this: OpenrouterKeyStore) {
+    assert.equal(effects.at(-1), "hide popover");
+    effects.push("clear key");
+    assert.equal(mount.querySelector("#chat-page"), chat);
+    clear.call(this);
+    assert.equal(this.hasKey(), false);
+  });
+  const updateAuth = OpenRouterAuthPage.prototype.updateState;
+  context.mock.method(OpenRouterAuthPage.prototype, "updateState", function (event) {
+    if (event.type === "reset") {
+      effects.push("reset auth");
+      assert.equal(window.localStorage.getItem("open-workbook-ai-openrouter-oauth-key"), null);
+      assert.equal(window.localStorage.getItem("open-workbook-ai-openrouter-api-key"), null);
+      assert.equal(mount.querySelector("#chat-page"), chat);
+    }
+    updateAuth.call(this, event);
+  });
+  mockOpenRouterSignInForTest(context, "new-key");
+
+  signOut.querySelector("svg")!.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await Promise.resolve();
+  assert.equal(mount.querySelector("#chat-page"), null);
+  assert.equal(mount.querySelector('[aria-label="Menu"]'), null);
+  assert.equal(mount.querySelector<HTMLButtonElement>("#openrouter-sign-in")!.disabled, false);
+  assert.deepEqual(effects, ["hide popover", "clear key", "reset auth"]);
+
+  await taskpane.updateState({ type: "sign_in" });
+  assert.equal(mount.querySelector("#chat-page"), chat);
+  assert.equal(mount.querySelector('[aria-label="Menu"]'), trigger);
+  assert.equal(menu.getAttribute("popover"), "auto");
+  assert.equal(input.value, "Retained draft");
+  assert.equal(select.value, "openai/gpt-5.4-mini:exacto");
+  assert.equal(window.localStorage.getItem("open-workbook-ai-openrouter-oauth-key"), "new-key");
+});
+
+test("Initially Signed Out Taskpane Attaches Account Options After Sign In", async (context) => {
+  new OpenrouterKeyStore().clear();
+  const mount = document.createElement("main");
+  document.body.appendChild(mount);
+  const taskpane = new TaskpaneComponent(mount);
+  context.after(() => {
+    mount.remove();
+    window.localStorage.removeItem("open-workbook-ai-openrouter-oauth-key");
+  });
+  mockOpenRouterSignInForTest(context, "signed-in-key");
+  assert.equal(mount.querySelector('[aria-label="Menu"]'), null);
+  assert.notEqual(mount.querySelector("#openrouter-auth-page"), null);
+  await taskpane.updateState({ type: "sign_in" });
+  assert.notEqual(mount.querySelector("#chat-page"), null);
+  assert.equal(mount.querySelector<HTMLElement>('[popover]')!.getAttribute("popover"), "auto");
+});
 
 test("Chat Input Submits Multiline Text Through Send And Plain Enter", (context) => {
   const messages: string[] = [];
@@ -1477,6 +1543,55 @@ function isPreprocessRequest(requestBody: OpenRouterRequestBody) {
 
 async function waitForBackgroundWork() {
   await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function mockOpenRouterSignInForTest(context: TestContext, key: string) {
+  const originalOffice = globalThis.Office;
+  globalThis.Office = {
+    AsyncResultStatus: { Succeeded: "succeeded" },
+    EventType: { DialogMessageReceived: "dialog-message", DialogEventReceived: "dialog-event" },
+    context: {
+      ui: {
+        displayDialogAsync: (_url, _options, callback) => {
+          callback({
+            status: "succeeded",
+            value: {
+              addEventHandler: (eventType, handler) => {
+                if (eventType === "dialog-message") {
+                  handler({ message: JSON.stringify({ type: "authorization_code", code: "code" }) });
+                }
+              },
+              close: () => {},
+            },
+          });
+        },
+      },
+    },
+  } as unknown as typeof Office;
+  context.after(() => {
+    globalThis.Office = originalOffice;
+  });
+  context.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify({ key })));
+}
+
+function createTaskpaneMenuForTest(context: TestContext) {
+  new OpenrouterKeyStore().set("signed-in-key");
+  const mount = document.createElement("main");
+  document.body.appendChild(mount);
+  const taskpane = new TaskpaneComponent(mount);
+  context.after(async () => {
+    await taskpane.updateState({ type: "sign_out" });
+    mount.remove();
+  });
+  // jsdom does not implement native popover methods; only sign-out integration is mocked.
+  mount.querySelector<HTMLElement>("[popover]")!.hidePopover = () => {};
+  return {
+    taskpane,
+    mount,
+    trigger: mount.querySelector<HTMLButtonElement>('[aria-label="Menu"]')!,
+    menu: mount.querySelector<HTMLElement>("[popover]")!,
+    signOut: mount.querySelector<HTMLButtonElement>("#openrouter-sign-out")!,
+  };
 }
 
 function createOpenRouterResponse(body: object, isStreaming: boolean) {

@@ -1,4 +1,4 @@
-/* global document, HTMLButtonElement, HTMLDivElement, HTMLElement */
+/* global document, HTMLDivElement, HTMLElement */
 
 import { Component } from "../../component";
 import { cloneChatPageElement } from "./chat-page-template";
@@ -6,10 +6,7 @@ import { cloneChatPageElement } from "./chat-page-template";
 export class ChatHeader implements Component<never> {
   private readonly mount: HTMLElement;
 
-  constructor(
-    mount: HTMLElement,
-    private readonly onSignOut: () => void
-  ) {
+  constructor(mount: HTMLElement) {
     this.mount = mount;
     this.createInitialDom();
   }
@@ -26,7 +23,6 @@ export class ChatHeader implements Component<never> {
 
     element.id = "chat-header";
     element.className = "chat-header";
-    heading.querySelector<HTMLButtonElement>("#openrouter-sign-out")!.onclick = this.onSignOut;
     element.append(heading);
 
     this.mount.replaceChildren(element);

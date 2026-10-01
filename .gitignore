@@ -12,5 +12,6 @@ experiment-harness/runs/*
 /ai-coding-toolkit/
 .agents/
 .claude/
-*.zip
+ui-designs/*
 docs/plans/features/*
+adv-diff/*

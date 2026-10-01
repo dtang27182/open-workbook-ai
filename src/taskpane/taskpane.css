@@ -50,8 +50,97 @@ html, body {
 }
 
 #app-body {
+  position: relative;
   padding: 0;
   gap: 0;
+}
+
+.taskpane-page-mount {
+  display: contents;
+}
+
+.signed-in-view {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.account-menu-overlay {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 2;
+}
+
+.account-menu-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: 4px;
+  color: var(--ink-secondary);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.account-menu-trigger:hover, .account-menu-overlay:has(:popover-open) .account-menu-trigger {
+  background: var(--surface-hover);
+}
+
+.account-menu {
+  position: fixed;
+  inset: 40px 10px auto auto;
+  margin: 0;
+  width: 196px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12), 0 1px 3px rgba(0,0,0,.08);
+}
+
+.account-menu:popover-open {
+  display: flex;
+  flex-direction: column;
+}
+
+.account-menu-caption {
+  padding: 6px 10px 2px;
+  color: var(--ink-tertiary);
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.account-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 18px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.account-menu-item:hover {
+  background: var(--surface-hover);
+}
+
+.account-menu-item svg {
+  flex: 0 0 auto;
+  color: #424242;
 }
 
 .pane, .pane * {

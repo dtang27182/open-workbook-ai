@@ -18,7 +18,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  min-height: 47px;
+  padding: 10px 46px 10px 12px;
   border-bottom: 1px solid #EFEFEF;
 }
 
@@ -35,11 +36,6 @@
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -.01em;
-}
-
-.chat-actions {
-  flex: 0 0 auto;
-  white-space: nowrap;
 }
 
 .provider-link-details {
