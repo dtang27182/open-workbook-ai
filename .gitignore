@@ -12,3 +12,4 @@ experiment-harness/runs/*
 /ai-coding-toolkit/
 .agents/
 .claude/
+*.zip

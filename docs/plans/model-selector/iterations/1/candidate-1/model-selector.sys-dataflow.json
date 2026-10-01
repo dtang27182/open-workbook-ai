@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 2,
+  "stage": "high-level-design",
+  "feature": "model-selector",
+  "nodes": [
+    {
+      "type": "user-input",
+      "name": "Open task pane",
+      "description": "User opens the chat task pane.",
+      "medium": "Excel UI",
+      "location": "Excel task pane",
+      "changeType": "unchanged"
+    },
+    {
+      "type": "user-output",
+      "name": "Model dropdown display",
+      "description": "Four choices and current selection.",
+      "medium": "HTML select",
+      "location": "ModelSelector",
+      "changeType": "added"
+    },
+    {
+      "type": "user-input",
+      "name": "Model selection",
+      "description": "Explicit chosen model ID.",
+      "medium": "HTML select",
+      "location": "ModelSelector",
+      "changeType": "added"
+    },
+    {
+      "type": "system-state",
+      "name": "Current selection",
+      "description": "Selected model ID for the task-pane lifetime.",
+      "medium": "TypeScript",
+      "location": "ModelSelector.selectedModelId",
+      "changeType": "added"
+    },
+    {
+      "type": "static-data",
+      "name": "Main model options",
+      "description": "Four existing configurations and labels.",
+      "medium": "TypeScript",
+      "location": "main-model-options registry",
+      "changeType": "added"
+    },
+    {
+      "type": "user-input",
+      "name": "Chat text and Submit",
+      "description": "User types a request and invokes Send.",
+      "medium": "HTML form",
+      "location": "ChatInput",
+      "changeType": "unchanged"
+    },
+    {
+      "type": "system-input",
+      "name": "Existing request invocations",
+      "description": "Existing workflows supply prompt, history and worksheet context for each of four in-scope request categories.",
+      "medium": "TypeScript",
+      "location": "ChatWindow workflows to LLMManager",
+      "changeType": "unchanged"
+    },
+    {
+      "type": "external-dependency",
+      "name": "OpenRouter",
+      "description": "Receives selected-config requests.",
+      "medium": "HTTPS",
+      "location": "https://openrouter.ai/api/v1/responses",
+      "changeType": "unchanged"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "relationship-1",
+      "from": "Open task pane",
+      "to": "Model dropdown display",
+      "type": "dataflow",
+      "data": "Open retained chat page.",
+      "purpose": "Completes the selection-to-request dispatch user flow.",
+      "changeType": "modified"
+    },
+    {
+      "id": "relationship-2",
+      "from": "Current selection",
+      "to": "Model dropdown display",
+      "type": "dataflow",
+      "data": "Current selected model ID.",
+      "purpose": "Completes the selection-to-request dispatch user flow.",
+      "changeType": "added"
+    },
+    {
+      "id": "relationship-3",
+      "from": "Main model options",
+      "to": "Model dropdown display",
+      "type": "dataflow",
+      "data": "Four model labels and explicit IDs.",
+      "purpose": "Completes the selection-to-request dispatch user flow.",
+      "changeType": "added"
+    },
+    {
+      "id": "relationship-4",
+      "from": "Model selection",
+      "to": "Current selection",
+      "type": "dataflow",
+      "data": "Chosen model ID.",
+      "purpose": "Completes the selection-to-request dispatch user flow.",
+      "changeType": "added"
+    },
+    {
+      "id": "relationship-5",
+      "from": "Chat text and Submit",
+      "to": "OpenRouter",
+      "type": "dataflow",
+      "data": "Main or clarification prompt via existing workflow dispatch.",
+      "purpose": "Completes the selection-to-request dispatch user flow.",
+      "changeType": "unchanged"
+    },
+    {
+      "id": "relationship-6",
+      "from": "Existing request invocations",
+      "to": "OpenRouter",
+      "type": "dataflow",
+      "data": "Main, clarification, scenario-comparison or impact-analysis request input.",
+      "purpose": "Completes the selection-to-request dispatch user flow.",
+      "changeType": "unchanged"
+    },
+    {
+      "id": "relationship-7",
+      "from": "Current selection",
+      "to": "OpenRouter",
+      "type": "dataflow",
+      "data": "Latest model ID read independently for every in-scope request.",
+      "purpose": "Completes the selection-to-request dispatch user flow.",
+      "changeType": "added"
+    },
+    {
+      "id": "relationship-8",
+      "from": "Main model options",
+      "to": "OpenRouter",
+      "type": "dataflow",
+      "data": "Complete provider/reasoning configuration for the chosen ID.",
+      "purpose": "Completes the selection-to-request dispatch user flow.",
+      "changeType": "modified"
+    }
+  ]
+}

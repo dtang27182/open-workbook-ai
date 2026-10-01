@@ -1,0 +1,189 @@
+{
+  "schemaVersion": 2,
+  "stage": "high-level-design",
+  "feature": "model-selector",
+  "nodes": [
+    {
+      "type": "user-input",
+      "name": "Open task pane",
+      "description": "User opens the add-in task pane in Excel.",
+      "medium": "Excel host UI",
+      "location": "Excel add-in task pane",
+      "changeType": "unchanged"
+    },
+    {
+      "type": "user-input",
+      "name": "Model selection",
+      "description": "Selected fixed model option",
+      "medium": "HTML select",
+      "location": "ChatWindow model dropdown",
+      "changeType": "added"
+    },
+    {
+      "type": "static-data",
+      "name": "Main model options",
+      "description": "Four existing model/provider/reasoning configurations",
+      "medium": "TypeScript",
+      "location": "Main model catalog",
+      "changeType": "added"
+    },
+    {
+      "type": "system-state",
+      "name": "Selected model",
+      "description": "Current non-restorable task-pane model configuration",
+      "medium": "TypeScript",
+      "location": "ChatWindowState.selectedMainModelConfig",
+      "changeType": "added"
+    },
+    {
+      "type": "user-output",
+      "name": "Selection display",
+      "description": "Visible current choice",
+      "medium": "HTML select",
+      "location": "ChatWindow model dropdown",
+      "changeType": "added"
+    },
+    {
+      "type": "user-input",
+      "name": "Chat text",
+      "description": "Typed request and submit action",
+      "medium": "HTML form",
+      "location": "ChatInput",
+      "changeType": "unchanged"
+    },
+    {
+      "type": "system-state",
+      "name": "Conversation context",
+      "description": "Current conversation and workflow state",
+      "medium": "TypeScript",
+      "location": "ChatWindowState.chatState",
+      "changeType": "unchanged"
+    },
+    {
+      "type": "external-dependency",
+      "name": "Worksheet context",
+      "description": "Worksheet inputs needed by existing operations",
+      "medium": "Office.js",
+      "location": "Excel workbook",
+      "changeType": "unchanged"
+    },
+    {
+      "type": "data-processing",
+      "name": "Request workflow",
+      "description": "Routes requests according to current conversation and model outcomes",
+      "medium": "TypeScript",
+      "location": "ChatWindow and workflow helpers",
+      "changeType": "modified",
+      "pseudo-code": "Submit chooses preprocessing, main query, or clarification from current workflow state. Existing scenario and acceptance paths supply subsequent comparison or impact-analysis contexts. At each in-scope request call, read current selected configuration and pass it to the request method."
+    },
+    {
+      "type": "external-dependency",
+      "name": "OpenRouter responses API",
+      "description": "Receives each configured model request",
+      "medium": "HTTPS",
+      "location": "https://openrouter.ai/api/v1/responses",
+      "changeType": "unchanged"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "relationship-1",
+      "to": "Selected model",
+      "type": "dataflow",
+      "changeType": "added",
+      "data": "Chosen catalog configuration",
+      "purpose": "Retain the choice for step 4",
+      "from": "Model selection"
+    },
+    {
+      "id": "relationship-2",
+      "to": "Selection display",
+      "type": "dataflow",
+      "changeType": "added",
+      "data": "Four labels and model IDs",
+      "purpose": "Present available choices",
+      "from": "Main model options"
+    },
+    {
+      "id": "relationship-3",
+      "to": "Selection display",
+      "type": "dataflow",
+      "changeType": "added",
+      "data": "Selected model ID",
+      "purpose": "Show current choice in step 5",
+      "from": "Selected model"
+    },
+    {
+      "id": "relationship-4",
+      "to": "Request workflow",
+      "type": "dataflow",
+      "changeType": "unchanged",
+      "data": "Submitted request text",
+      "purpose": "Begin request work",
+      "from": "Chat text"
+    },
+    {
+      "id": "relationship-5",
+      "to": "Request workflow",
+      "type": "dataflow",
+      "changeType": "unchanged",
+      "data": "History and workflow state",
+      "purpose": "Choose applicable existing request context",
+      "from": "Conversation context"
+    },
+    {
+      "id": "relationship-6",
+      "to": "Request workflow",
+      "type": "dataflow",
+      "changeType": "unchanged",
+      "data": "Worksheet snapshot and recalculated context",
+      "purpose": "Supply existing request inputs",
+      "from": "Worksheet context"
+    },
+    {
+      "id": "relationship-7",
+      "to": "Request workflow",
+      "type": "dataflow",
+      "changeType": "added",
+      "data": "Latest model/provider/reasoning object",
+      "purpose": "Read each request configuration in step 9",
+      "from": "Selected model"
+    },
+    {
+      "id": "relationship-8",
+      "to": "OpenRouter responses API",
+      "type": "dataflow",
+      "changeType": "modified",
+      "data": "Prompt, history, schema and selected configuration",
+      "purpose": "Dispatch configured in-scope requests in step 10",
+      "from": "Request workflow"
+    },
+    {
+      "id": "relationship-9",
+      "to": "Selected model",
+      "type": "dataflow",
+      "changeType": "added",
+      "data": "Exact configuration associated with chosen option",
+      "purpose": "Keep choice bound to the fixed catalog",
+      "from": "Main model options"
+    },
+    {
+      "id": "relationship-10",
+      "from": "Open task pane",
+      "to": "Selection display",
+      "type": "dataflow",
+      "changeType": "added",
+      "data": "Visibility of the initialized model dropdown and default choice",
+      "purpose": "Show the model dropdown when the task pane opens"
+    },
+    {
+      "id": "relationship-11",
+      "from": "Request workflow",
+      "to": "Worksheet context",
+      "type": "dataflow",
+      "changeType": "unchanged",
+      "data": "Active, scenario, or accepted worksheet read request",
+      "purpose": "Obtain worksheet inputs for step 8 before dispatch"
+    }
+  ]
+}
