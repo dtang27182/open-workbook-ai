@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { ChatInput } from "../src/taskpane/pages/chat/chat-window/chat-input/chat-input";
 import test, { type TestContext } from "node:test";
+import { AccountMenu } from "../src/taskpane/account-menu/account-menu";
 import { TaskpaneComponent } from "../src/taskpane/taskpane-component";
 import { OpenRouterAuthPage } from "../src/taskpane/pages/openrouter-auth/openrouter-auth-page";
 
@@ -54,6 +55,29 @@ const sheetValues = [
   ["PRODUCT", "UNITS"],
   ["Aldoxin", 1200],
 ];
+
+test("Account Menu Closes Help Locally And Delegates Sign Out", () => {
+  const mount = document.createElement("div");
+  let signOutCalls = 0;
+  new AccountMenu(mount, () => signOutCalls++);
+  const menu = mount.querySelector<HTMLElement>("[popover]")!;
+  let closeCalls = 0;
+  menu.hidePopover = () => closeCalls++;
+  const helpLink = mount.querySelector<HTMLAnchorElement>("#open-workbook-help")!;
+  const click = new window.MouseEvent("click", { bubbles: true, cancelable: true });
+
+  helpLink.querySelector("svg")!.dispatchEvent(click);
+
+  assert.equal(closeCalls, 1);
+  assert.equal(click.defaultPrevented, false);
+  assert.equal(helpLink.href, "https://www.openworkbookai.org/");
+  assert.equal(helpLink.target, "_blank");
+  assert.equal(helpLink.rel, "noopener");
+  assert.equal(signOutCalls, 0);
+
+  mount.querySelector<HTMLButtonElement>("#openrouter-sign-out")!.click();
+  assert.equal(signOutCalls, 1);
+});
 
 test("Menu Sign Out Closes Popover Before Clearing Keys And Retains Chat On Sign In", async (context) => {
   const { taskpane, mount, trigger, menu, signOut } = createTaskpaneMenuForTest(context);

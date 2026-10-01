@@ -1,5 +1,6 @@
-/* global document, HTMLAnchorElement, HTMLButtonElement, HTMLElement */
+/* global document, HTMLElement */
 
+import { AccountMenu } from "./account-menu/account-menu";
 import { Component } from "./component";
 import { ChatPage } from "./pages/chat/chat-page";
 import { OpenRouterAuthPage } from "./pages/openrouter-auth/openrouter-auth-page";
@@ -13,10 +14,7 @@ export type TaskpaneState = {
   activePage: TaskpanePageName;
 };
 
-export type TaskpaneUpdateEvent =
-  | { type: "sign_in" }
-  | { type: "sign_out" }
-  | { type: "close_account_menu" };
+export type TaskpaneUpdateEvent = { type: "sign_in" } | { type: "sign_out" };
 
 export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
   private readonly mount: HTMLElement;
@@ -24,7 +22,7 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
   private readonly openRouterAuthPage: OpenRouterAuthPage;
   private readonly chatPage: ChatPage;
   private readonly signedInContainer: HTMLElement;
-  private readonly accountMenu: HTMLElement;
+  private readonly accountMenu: AccountMenu;
   private state: TaskpaneState;
 
   constructor(mount: HTMLElement) {
@@ -35,7 +33,7 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
     };
     const initialDom = this.createInitialDom();
     this.signedInContainer = initialDom.signedInContainer;
-    this.accountMenu = initialDom.accountMenu;
+    this.accountMenu = new AccountMenu(initialDom.accountMenuMount, this.handleSignOut);
     this.openRouterAuthPage = new OpenRouterAuthPage(
       initialDom.openRouterAuthMount,
       this.handleSignIn
@@ -63,13 +61,11 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
         });
       }
     } else if (event.type === "sign_out") {
-      this.accountMenu.hidePopover();
+      this.accountMenu.updateState({ type: "close" });
       this.openrouterKeyStore.clear();
       await this.openRouterAuthPage.updateState({ type: "reset" });
       this.state.activePage = "openrouter-auth";
       this.mount.replaceChildren(this.openRouterAuthPage.getMount());
-    } else if (event.type === "close_account_menu") {
-      this.accountMenu.hidePopover();
     }
   }
 
@@ -85,7 +81,7 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
     openRouterAuthMount: HTMLElement;
     chatMount: HTMLElement;
     signedInContainer: HTMLElement;
-    accountMenu: HTMLElement;
+    accountMenuMount: HTMLElement;
   } {
     const template = document.createElement("template");
     template.innerHTML = taskpaneComponentHtml;
@@ -93,14 +89,7 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
       template.content.querySelector<HTMLElement>("#openrouter-auth-mount")!;
     const chatMount = template.content.querySelector<HTMLElement>("#chat-mount")!;
     const signedInContainer = template.content.querySelector<HTMLElement>(".signed-in-view")!;
-    const accountMenu = signedInContainer.querySelector<HTMLElement>(".account-menu")!;
-    const helpLink = signedInContainer.querySelector<HTMLAnchorElement>("#open-workbook-help")!;
-    helpLink.onclick = () => {
-      void this.updateState({ type: "close_account_menu" });
-    };
-    const signOutButton =
-      signedInContainer.querySelector<HTMLButtonElement>("#openrouter-sign-out")!;
-    signOutButton.onclick = this.handleSignOut;
+    const accountMenuMount = signedInContainer.querySelector<HTMLElement>("#account-menu-mount")!;
 
     if (this.state.activePage === "openrouter-auth") {
       this.mount.replaceChildren(openRouterAuthMount);
@@ -112,7 +101,7 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
       openRouterAuthMount,
       chatMount,
       signedInContainer,
-      accountMenu,
+      accountMenuMount,
     };
   }
 }
