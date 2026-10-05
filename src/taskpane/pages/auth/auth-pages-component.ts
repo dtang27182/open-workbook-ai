@@ -1,6 +1,6 @@
 /* global document, HTMLElement */
 
-import { Component } from "../component";
+import { Component } from "../../component";
 import { AddOpenAIKeyPage } from "./add-openai-key/add-openai-key-page";
 import { ChooseProviderPage } from "./choose-provider/choose-provider-page";
 import {

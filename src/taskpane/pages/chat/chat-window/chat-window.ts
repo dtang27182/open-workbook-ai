@@ -24,7 +24,7 @@ import {
   renderChatTranscript,
   updateReviewWarning,
 } from "./dom/chat-window-dom";
-import { OpenrouterKeyStore } from "../../openrouter-auth/openrouter-api-key";
+import { OpenrouterKeyStore } from "../../auth/openrouter-auth/openrouter-api-key";
 import type { MainModelId } from "./llm/main-model-options";
 import { runAcceptDiffWorkflow } from "./workflows/accept-diff";
 import { runClarificationWorkflow } from "./workflows/clarification";

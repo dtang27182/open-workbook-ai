@@ -26,7 +26,7 @@ import {
   formulaInferenceModelConfig,
   rateLimitFormulaInferenceRequest,
 } from "./preprocess-formula-inference";
-import { OpenrouterKeyStore } from "../../../openrouter-auth/openrouter-api-key";
+import { OpenrouterKeyStore } from "../../../auth/openrouter-auth/openrouter-api-key";
 import { formatSheetAsMarkdown, formatSheetDataAsMarkdown } from "./sheet-markdown";
 import { type MainModelConfig, type MainModelId, mainModelOptions } from "./main-model-options";
 

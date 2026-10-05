@@ -1,6 +1,6 @@
 /* global document, HTMLButtonElement, HTMLFormElement, HTMLInputElement, HTMLElement */
 
-import { Component } from "../../component";
+import { Component } from "../../../component";
 import addOpenAiKeyPageHtml from "./add-openai-key-page.html?raw";
 
 export type AddOpenAIKeyUpdateEvent = { type: "toggle_visibility" } | { type: "reset" };

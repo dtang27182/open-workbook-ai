@@ -4,7 +4,7 @@ import test, { after, before, TestContext } from "node:test";
 
 import type { ChatWindow } from "../src/taskpane/pages/chat/chat-window/chat-window";
 import type { ChatTranscriptEntry } from "../src/taskpane/pages/chat/chat-window/dom/transcript-helpers";
-import { OpenrouterKeyStore } from "../src/taskpane/pages/openrouter-auth/openrouter-api-key";
+import { OpenrouterKeyStore } from "../src/taskpane/pages/auth/openrouter-auth/openrouter-api-key";
 import {
   createChatWindowForTest,
   getChatStateForTest,

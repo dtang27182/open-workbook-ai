@@ -1,6 +1,6 @@
 /* global document, HTMLButtonElement, HTMLElement */
 
-import { Component } from "../../component";
+import { Component } from "../../../component";
 import chooseProviderPageHtml from "./choose-provider-page.html?raw";
 
 export class ChooseProviderPage implements Component<never> {

@@ -3,9 +3,9 @@ import { ChatInput } from "../src/taskpane/pages/chat/chat-window/chat-input/cha
 import test, { type TestContext } from "node:test";
 import { AccountMenu } from "../src/taskpane/account-menu/account-menu";
 import { TaskpaneComponent } from "../src/taskpane/taskpane-component";
-import { OpenRouterAuthPage } from "../src/taskpane/pages/openrouter-auth/openrouter-auth-page";
-import { OpenAIKeyStore } from "../src/taskpane/pages/add-openai-key/openai-key-store";
-import { AuthPagesComponent } from "../src/taskpane/pages/auth-pages-component";
+import { OpenRouterAuthPage } from "../src/taskpane/pages/auth/openrouter-auth/openrouter-auth-page";
+import { OpenAIKeyStore } from "../src/taskpane/pages/auth/add-openai-key/openai-key-store";
+import { AuthPagesComponent } from "../src/taskpane/pages/auth/auth-pages-component";
 
 import {
   type LlmConversationHistory,
@@ -33,7 +33,7 @@ import type {
   FormulaInferencePlan,
   PreprocessPromptEvent,
 } from "../src/taskpane/pages/chat/chat-window/llm/preprocess-formula-inference";
-import { OpenrouterKeyStore } from "../src/taskpane/pages/openrouter-auth/openrouter-api-key";
+import { OpenrouterKeyStore } from "../src/taskpane/pages/auth/openrouter-auth/openrouter-api-key";
 import { RestoreManager } from "../src/taskpane/pages/chat/chat-window/restore-manager";
 import {
   formatSheetAsMarkdown,

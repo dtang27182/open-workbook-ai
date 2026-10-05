@@ -3,10 +3,10 @@
 import { AccountMenu, type AccountIdentity } from "./account-menu/account-menu";
 import { Component } from "./component";
 import { ChatPage } from "./pages/chat/chat-page";
-import { AuthPagesComponent } from "./pages/auth-pages-component";
-import { OpenAIKeyStore } from "./pages/add-openai-key/openai-key-store";
-import { OpenrouterKeyStore } from "./pages/openrouter-auth/openrouter-api-key";
-import { acquireOpenRouterApiKey } from "./pages/openrouter-auth/openrouter-key-exchange";
+import { AuthPagesComponent } from "./pages/auth/auth-pages-component";
+import { OpenAIKeyStore } from "./pages/auth/add-openai-key/openai-key-store";
+import { OpenrouterKeyStore } from "./pages/auth/openrouter-auth/openrouter-api-key";
+import { acquireOpenRouterApiKey } from "./pages/auth/openrouter-auth/openrouter-key-exchange";
 import taskpaneComponentHtml from "./taskpane-component.html?raw";
 
 export type TaskpanePageName = "auth" | "chat";

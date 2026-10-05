@@ -2,7 +2,7 @@ import { ChatWindow } from "../src/taskpane/pages/chat/chat-window/chat-window";
 import type { ExcelApi } from "../src/taskpane/pages/chat/chat-window/excel-manager";
 import type { ChatState } from "../src/taskpane/pages/chat/chat-window/chat-window-state";
 import type { ChatMessageTranscriptItem } from "../src/taskpane/pages/chat/chat-window/dom/transcript-helpers";
-import { OpenrouterKeyStore } from "../src/taskpane/pages/openrouter-auth/openrouter-api-key";
+import { OpenrouterKeyStore } from "../src/taskpane/pages/auth/openrouter-auth/openrouter-api-key";
 
 export function createChatWindowForTest(
   excelApi: ExcelApi,
