@@ -1,0 +1,135 @@
+.provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.provider-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--stroke-control);
+  border-radius: 6px;
+  color: var(--ink);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.provider-card:hover {
+  background: var(--surface-hover);
+}
+
+.provider-mark {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: #F0F0F0;
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  color: var(--ink-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.provider-card-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.provider-card-copy strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.provider-card-copy span, .provider-card-arrow {
+  color: var(--ink-secondary);
+  font-size: 12px;
+}
+
+.provider-card-arrow {
+  font-size: 20px;
+}
+
+.auth-back {
+  align-self: flex-start;
+  margin: 0 0 20px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--ink-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.auth-back:hover {
+  color: var(--ink);
+}
+
+.auth-back:disabled {
+  color: var(--disabled);
+  cursor: default;
+}
+
+.openai-key-mark {
+  margin-bottom: 16px;
+}
+
+.openai-key-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.openai-key-form label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.openai-key-field {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--stroke-control);
+  border-radius: 4px;
+}
+
+.openai-key-field:focus-within {
+  border-color: var(--accent);
+}
+
+.openai-key-field input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px;
+  background: transparent;
+  border: none;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.openai-key-field button {
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  color: var(--ink-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.openai-key-link {
+  margin-bottom: 12px;
+  font-size: 12px;
+  text-decoration: none;
+}

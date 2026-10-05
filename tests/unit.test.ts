@@ -4,6 +4,8 @@ import test, { type TestContext } from "node:test";
 import { AccountMenu } from "../src/taskpane/account-menu/account-menu";
 import { TaskpaneComponent } from "../src/taskpane/taskpane-component";
 import { OpenRouterAuthPage } from "../src/taskpane/pages/openrouter-auth/openrouter-auth-page";
+import { OpenAIKeyStore } from "../src/taskpane/pages/add-openai-key/openai-key-store";
+import { AuthPagesComponent } from "../src/taskpane/pages/auth-pages-component";
 
 import {
   type LlmConversationHistory,
@@ -59,7 +61,7 @@ const sheetValues = [
 test("Account Menu Closes Help Locally And Delegates Sign Out", () => {
   const mount = document.createElement("div");
   let signOutCalls = 0;
-  new AccountMenu(mount, () => signOutCalls++);
+  new AccountMenu(mount, () => signOutCalls++, { provider: "openrouter", keySuffix: "test" });
   const menu = mount.querySelector<HTMLElement>("[popover]")!;
   let closeCalls = 0;
   menu.hidePopover = () => closeCalls++;
@@ -75,7 +77,7 @@ test("Account Menu Closes Help Locally And Delegates Sign Out", () => {
   assert.equal(helpLink.rel, "noopener");
   assert.equal(signOutCalls, 0);
 
-  mount.querySelector<HTMLButtonElement>("#openrouter-sign-out")!.click();
+  mount.querySelector<HTMLButtonElement>("#account-sign-out")!.click();
   assert.equal(signOutCalls, 1);
 });
 
@@ -104,7 +106,7 @@ test("Menu Sign Out Closes Popover Before Clearing Keys And Retains Chat On Sign
       effects.push("reset auth");
       assert.equal(window.localStorage.getItem("open-workbook-ai-openrouter-oauth-key"), null);
       assert.equal(window.localStorage.getItem("open-workbook-ai-openrouter-api-key"), null);
-      assert.equal(mount.querySelector("#chat-page"), chat);
+      assert.equal(chat.querySelector("#chat-input"), input);
     }
     updateAuth.call(this, event);
   });
@@ -114,19 +116,29 @@ test("Menu Sign Out Closes Popover Before Clearing Keys And Retains Chat On Sign
   await Promise.resolve();
   assert.equal(mount.querySelector("#chat-page"), null);
   assert.equal(mount.querySelector('[aria-label="Menu"]'), null);
-  assert.equal(mount.querySelector<HTMLButtonElement>("#openrouter-sign-in")!.disabled, false);
-  assert.deepEqual(effects, ["hide popover", "clear key", "reset auth"]);
+  assert.notEqual(mount.querySelector("#auth-pages-mount"), null);
+  assert.notEqual(mount.querySelector("#choose-provider-mount"), null);
+  assert.equal(mount.querySelector("#openrouter-sign-in"), null);
+  assert.deepEqual(effects, ["hide popover", "clear key"]);
 
-  await taskpane.updateState({ type: "sign_in" });
+  mount.querySelector<HTMLButtonElement>("#choose-openrouter")!.click();
+  assert.equal(mount.querySelector<HTMLButtonElement>("#openrouter-sign-in")!.disabled, false);
+  await taskpane.updateState({ type: "sign_in_openrouter" });
   assert.equal(mount.querySelector("#chat-page"), chat);
   assert.equal(mount.querySelector('[aria-label="Menu"]'), trigger);
   assert.equal(menu.getAttribute("popover"), "auto");
   assert.equal(input.value, "Retained draft");
   assert.equal(select.value, "openai/gpt-5.4-mini:exacto");
+  assert.notEqual(mount.querySelector(".signed-in-view"), null);
+  assert.equal(mount.querySelector("#auth-pages-mount"), null);
+  assert.equal(
+    mount.querySelector(".account-menu-caption")!.textContent,
+    "Signed in to OpenRouter · key …-key"
+  );
   assert.equal(window.localStorage.getItem("open-workbook-ai-openrouter-oauth-key"), "new-key");
 });
 
-test("Initially Signed Out Taskpane Attaches Account Options After Sign In", async (context) => {
+test("Provider Choice Shows OpenRouter Auth Before Sign In Shows Account Options", async (context) => {
   new OpenrouterKeyStore().clear();
   const mount = document.createElement("main");
   document.body.appendChild(mount);
@@ -135,12 +147,229 @@ test("Initially Signed Out Taskpane Attaches Account Options After Sign In", asy
     mount.remove();
     window.localStorage.removeItem("open-workbook-ai-openrouter-oauth-key");
   });
-  mockOpenRouterSignInForTest(context, "signed-in-key");
-  assert.equal(mount.querySelector('[aria-label="Menu"]'), null);
-  assert.notEqual(mount.querySelector("#openrouter-auth-page"), null);
-  await taskpane.updateState({ type: "sign_in" });
+  const fetchMock = mockOpenRouterSignInForTest(context, "signed-in-key");
+  assert.equal(mount.querySelector(".signed-in-view"), null);
+  assert.notEqual(mount.querySelector("#choose-provider-mount"), null);
+  assert.equal(mount.querySelector("#openrouter-auth-mount"), null);
+  assert.equal(mount.querySelector("#openrouter-auth-page"), null);
+  mount.querySelector<HTMLButtonElement>("#choose-openrouter")!.click();
+  assert.equal(mount.querySelector("#choose-provider-mount"), null);
+  assert.notEqual(mount.querySelector("#openrouter-auth-mount"), null);
+  assert.equal(mount.querySelector<HTMLButtonElement>("#openrouter-sign-in")!.disabled, false);
+  assert.equal(fetchMock.mock.callCount(), 0);
+  const updateState = context.mock.method(taskpane, "updateState");
+  mount.querySelector<HTMLButtonElement>("#openrouter-sign-in")!.click();
+  assert.equal(mount.querySelector<HTMLButtonElement>("#openrouter-sign-in")!.disabled, true);
+  await updateState.mock.calls[0].result;
+  assert.equal(fetchMock.mock.callCount(), 1);
+  assert.notEqual(mount.querySelector(".signed-in-view"), null);
   assert.notEqual(mount.querySelector("#chat-page"), null);
-  assert.equal(mount.querySelector<HTMLElement>('[popover]')!.getAttribute("popover"), "auto");
+  assert.equal(mount.querySelector<HTMLElement>("[popover]")!.getAttribute("popover"), "auto");
+});
+
+test("OpenRouter Back Returns To The Same Picker And Resets Auth Presentation", () => {
+  const mount = document.createElement("div");
+  let signInCalls = 0;
+  const authPages = new AuthPagesComponent(
+    mount,
+    () => {},
+    async () => {
+      signInCalls++;
+    }
+  );
+  const picker = mount.querySelector("#choose-provider-mount")!;
+  mount.querySelector<HTMLButtonElement>("#choose-openrouter")!.click();
+  const authMount = mount.querySelector("#openrouter-auth-mount")!;
+  authPages.updateState({ type: "openrouter_status", event: { type: "sign_in_started" } });
+  assert.equal(mount.querySelector<HTMLButtonElement>("#openrouter-all-providers")!.disabled, true);
+  mount.querySelector<HTMLButtonElement>("#openrouter-all-providers")!.click();
+  assert.equal(mount.contains(authMount), true);
+
+  authPages.updateState({
+    type: "openrouter_status",
+    event: { type: "sign_in_failed", message: "Authorization failed." },
+  });
+  assert.equal(mount.querySelector<HTMLButtonElement>("#openrouter-all-providers")!.disabled, false);
+  mount.querySelector<HTMLButtonElement>("#openrouter-all-providers")!.click();
+  assert.equal(mount.querySelector("#choose-provider-mount"), picker);
+  assert.equal(mount.contains(authMount), false);
+  assert.equal(signInCalls, 0);
+
+  mount.querySelector<HTMLButtonElement>("#choose-openrouter")!.click();
+  assert.equal(mount.querySelector("#openrouter-auth-mount"), authMount);
+  assert.equal(mount.querySelector<HTMLElement>("#openrouter-auth-error")!.hidden, true);
+  assert.equal(mount.querySelector<HTMLElement>("#openrouter-auth-status")!.hidden, true);
+  assert.equal(mount.querySelector<HTMLButtonElement>("#openrouter-sign-in")!.disabled, false);
+  assert.equal(mount.querySelector<HTMLButtonElement>("#openrouter-all-providers")!.disabled, false);
+});
+
+test("Taskpane Rejects Startup When Both Provider Keys Exist", (context) => {
+  const openAiStore = new OpenAIKeyStore();
+  const openRouterStore = new OpenrouterKeyStore();
+  openAiStore.set("openai-key");
+  openRouterStore.set("openrouter-key");
+  context.after(() => {
+    openAiStore.clear();
+    openRouterStore.clear();
+  });
+
+  assert.throws(
+    () => new TaskpaneComponent(document.createElement("main")),
+    /Both OpenAI and OpenRouter API keys are configured/
+  );
+  assert.equal(new OpenAIKeyStore().get(), "openai-key");
+  assert.equal(new OpenrouterKeyStore().get(), "openrouter-key");
+});
+
+test("OpenAI Entry Toggles Visibility And Back Discards The Unsaved Key", (context) => {
+  new OpenrouterKeyStore().clear();
+  new OpenAIKeyStore().clear();
+  const mount = document.createElement("main");
+  new TaskpaneComponent(mount);
+  context.after(() => mount.remove());
+  const pickerMount = mount.querySelector<HTMLElement>("#choose-provider-mount")!;
+  assert.equal(mount.querySelector("#add-openai-key-mount"), null);
+  mount.querySelector<HTMLButtonElement>("#choose-openai")!.click();
+  const input = mount.querySelector<HTMLInputElement>("#openai-api-key")!;
+  const toggle = mount.querySelector<HTMLButtonElement>("#openai-key-visibility")!;
+  const entryMount = mount.querySelector<HTMLElement>("#add-openai-key-mount")!;
+  assert.equal(mount.contains(entryMount), true);
+  assert.equal(mount.contains(pickerMount), false);
+  assert.equal(mount.querySelector("#openrouter-auth-mount"), null);
+  assert.equal(input.type, "password");
+  input.value = "unsaved-key";
+  toggle.click();
+  assert.equal(input.type, "text");
+  assert.equal(input.value, "unsaved-key");
+  assert.equal(toggle.textContent, "Hide");
+  assert.equal(toggle.getAttribute("aria-pressed"), "true");
+  toggle.click();
+  assert.equal(input.type, "password");
+  assert.equal(input.value, "unsaved-key");
+  toggle.click();
+  mount.querySelector<HTMLButtonElement>("#openai-all-providers")!.click();
+
+  assert.equal(mount.querySelector("#choose-provider-mount"), pickerMount);
+  assert.equal(mount.contains(entryMount), false);
+  assert.equal(input.value, "");
+  assert.equal(input.type, "password");
+  assert.equal(toggle.textContent, "Show");
+  assert.equal(toggle.getAttribute("aria-pressed"), "false");
+  assert.equal(new OpenAIKeyStore().hasKey(), false);
+  mount.querySelector<HTMLButtonElement>("#choose-openai")!.click();
+  assert.equal(mount.querySelector("#openai-api-key"), input);
+  assert.equal(mount.querySelector("#add-openai-key-mount"), entryMount);
+  assert.equal(input.value, "");
+});
+
+test("OpenAI Save Requires A Nonempty Trimmed Key Without Calling A Provider", (context) => {
+  new OpenrouterKeyStore().clear();
+  new OpenAIKeyStore().clear();
+  const mount = document.createElement("main");
+  new TaskpaneComponent(mount);
+  context.after(() => {
+    new OpenAIKeyStore().clear();
+    mount.remove();
+  });
+  const fetchMock = context.mock.method(globalThis, "fetch", async () => {
+    throw new Error("Saving an OpenAI key must not make a request.");
+  });
+  const authMount = mount.querySelector<HTMLElement>("#auth-pages-mount")!;
+  mount.querySelector<HTMLButtonElement>("#choose-openai")!.click();
+  const form = mount.querySelector<HTMLFormElement>("#openai-key-form")!;
+  const input = mount.querySelector<HTMLInputElement>("#openai-api-key")!;
+  const toggle = mount.querySelector<HTMLButtonElement>("#openai-key-visibility")!;
+
+  for (const emptyKey of ["", "   "]) {
+    input.value = emptyKey;
+    assert.equal(input.checkValidity(), false);
+    form.requestSubmit();
+    assert.equal(new OpenAIKeyStore().hasKey(), false);
+    assert.equal(mount.contains(authMount), true);
+  }
+
+  input.value = "  arbitrary-key-7f3a  ";
+  toggle.click();
+  form.requestSubmit();
+  assert.equal(
+    window.localStorage.getItem("open-workbook-ai-openai-api-key"),
+    "arbitrary-key-7f3a"
+  );
+  assert.equal(window.localStorage.getItem("open-workbook-ai-openrouter-oauth-key"), null);
+  assert.equal(mount.contains(authMount), false);
+  assert.notEqual(mount.querySelector(".signed-in-view"), null);
+  assert.equal(input.value, "");
+  assert.equal(input.type, "password");
+  assert.equal(toggle.getAttribute("aria-pressed"), "false");
+  assert.equal(
+    mount.querySelector(".account-menu-caption")!.textContent,
+    "Signed in to OpenAI · key …7f3a"
+  );
+  assert.equal(mount.innerHTML.includes("arbitrary-key-7f3a"), false);
+  assert.equal(mount.querySelector<HTMLButtonElement>("#chat-send")!.disabled, false);
+  assert.equal(fetchMock.mock.callCount(), 0);
+});
+
+test("OpenAI Reload Restores Masked Identity And Sign Out Clears Memory And Storage", (context) => {
+  new OpenrouterKeyStore().clear();
+  new OpenAIKeyStore().set("saved-openai-key-1234");
+  const mount = document.createElement("main");
+  document.body.appendChild(mount);
+  new TaskpaneComponent(mount);
+  context.after(() => {
+    window.localStorage.removeItem("open-workbook-ai-openai-api-key");
+    window.localStorage.removeItem("open-workbook-ai-openrouter-api-key");
+    mount.remove();
+  });
+  const signedIn = mount.querySelector<HTMLElement>(".signed-in-view")!;
+  assert.equal(mount.querySelector("#auth-pages-mount"), null);
+  assert.notEqual(signedIn, null);
+  assert.equal(
+    mount.querySelector(".account-menu-caption")!.textContent,
+    "Signed in to OpenAI · key …1234"
+  );
+  assert.equal(mount.querySelector("#openai-api-key"), null);
+  assert.equal(mount.innerHTML.includes("saved-openai-key-1234"), false);
+  window.localStorage.setItem("open-workbook-ai-openrouter-api-key", "unrelated-legacy-record");
+  const effects: string[] = [];
+  mount.querySelector<HTMLElement>("[popover]")!.hidePopover = () => effects.push("close menu");
+  const clear = OpenAIKeyStore.prototype.clear;
+  context.mock.method(OpenAIKeyStore.prototype, "clear", function (this: OpenAIKeyStore) {
+    assert.deepEqual(effects, ["close menu"]);
+    clear.call(this);
+    assert.equal(this.hasKey(), false);
+    effects.push("clear key");
+  });
+
+  mount.querySelector<HTMLButtonElement>("#account-sign-out")!.click();
+  assert.deepEqual(effects, ["close menu", "clear key"]);
+  assert.equal(window.localStorage.getItem("open-workbook-ai-openai-api-key"), null);
+  assert.equal(
+    window.localStorage.getItem("open-workbook-ai-openrouter-api-key"),
+    "unrelated-legacy-record"
+  );
+  assert.equal(mount.contains(signedIn), false);
+  assert.notEqual(mount.querySelector("#auth-pages-mount"), null);
+  assert.notEqual(mount.querySelector("#choose-provider-mount"), null);
+  assert.equal(signedIn.querySelector(".account-menu-caption")!.textContent, "");
+});
+
+test("OpenAI Key Store Restores And Clears Its Own Key Independently Of OpenRouter", (context) => {
+  const openAiStore = new OpenAIKeyStore();
+  const openRouterStore = new OpenrouterKeyStore();
+  context.after(() => {
+    openAiStore.clear();
+    openRouterStore.clear();
+  });
+  openRouterStore.set("openrouter-key");
+  openAiStore.set("openai-key");
+  assert.equal(new OpenAIKeyStore().get(), "openai-key");
+  assert.equal(openRouterStore.get(), "openrouter-key");
+  openAiStore.clear();
+  assert.equal(openAiStore.hasKey(), false);
+  assert.equal(new OpenAIKeyStore().hasKey(), false);
+  assert.throws(() => openAiStore.get());
+  assert.equal(new OpenrouterKeyStore().get(), "openrouter-key");
 });
 
 test("Chat Input Submits Multiline Text Through Send And Plain Enter", (context) => {
@@ -1595,7 +1824,7 @@ function mockOpenRouterSignInForTest(context: TestContext, key: string) {
   context.after(() => {
     globalThis.Office = originalOffice;
   });
-  context.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify({ key })));
+  return context.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify({ key })));
 }
 
 function createTaskpaneMenuForTest(context: TestContext) {
@@ -1614,7 +1843,7 @@ function createTaskpaneMenuForTest(context: TestContext) {
     mount,
     trigger: mount.querySelector<HTMLButtonElement>('[aria-label="Menu"]')!,
     menu: mount.querySelector<HTMLElement>("[popover]")!,
-    signOut: mount.querySelector<HTMLButtonElement>("#openrouter-sign-out")!,
+    signOut: mount.querySelector<HTMLButtonElement>("#account-sign-out")!,
   };
 }
 

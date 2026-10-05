@@ -4,7 +4,7 @@ The component contract is defined in [Component Architecture](./component-archit
 
 ## Module Responsibilities
 
-- `src/taskpane/taskpane.ts` initializes `TaskpaneComponent`, which owns page selection and sign-in/sign-out. `pages/openrouter-auth/` owns the sign-in UI, key storage, and authorization exchange; `src/auth-dialog/` handles the authorization callback.
+- `src/taskpane/taskpane.ts` initializes `TaskpaneComponent`, which owns auth/chat mounting, provider configuration, key stores, and sign-in/sign-out. `pages/auth-pages-component.ts` owns local navigation among the provider picker, OpenAI key-entry page, and OpenRouter auth page. Both containers attach only their active child's existing mount and retain inactive child instances. `pages/add-openai-key/` owns the entry UI and OpenAI key store. `pages/openrouter-auth/` owns OpenRouter sign-in UI, key storage, and authorization exchange; `src/auth-dialog/` handles the authorization callback.
 - `pages/chat/chat-page.ts` composes `ChatHeader` and `ChatWindow`. The header displays the mark and title; `ChatWindow` displays the worksheet scope/review strip and Clear chat above the transcript, with the composer or review controls below it.
 - `pages/chat/chat-window/chat-window.ts` owns chat events and applies model responses. Its `workflows/` functions coordinate actions, and `dom/` helpers update the UI.
 - `pages/chat/chat-window/chat-input/chat-input.ts` owns the input form, textarea, Send button, and autosizing. `ChatWindow` supplies half the panel height as its height limit and owns the separate Clear button.

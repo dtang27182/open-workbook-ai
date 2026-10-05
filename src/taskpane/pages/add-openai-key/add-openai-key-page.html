@@ -1,0 +1,16 @@
+<section class="auth-view" id="add-openai-key-page">
+    <button id="openai-all-providers" class="auth-back" type="button"><span aria-hidden="true">‹</span> All providers</button>
+    <span class="provider-mark openai-key-mark" aria-hidden="true">OA</span>
+    <h2>Add your OpenAI API key</h2>
+    <p id="openai-key-description" class="auth-description">Paste an API key from your OpenAI account. It's stored on this device only and sent only to OpenAI.</p>
+    <form id="openai-key-form" class="openai-key-form">
+        <label for="openai-api-key">API key</label>
+        <div class="openai-key-field">
+            <input id="openai-api-key" type="password" required pattern=".*\S.*" title="Enter a nonempty API key." autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="openai-key-description" />
+            <button id="openai-key-visibility" type="button" aria-controls="openai-api-key" aria-label="Show API key" aria-pressed="false">Show</button>
+        </div>
+        <a class="openai-key-link" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">Get a key at platform.openai.com <span aria-hidden="true">↗</span></a>
+        <button class="btn" type="submit">Save key</button>
+    </form>
+    <footer class="auth-footer">Usage is billed to your OpenAI API account.</footer>
+</section>

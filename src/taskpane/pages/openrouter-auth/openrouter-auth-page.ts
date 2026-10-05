@@ -19,7 +19,8 @@ export class OpenRouterAuthPage implements Component<OpenRouterAuthUpdateEvent> 
 
   constructor(
     private readonly mount: HTMLElement,
-    private readonly onSignIn: () => Promise<void>
+    private readonly onSignIn: () => Promise<void>,
+    private readonly onBack: () => void
   ) {
     this.mount.replaceChildren(this.createElement());
   }
@@ -49,6 +50,9 @@ export class OpenRouterAuthPage implements Component<OpenRouterAuthUpdateEvent> 
     element.className = "auth-view";
     element.innerHTML = openrouterAuthPageHtml;
 
+    const backButton = element.querySelector<HTMLButtonElement>("#openrouter-all-providers")!;
+    backButton.onclick = this.onBack;
+    backButton.disabled = this.state.phase === "signing_in";
     const signInButton = element.querySelector<HTMLButtonElement>("#openrouter-sign-in")!;
     const status = element.querySelector<HTMLElement>("#openrouter-auth-status")!;
     const error = element.querySelector<HTMLElement>("#openrouter-auth-error")!;
