@@ -469,7 +469,7 @@
   white-space: pre-wrap;
   font-family: inherit;
   line-height: 18px;
-  flex: 1;
+  flex: 0 0 auto;
   min-width: 0;
   padding: 7px 10px;
   background: var(--surface);
