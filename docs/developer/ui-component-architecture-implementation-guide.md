@@ -15,7 +15,7 @@ Use the component contract to decide where responsibilities belong before listin
 - **Choose the component boundary first.** A cohesive UI element can own its DOM and behavior through a small component.
 - **Route updates to the component whose state changes.** Local input updates belong to the input component's `updateState()`; conversation updates belong to the chat component's `updateState()`. An existing parent does not need to handle every new event.
 - **Keep DOM ownership exclusive.** Parents provide mounts; children construct and modify their own contents. Parent helpers delegate child changes through the child's update interface.
-- **Connect components through explicit interfaces.** Parents send update events and supply callbacks. Pass needed values, such as a height limit, rather than giving children access to ancestor DOM. A child can own a control's DOM while invoking an ancestor-owned callback for the wider action.
+- **Connect components through explicit interfaces.** Parents send update events and supply callbacks. Pass needed values, such as a height limit, rather than giving children references to parent or sibling components or access to ancestor DOM. A child can own a control's DOM while invoking an ancestor-owned callback for the wider action.
 - **Use construction helpers for composition.** Keep child creation and related observer wiring together in `createInitialDom()`. Return the initialized child and retain it in the parent's existing state holder when one is used, avoiding a second ownership location. Each child constructor creates the DOM beneath its own mount.
 
 ## Recommended Component Structure
@@ -53,7 +53,7 @@ Keep `updateState()` focused on event dispatch and transition coordination. Dele
 
 Pass module-level helpers the state, mount, handlers, or dependencies they need. For example, chat workflows receive `ChatWindowState`, while DOM helpers receive the mount, transcript entries, and handlers. These functions perform work within the component's `updateState()` call path; managers handle model, worksheet, and restore operations separately.
 
-Input handlers call `updateState()` on the highest component whose state the event affects. Ancestor-owned callbacks are passed through constructors to the descendant that binds them. Helpers exposed for parents to inspect state remain read-only.
+Input handlers call `updateState()` on the highest component whose state the event affects. Ancestor-owned callbacks are passed through constructors to the descendant that binds them. Methods exposed to parents for reading state information are state query methods and follow the restrictions defined in the UI Component Architecture contract.
 
 Components with no update events can use `Component<never>` and a no-op `updateState()`, as `ChatPage` and `ChatHeader` do. They can still create child components and bind ancestor-owned handlers during construction.
 
@@ -147,4 +147,4 @@ Choose the simplest internal structure that satisfies the UI Component Architect
 - a parent can store a child mount when there is a concrete reason; and
 - components can use instance helpers or module-level functions appropriate to their implementation.
 
-Every component receives its permanent mount during construction. Construction initializes state and DOM. After construction, mutations to component state and owned DOM occur through the `updateState()` call path, including its helpers and workflows. Read-only helpers exposed to parents inspect state or derive values without changing state or DOM.
+Every component receives its permanent mount during construction. Construction initializes state and DOM. After construction, mutations to component state and owned DOM occur through the `updateState()` call path, including its helpers and workflows. State query methods provide output values for specific use cases without changing state or DOM or initiating external side effects.

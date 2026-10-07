@@ -32,7 +32,9 @@ export interface Component<UpdateEvent> {
 
 A component can use helpers to create DOM from its current state. Attaching or applying that DOM beneath its mount belongs to construction or the `updateState()` call path.
 
-Developers are free to add helper methods that are useful for a particular component. A parent can call a child's helper methods to inspect its current state or obtain values derived from that state. These methods are read-only: they must not update component state or change any DOM elements.
+A **state query method** generates an output value for a specific use case from the component's current state. It may also read external data and use that data to compute its output. A parent can call a child's state query methods to obtain state information or derived values.
+
+State query methods must not update any component's state, change any DOM elements, or initiate external side effects such as writing data to external stores. They must not be generic state getters or expose mutable references that let callers change the component's state. These restrictions apply to any helpers they call as well.
 
 After construction, `updateState()` is the entry point for modifying a component's state and owned DOM. The mutations can live in instance helpers or module-level functions that it calls, including asynchronous workflows. Depending on the event, that call path:
 
@@ -68,15 +70,19 @@ constructor(mount: HTMLElement, onSignOut: () => void, keyStore: OpenrouterKeySt
 
 Do not add empty configuration objects merely to make constructors uniform. A leaf with no dependencies can accept only its mount.
 
-## Parent Composition and Update Flow
+## Component Hierarchy and Coordination
 
-Parents compose the application by owning child instances and creating their mount elements. Updates normally reuse the mounts and child instances established during construction.
+The component hierarchy must be a tree. Parents compose the application by owning their direct child instances and creating their mount elements. Each non-root component has exactly one owning parent; child instances must not be shared between parents.
 
-A parent can switch between views by attaching the active child's existing mount. A view switch need not reconstruct the child components or discard their state.
+Updates normally reuse the child instances and mounts established during construction. A parent can switch between views by attaching the active child's existing mount, preserving the child instances and their state.
 
-A child handles events affecting only its own state through its own `updateState()`; those events do not need to pass through its parent. An asynchronous update can render more than once.
+Persistent references between components point only from a parent to its direct children. Components must not store references to their parent, ancestors, siblings, or unrelated components in state or instance fields. Descendants communicate with ancestors though updateState or event handler functions defined at the ancestor level rather than retaining ancestor component references.
 
-The exact child events depend on the behavior each child owns. A parent should call only the children affected by a transition. Children do not read sibling state or manipulate sibling DOM; the parent connects them through explicit events and values returned by read-only helper methods.
+Each component keeps its state private. Another component can read state information only through state query methods. Changes requested by another component must go through the owning component's `updateState()`.
+
+A child handles events affecting only its own state through its own `updateState()`; those events do not need to pass through its parent. An asynchronous update can render more than once as its work progresses.
+
+When a transition affects multiple children, their parent coordinates them through explicit update events and values returned by state query methods. The parent calls only the affected children, using update events defined by the behavior each child owns.
 
 ## Event-Handler Ownership
 
