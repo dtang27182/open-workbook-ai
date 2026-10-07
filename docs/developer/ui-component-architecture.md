@@ -86,11 +86,11 @@ When a transition affects multiple children, their parent coordinates them throu
 
 ## Event-Handler Ownership
 
-Every input event handler is defined on the highest component whose state is affected by the input event. When a descendant binds an ancestor-owned handler to a DOM event, the owning ancestor supplies the handler through the descendant's chain of constructors and each intermediate component passes it to the appropriate child.
+Every input event handler is defined on the highest component whose state is affected by the input event. Handler ownership can differ from DOM ownership: a child can own a control whose action affects an ancestor's state.
 
-Functions passed from parents to children for component interaction must be ancestor-owned event handlers intended for binding to DOM events in the child's subtree. They must route state changes through the owning ancestor's `updateState()` and follow the rules in [Component Hierarchy and Coordination](#component-hierarchy-and-coordination). They must not expose general-purpose access to ancestor or sibling state or DOM, or provide another entry point for mutating them.
+Functions passed from parents to children for component interaction must be ancestor-owned event handlers intended for binding to DOM events in the child's subtree. The owning ancestor supplies the handler through the descendant's chain of constructors. Each intermediate component passes it to the appropriate child until the component that owns the control's DOM binds it to the DOM event.
 
-The handler calls `updateState()` on that highest affected component. The component already knows its mount, so the handler does not need DOM context. The component handles its part of the event and delegates through its subtree, where each parent performs the required child state changes and DOM updates.
+When invoked, the handler calls its owning component's `updateState()` with the corresponding update event. State access and coordination with children follow the rules in [Component Hierarchy and Coordination](#component-hierarchy-and-coordination).
 
 For example, the submit event handler defined in the `ChatWindow` constructor calls its own `updateState()` because submitting a message affects state owned by `ChatWindow`:
 
@@ -99,7 +99,3 @@ onSubmit: (message) => {
   void this.updateState({ type: "submit_message", message });
 },
 ```
-
-DOM ownership and action ownership can differ. A child can own a UI element's DOM and bind an ancestor-owned event handler to that element's DOM event when the action affects the ancestor's state. Local presentation updates belong to the child and use its own update entry point.
-
-An action spanning views belongs higher in the tree, even when a descendant renders the control. Intermediate components pass the ancestor-owned event handler to the component that binds it to the control's DOM event.
