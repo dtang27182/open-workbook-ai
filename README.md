@@ -196,8 +196,8 @@ See [Testing](docs/developer/testing.md) for the testing approach and live integ
 ### Developer Documentation
 
 - [Application Architecture](docs/developer/application-architecture.md): module responsibilities, workflow transitions, and restore semantics.
-- [Component Architecture](docs/developer/component-architecture.md): the component contract and event ownership.
-- [Component Implementation Guide](docs/developer/component-architecture-implementation-guide.md): recommended component structure.
+- [UI Component Architecture](docs/developer/ui-component-architecture.md): the component contract and event ownership.
+- [UI Component Architecture Implementation Guide](docs/developer/ui-component-architecture-implementation-guide.md): recommended component structure.
 - [Testing](docs/developer/testing.md): test setup, coverage boundaries, and contribution guidance.
 - [Production Hosting](docs/developer/production-hosting.md): project-maintained hosting and automatic GitHub-to-Cloudflare deployment.
 

@@ -1,6 +1,6 @@
 # Application Architecture
 
-The component contract is defined in [Component Architecture](./component-architecture.md), with structural recommendations in its [implementation guide](./component-architecture-implementation-guide.md).
+The component contract is defined in [UI Component Architecture](./ui-component-architecture.md), with structural recommendations in its [implementation guide](./ui-component-architecture-implementation-guide.md).
 
 ## Module Responsibilities
 

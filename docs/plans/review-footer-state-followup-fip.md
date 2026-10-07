@@ -153,7 +153,7 @@ In `appendErrorMessage()`, keep the existing distinction between cleanup for the
 
 Keep Restore entries and their existing disabled flags in this change. Removing all transient state from Restore entries would be a separate refactor and is not necessary to remove the singleton review from history.
 
-Update Application Architecture's control-flow description and the relevant implementation specification to describe current-state review. Component Architecture and its implementation guide remain unchanged because the component contract is unchanged. Keep the earlier visual redesign FIP as the record of that implementation; this FIP supersedes its review-entry modeling.
+Update Application Architecture's control-flow description and the relevant implementation specification to describe current-state review. UI Component Architecture and its implementation guide remain unchanged because the component contract is unchanged. Keep the earlier visual redesign FIP as the record of that implementation; this FIP supersedes its review-entry modeling.
 
 ## Verification
 

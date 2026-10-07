@@ -2,8 +2,8 @@
 
 - Read `docs/developer/application-architecture.md` before making broad changes to module responsibilities, assistant workflows, or restore behavior.
 - Read `docs/developer/testing.md` before changing tests or the test architecture.
-- Before changing Component Architecture or code under `src/taskpane`, read `docs/developer/component-architecture.md` as the authoritative component contract and behavior description.
-- Also read `docs/developer/component-architecture-implementation-guide.md` for recommended component structure. Its guidance is not enforced by the architecture unless the architecture document says otherwise.
+- Before changing UI Component Architecture or code under `src/taskpane`, read `docs/developer/ui-component-architecture.md` as the authoritative component contract and behavior description.
+- Also read `docs/developer/ui-component-architecture-implementation-guide.md` for recommended component structure. Its guidance is not enforced by the architecture unless the architecture document says otherwise.
 
 ## Coding Style
 

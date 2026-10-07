@@ -219,7 +219,7 @@ type ChatMessagePresentation = {
 4. Replace the inference Markdown message with a structured entry and remove its formatter; add decision annotations and the render helpers. Verify that all inference information remains visible and that ordinary message text, requests, worksheets, and restored conversation state retain their prior behavior.
 5. Run focused regression checks and compare all six visual states, then check states absent from the prototype in Excel.
 
-Leave `ExcelManager`, `LLMManager`, `OpenRouterClient`, formula generation/detection logic and prompts, `RestoreManager`, authentication/key exchange, package dependencies, and deployment configuration unchanged. Do not refactor existing workflow branches while attaching presentation data. Component Architecture and its implementation guide need no updates because their contract is unchanged; adjust only the provider-row wording in Application Architecture if needed to reflect the scope/review strip.
+Leave `ExcelManager`, `LLMManager`, `OpenRouterClient`, formula generation/detection logic and prompts, `RestoreManager`, authentication/key exchange, package dependencies, and deployment configuration unchanged. Do not refactor existing workflow branches while attaching presentation data. UI Component Architecture and its implementation guide need no updates because their contract is unchanged; adjust only the provider-row wording in Application Architecture if needed to reflect the scope/review strip.
 
 ## Verification
 

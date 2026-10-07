@@ -1,10 +1,10 @@
-# Component Architecture Implementation Guide
+# UI Component Architecture Implementation Guide
 
-Status: recommended implementation guidance. The [Component Architecture](./component-architecture.md) defines the component contract; this guide recommends ways to organize its implementation.
+Status: recommended implementation guidance. The [UI Component Architecture](./ui-component-architecture.md) defines the component contract; this guide recommends ways to organize its implementation.
 
 ## Purpose
 
-This guide recommends a consistent way to organize components that implement the [Component Architecture](./component-architecture.md). Constructors initialize state and DOM beneath a permanent mount, and subsequent mutations enter through `updateState()`. The recommendations below concern internal structure and naming, not additional interface requirements.
+This guide recommends a consistent way to organize components that implement the [UI Component Architecture](./ui-component-architecture.md). Constructors initialize state and DOM beneath a permanent mount, and subsequent mutations enter through `updateState()`. The recommendations below concern internal structure and naming, not additional interface requirements.
 
 Use a simpler structure when it makes a component clearer. In particular, a small leaf component may not need a stable root field, an initialization helper, or child-component coordination.
 
@@ -140,7 +140,7 @@ The parent creates child mounts and instances once in `createInitialDom()` and a
 
 ## Relationship to Architecture Requirements
 
-Choose the simplest internal structure that satisfies the Component Architecture contract:
+Choose the simplest internal structure that satisfies the UI Component Architecture contract:
 
 - the owned root can have another clear name or need not be stored;
 - initial DOM can be constructed directly in a simple constructor;

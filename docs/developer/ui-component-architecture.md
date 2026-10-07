@@ -1,8 +1,8 @@
-# Component Architecture
+# UI Component Architecture
 
 Status: defines the component contract for component-based user interfaces.
 
-Implementation guidance: [Component Architecture Implementation Guide](./component-architecture-implementation-guide.md).
+Implementation guidance: [UI Component Architecture Implementation Guide](./ui-component-architecture-implementation-guide.md).
 
 ## Scope and Maintenance
 
