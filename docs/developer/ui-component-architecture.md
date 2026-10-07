@@ -36,7 +36,9 @@ A **state query method** generates an output value for a specific use case from 
 
 State query methods must not update any component's state, change any DOM elements, or initiate external side effects such as writing data to external stores. They must not be generic state getters or expose mutable references that let callers change the component's state. These restrictions apply to any helpers they call as well.
 
-After construction, `updateState()` is the entry point for modifying a component's state and owned DOM. The mutations can live in instance helpers or module-level functions that it calls, including asynchronous workflows. Depending on the event, that call path:
+A **state transition helper** is an instance method or module-level function that implements the transition logic for a specific update event type within the owning component's `updateState()` call path. Its work can include state changes, DOM updates, external effects, child updates, and asynchronous workflows.
+
+After construction, `updateState()` is the entry point for modifying a component's state and owned DOM. It can delegate event-specific transition logic to state transition helpers. Depending on the event, that call path:
 
 - handles an expected variant of the component's `UpdateEvent` union;
 - updates the component's owned state;
