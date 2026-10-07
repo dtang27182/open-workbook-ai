@@ -47,17 +47,17 @@ After construction, `updateState()` is the entry point for modifying a component
 
 A parent can update its own state and DOM before or after updating its children, according to the needs of the transition. Parent components normally create their child mounts once and reuse them for the lifetime of the child instances.
 
-Components without update events can implement `Component<never>` with a no-op `updateState()`. A component used only for composition can construct its DOM and bind or pass through handlers without having post-construction transitions of its own.
+Components without update events can implement `Component<never>` with a no-op `updateState()`. A component used only for composition can construct its DOM and bind or pass through ancestor-owned event handlers for DOM events in its subtree without having post-construction transitions of its own.
 
 ## Construction and Initialization
 
-A component constructor always receives its mount element, followed by any real initial values, stable dependencies, or ancestor-owned handlers. Construction is the initial transition: it stores the mount, initializes state, and immediately creates the component's initial DOM below the mount.
+A component constructor always receives its mount element, followed by any real initial values, stable dependencies, or ancestor-owned event handlers to be bound to DOM events in its subtree. Construction is the initial transition: it stores the mount, initializes state, and immediately creates the component's initial DOM below the mount.
 
 `getMount()` returns the component's DOM boundary. The mount is fixed when the component is constructed and cannot be changed later. If a parent must replace a child's mount, which should be extremely rare, it constructs a new child instance with the new mount and replaces its reference to the old child.
 
 For a parent component, construction also creates the mount elements for its children and then constructs each child with its mount. Regular `updateState()` calls use the stored mounts and reuse existing child instances.
 
-For example, `ChatPage` creates its child mounts in an initialization helper and passes the sign-out handler and key store to the children that need them:
+For example, `ChatPage` creates its child mounts in an initialization helper, passes the sign-out event handler to `ChatHeader` for binding to its sign-out control, and supplies the key store to `ChatWindow`:
 
 ```ts
 constructor(mount: HTMLElement, onSignOut: () => void, keyStore: OpenrouterKeyStore) {
@@ -76,7 +76,7 @@ The component hierarchy must be a tree. Parents compose the application by ownin
 
 Updates normally reuse the child instances and mounts established during construction. A parent can switch between views by attaching the active child's existing mount, preserving the child instances and their state.
 
-Persistent references between components point only from a parent to its direct children. Components must not store references to their parent, ancestors, siblings, or unrelated components in state or instance fields. Descendants communicate with ancestors though updateState or event handler functions defined at the ancestor level rather than retaining ancestor component references.
+Persistent references between components point only from a parent to its direct children. Components must not store references to their parent, ancestors, siblings, or unrelated components in state or instance fields. Descendant DOM events reach ancestors through supplied ancestor-owned event handlers that call the owning ancestor's `updateState()`.
 
 Each component keeps its state private. Another component can read state information only through state query methods. Changes requested by another component must go through the owning component's `updateState()`.
 
@@ -88,9 +88,11 @@ When a transition affects multiple children, their parent coordinates them throu
 
 Every input event handler is defined on the highest component whose state is affected by the input event. When a descendant binds an ancestor-owned handler to a DOM event, the owning ancestor supplies the handler through the descendant's chain of constructors and each intermediate component passes it to the appropriate child.
 
+Functions passed from parents to children for component interaction must be ancestor-owned event handlers intended for binding to DOM events in the child's subtree. They must route state changes through the owning ancestor's `updateState()` and follow the rules in [Component Hierarchy and Coordination](#component-hierarchy-and-coordination). They must not expose general-purpose access to ancestor or sibling state or DOM, or provide another entry point for mutating them.
+
 The handler calls `updateState()` on that highest affected component. The component already knows its mount, so the handler does not need DOM context. The component handles its part of the event and delegates through its subtree, where each parent performs the required child state changes and DOM updates.
 
-For example, the submit callback defined in the `ChatWindow` constructor calls its own `updateState()` because submitting a message affects state owned by `ChatWindow`:
+For example, the submit event handler defined in the `ChatWindow` constructor calls its own `updateState()` because submitting a message affects state owned by `ChatWindow`:
 
 ```ts
 onSubmit: (message) => {
@@ -98,6 +100,6 @@ onSubmit: (message) => {
 },
 ```
 
-DOM ownership and action ownership can differ. A child can own a UI element's DOM and bind a callback supplied by an ancestor when the action affects the ancestor's state. Local presentation updates belong to the child and use its own update entry point.
+DOM ownership and action ownership can differ. A child can own a UI element's DOM and bind an ancestor-owned event handler to that element's DOM event when the action affects the ancestor's state. Local presentation updates belong to the child and use its own update entry point.
 
-An action spanning views belongs higher in the tree, even when a descendant renders the control. Intermediate components pass the ancestor-owned handler to the component that binds it.
+An action spanning views belongs higher in the tree, even when a descendant renders the control. Intermediate components pass the ancestor-owned event handler to the component that binds it to the control's DOM event.
