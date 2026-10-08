@@ -67,6 +67,15 @@ When an input event requires data to pass between sibling components, define its
 
 Within that call path, the parent reads the required data through state query methods on the source siblings and transforms the returned values when needed. It then calls the recipient siblings' `updateState()` methods with explicit update events carrying those values.
 
+#### Addendum: Coordinating intermediate state updates
+
+A DOM event can trigger several state changes within a single sibling's `updateState()` call. For this discussion, an **external state update** is a call to `updateState()`, while an **internal state update** is an individual state change within that call. For example, sibling A might display a loading spinner, make an API request, and display the returned content before its external state update completes.
+
+If sibling B must respond to each internal state update in A, querying A only after its `updateState()` call completes is insufficient. An ordinary awaited call provides no handoff to the parent at each intermediate change. There are two approaches:
+
+1. **Let one sibling drive the sequence.** For simpler workflows controlled by sibling A, implement A's `updateState()` as an async generator that yields data at each relevant internal state update. The parent consumes those values with `for await...of` and calls B's `updateState()` with the corresponding update events. This approach requires extending the component contract's `updateState()` return type to support async generators.
+2. **Expose each relevant transition as an external state update.** For more complex workflows that no single sibling controls, refactor the participating siblings so that each internal state update needed for coordination is driven by a separate, externally callable `updateState()` event. The parent can then coordinate the sequence through explicit update calls, using state query methods between calls to obtain data for subsequent sibling updates.
+
 ### Child-to-parent interactions
 
 When an input event requires the parent to use data from a child to update its own state or DOM, define the event handler on the parent. The component that owns the relevant DOM binds the handler to the DOM event. If that component is a descendant of the parent, pass the handler through the intervening constructors. The handler calls the parent's `updateState()`, which handles the transition directly or through a state transition helper.
