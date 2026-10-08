@@ -1,14 +1,14 @@
 # UI Component Architecture
 
-Status: defines the component contract for component-based user interfaces.
+## Scope
 
-Implementation guidance: [UI Component Architecture Implementation Guide](./ui-component-architecture-implementation-guide.md).
+This architecture defines how an application's UI components should be defined and composed at a high level. Its component contract governs component boundaries, construction, state updates, DOM ownership, and event-handler ownership.
 
-## Scope and Maintenance
+It is intended as a lightweight alternative to React, with a shared component API consisting of a single TypeScript interface and components that manage their own DOM updates. Its goals are a small API surface and straightforward component interaction and dataflow.
 
-This document defines the rules for component boundaries, construction, state updates, DOM ownership, and event-handler ownership. Keep these rules authoritative and use a small number of representative examples to explain them.
+Parents coordinate retained child instances directly: they read child data through state query methods for specific use cases and request child state transitions through `updateState()`. These interactions preserve each child's ownership of its state and DOM. Reading child data has no side effects, and updating a child does not require reconstructing it or rendering its entire subtree; the child controls the DOM changes needed for the transition.
 
-Update this document when the component contract changes or an example needs correction to illustrate that contract. Do not update it merely because a feature adds or changes components, events, state fields, helpers, control behavior, or layout calculations. Do not maintain exhaustive component trees, event lists, dependency wiring, or workflow descriptions here. Implementation details belong in source code, feature plans, and behavior specifications; broader application responsibilities are described in [Application Architecture](./application-architecture.md).
+The [UI Component Architecture Implementation Guide](./ui-component-architecture-implementation-guide.md) describes patterns for implementing this contract.
 
 ## Architecture
 
