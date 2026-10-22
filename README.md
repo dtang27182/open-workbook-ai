@@ -42,7 +42,8 @@ your worksheets. No coding or developer tools are needed.
 
 - A Microsoft 365 account with access to Excel in your browser and permission to upload
   custom add-ins. If your organization restricts this, ask your Microsoft 365 administrator.
-- An OpenRouter account, which provides access to the AI models used by the add-in
+- An OpenRouter account, which provides access to the AI models used by the add-in. Model
+  usage is billed separately through OpenRouter and may require purchased credits.
 
 ### Add Open Workbook AI to Excel
 
@@ -55,7 +56,7 @@ your worksheets. No coding or developer tools are needed.
    More Add-ins > My Add-ins > Manage My Add-ins > Upload My Add-ins**.
    Select the downloaded `manifest.xml` and choose **Upload**.
 
-3. Open **Open Workbook AI** from the Home ribbon and choose **Sign in with OpenRouter**.
+3. Open **Open Workbook AI** from the Home ribbon and choose **OpenRouter**, then **Sign in with OpenRouter**.
    Finish signing in through the separate window. Select the worksheet you want help with,
    then type a question or request in the chat.
 
@@ -92,7 +93,8 @@ manage or revoke the key through your OpenRouter account.
 
 - The add-in must be sideloaded and is not distributed through Microsoft Marketplace.
 - Requests use only the active worksheet's used range, not the entire workbook.
-- Model selection is fixed in the source; there is no model picker or settings page.
+- Choose an available model from the **Model** menu in the task pane. The available models
+  are configured in the source.
 - Formula inference, edits, comparisons, and analysis are model-generated and may be
   incomplete or incorrect. Review every proposed change and scenario before relying on it.
 - Large worksheets may exceed model context or output limits.
@@ -148,7 +150,7 @@ localhost server serves the frontend files; it provides no application backend.
    [sideloading instructions](https://learn.microsoft.com/en-us/office/dev/add-ins/testing/sideload-office-add-ins-for-testing#manually-sideload-an-add-in-to-office-on-the-web)
    for the upload flow.
 
-5. Open **Open Workbook AI** from the Home ribbon and choose **Sign in with OpenRouter**.
+5. Open **Open Workbook AI** from the Home ribbon and choose **OpenRouter**, then **Sign in with OpenRouter**.
    Complete authorization in the separate window, then submit a request with the worksheet
    you want to use active.
 
