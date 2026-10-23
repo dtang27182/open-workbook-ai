@@ -2,27 +2,47 @@
 
 import openrouterAuthPageHtml from "./openrouter-auth-page.html?raw";
 import { Component } from "../../../component";
+import { AddApiKeyPage } from "../add-api-key/add-api-key-page";
 
 export type OpenRouterAuthState =
-  | { phase: "select_provider" }
+  | { phase: "select_sign_in_method" }
+  | { phase: "enter_key" }
   | { phase: "signing_in" }
   | { phase: "error"; message: string };
 
 export type OpenRouterAuthUpdateEvent =
-  | { type: "sign_in_started" }
+  | { type: "sign_in_byok" }
+  | { type: "back_to_methods" }
+  | { type: "sign_in_3p_auth" }
   | { type: "sign_in_succeeded" }
   | { type: "sign_in_failed"; message: string }
   | { type: "reset" };
 
 export class OpenRouterAuthPage implements Component<OpenRouterAuthUpdateEvent> {
-  private state: OpenRouterAuthState = { phase: "select_provider" };
+  private state: OpenRouterAuthState = { phase: "select_sign_in_method" };
+  private readonly methodMount: HTMLElement;
+  private readonly keyPage: AddApiKeyPage;
 
   constructor(
     private readonly mount: HTMLElement,
-    private readonly onSignIn: () => Promise<void>,
+    private readonly onSignIn3pAuth: () => Promise<void>,
+    onSaveKey: (apiKey: string) => void,
     private readonly onBack: () => void
   ) {
-    this.mount.replaceChildren(this.createElement());
+    this.methodMount = document.createElement("div");
+    this.methodMount.className = "taskpane-page-mount";
+    const keyMount = document.createElement("div");
+    keyMount.className = "taskpane-page-mount";
+    this.keyPage = new AddApiKeyPage(keyMount, "openrouter", onSaveKey, this.navToMethods);
+    this.methodMount.replaceChildren(this.createElement());
+    this.mount.replaceChildren(this.methodMount);
+    this.mount.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && this.state.phase === "enter_key") {
+        this.updateState({ type: "back_to_methods" });
+      } else if (event.key === "Escape" && this.state.phase !== "signing_in") {
+        this.onBack();
+      }
+    });
   }
 
   getMount(): HTMLElement {
@@ -30,22 +50,37 @@ export class OpenRouterAuthPage implements Component<OpenRouterAuthUpdateEvent> 
   }
 
   updateState(event: OpenRouterAuthUpdateEvent): void {
-    if (event.type === "sign_in_started") {
+    if (event.type === "sign_in_byok") {
+      this.keyPage.updateState({ type: "reset" });
+      this.state = { phase: "enter_key" };
+    } else if (event.type === "back_to_methods") {
+      this.keyPage.updateState({ type: "reset" });
+      this.state = { phase: "select_sign_in_method" };
+    } else if (event.type === "sign_in_3p_auth") {
       this.state = { phase: "signing_in" };
     } else if (event.type === "sign_in_succeeded") {
-      this.state = { phase: "select_provider" };
+      this.state = { phase: "select_sign_in_method" };
     } else if (event.type === "sign_in_failed") {
       this.state = { phase: "error", message: event.message };
     } else if (event.type === "reset") {
-      this.state = { phase: "select_provider" };
+      this.keyPage.updateState({ type: "reset" });
+      this.state = { phase: "select_sign_in_method" };
     }
 
-    this.mount.replaceChildren(this.createElement());
+    if (this.state.phase === "enter_key") {
+      this.mount.replaceChildren(this.keyPage.getMount());
+    } else {
+      this.methodMount.replaceChildren(this.createElement());
+      this.mount.replaceChildren(this.methodMount);
+    }
   }
+
+  private navToMethods = (): void => {
+    this.updateState({ type: "back_to_methods" });
+  };
 
   private createElement(): HTMLElement {
     const element = document.createElement("section");
-
     element.id = "openrouter-auth-page";
     element.className = "auth-view";
     element.innerHTML = openrouterAuthPageHtml;
@@ -54,39 +89,29 @@ export class OpenRouterAuthPage implements Component<OpenRouterAuthUpdateEvent> 
     backButton.onclick = this.onBack;
     backButton.disabled = this.state.phase === "signing_in";
     const signInButton = element.querySelector<HTMLButtonElement>("#openrouter-sign-in")!;
+    const keyButton = element.querySelector<HTMLButtonElement>("#openrouter-use-key")!;
     const status = element.querySelector<HTMLElement>("#openrouter-auth-status")!;
     const error = element.querySelector<HTMLElement>("#openrouter-auth-error")!;
 
     signInButton.onclick = () => {
-      void this.onSignIn();
+      void this.onSignIn3pAuth();
     };
+    keyButton.onclick = () => this.updateState({ type: "sign_in_byok" });
 
-    if (this.state.phase === "select_provider") {
-      signInButton.disabled = false;
-      signInButton.textContent = "Sign in with OpenRouter";
-      signInButton.autofocus = true;
-      status.hidden = true;
-      status.textContent = "";
-      error.hidden = true;
-      error.textContent = "";
-    } else if (this.state.phase === "signing_in") {
+    if (this.state.phase === "signing_in") {
       signInButton.disabled = true;
-      signInButton.textContent = "Signing in…";
-      signInButton.autofocus = false;
+      keyButton.disabled = true;
       status.hidden = false;
       status.textContent = "Complete sign-in in the OpenRouter window.";
       error.hidden = true;
-      error.textContent = "";
     } else if (this.state.phase === "error") {
-      signInButton.disabled = false;
-      signInButton.textContent = "Sign in with OpenRouter";
-      signInButton.autofocus = true;
       status.hidden = true;
-      status.textContent = "";
       error.hidden = false;
       error.textContent = this.state.message;
+    } else if (this.state.phase === "select_sign_in_method") {
+      status.hidden = true;
+      error.hidden = true;
     }
-
     return element;
   }
 }

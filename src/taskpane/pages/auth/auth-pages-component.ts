@@ -1,7 +1,7 @@
 /* global document, HTMLElement */
 
 import { Component } from "../../component";
-import { AddOpenAIKeyPage } from "./add-openai-key/add-openai-key-page";
+import { AddApiKeyPage } from "./add-api-key/add-api-key-page";
 import { ChooseProviderPage } from "./choose-provider/choose-provider-page";
 import {
   OpenRouterAuthPage,
@@ -17,14 +17,15 @@ export type AuthPagesUpdateEvent =
 
 export class AuthPagesComponent implements Component<AuthPagesUpdateEvent> {
   private readonly chooseProviderPage: ChooseProviderPage;
-  private readonly addOpenAiKeyPage: AddOpenAIKeyPage;
+  private readonly addOpenAiKeyPage: AddApiKeyPage;
   private readonly openRouterAuthPage: OpenRouterAuthPage;
   private state: { activePage: "picker" | "add-openai-key" | "openrouter-auth" };
 
   constructor(
     private readonly mount: HTMLElement,
     onSaveOpenAiKey: (apiKey: string) => void,
-    onSignInOpenRouter: () => Promise<void>
+    onSignInOpenRouter3pAuth: () => Promise<void>,
+    onSaveOpenRouterKey: (apiKey: string) => void
   ) {
     this.state = { activePage: "picker" };
     const initialDom = this.createInitialDom();
@@ -33,14 +34,16 @@ export class AuthPagesComponent implements Component<AuthPagesUpdateEvent> {
       this.handleChooseOpenAi,
       this.handleChooseOpenRouter
     );
-    this.addOpenAiKeyPage = new AddOpenAIKeyPage(
+    this.addOpenAiKeyPage = new AddApiKeyPage(
       initialDom.addOpenAiKeyMount,
+      "openai",
       onSaveOpenAiKey,
       this.navToChooseProvider
     );
     this.openRouterAuthPage = new OpenRouterAuthPage(
       initialDom.openRouterAuthMount,
-      onSignInOpenRouter,
+      onSignInOpenRouter3pAuth,
+      onSaveOpenRouterKey,
       this.navToChooseProvider
     );
   }

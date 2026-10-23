@@ -1,0 +1,16 @@
+<section class="auth-view" id="add-{{id}}-key-page">
+    <button id="{{id}}-all-providers" class="auth-back" type="button"><span aria-hidden="true">‹</span> {{back}}</button>
+    <span class="provider-mark api-key-mark" aria-hidden="true">{{mark}}</span>
+    <h2>Add your {{provider}} API key</h2>
+    <p id="{{id}}-key-description" class="auth-description">Paste an API key from your {{provider}} account. It's stored on this device only and sent only to {{provider}}.</p>
+    <form id="{{id}}-key-form" class="api-key-form">
+        <label for="{{id}}-api-key">API key</label>
+        <div class="api-key-field">
+            <input id="{{id}}-api-key" type="password" required pattern=".*\S.*" title="Enter a nonempty API key." autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="{{id}}-key-description" {{placeholder}} />
+            <button id="{{id}}-key-visibility" type="button" aria-controls="{{id}}-api-key" aria-label="Show API key" aria-pressed="false">Show</button>
+        </div>
+        <a class="api-key-link" href="{{keyUrl}}" target="_blank" rel="noopener noreferrer">Get a key at {{keyDomain}} <span aria-hidden="true">↗</span></a>
+        <button class="btn" type="submit">Save key</button>
+    </form>
+    <footer class="auth-footer">Usage is billed to your {{billing}} account.</footer>
+</section>
