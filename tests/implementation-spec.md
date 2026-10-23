@@ -2,6 +2,8 @@
 
 This specification describes implementation behaviors covered by unit tests. These behaviors support user-visible features, but are tested below the live integration boundary because they depend on specific internal workflow choices.
 
+The preprocessing workflow remains implemented but is disabled during normal chat submissions.
+
 ## Behavior 1: Model Proposed Updates Are Reflected In The Generated Diff Sheet
 
 When the model returns proposed cell edits, the assistant should create a reviewable diff sheet before applying those edits to the original sheet.
@@ -32,7 +34,7 @@ Ordinary assistant Markdown retains sanitization and is not interpreted as an in
 
 ## Behavior 5: Model Selection Applies To Subsequent Main Requests
 
-The native model select sits below the textarea alongside Send and offers the four fixed models referenced by the application. It remains operable while a request runs and is hidden with the composer while a diff awaits review. Clear chat, Restore, and sign-out/sign-in within the same task pane retain the selection; a new task pane starts with GPT-5.6 Sol.
+The native model select sits below the textarea alongside Send and offers the five fixed models referenced by the application. It remains operable while a request runs and is hidden with the composer while a diff awaits review. Clear chat, Restore, and sign-out/sign-in within the same task pane retain the selection; a new task pane starts with GPT-5.6 Sol.
 
 Main query, clarification response, scenario comparison, and post-acceptance analysis requests use the latest selected model, provider settings, and medium reasoning effort. An already dispatched request keeps its original configuration. Formula detection and inference continue using their existing independent model configurations.
 
@@ -53,3 +55,5 @@ OpenRouter's All providers button returns to the retained picker and resets its 
 Taskpane construction throws an explicit error when both provider keys exist, preserving both saved credentials.
 
 OpenAI entry starts masked. Show/Hide toggles the native input type without changing its value. Back discards the unsaved key and resets masking, and reentry reuses the same empty input. Save requires a nonempty key after trimming, persists it through OpenAIKeyStore without a network request, clears the entry, and shows the retained chat shell without availability notices or disabled controls. Reload restores the configured provider and masked last-four-character caption. OpenAI sign-out closes the popover and clears its store's memory and localStorage record without clearing OpenRouter credentials. No OpenAI key reaches the existing OpenRouter store or inference client.
+
+OpenRouter's auth page retains its own key-entry child and switches between method selection and entry without changing AuthPagesComponent's active page. Returning to method selection clears an unsaved key. Like OpenAI, the Save key button stays enabled while the form blocks empty or whitespace-only submissions; the save handler trims the key. Saving a nonempty key stores it in the existing OpenRouter key store without a verification request, enters the retained chat view, and shows the key suffix in the account menu. Both pasted keys and keys from the existing sign-in window use the same OpenRouter completion path. Sign-out clears either key and returns to the provider picker.

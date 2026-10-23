@@ -14,9 +14,6 @@ any formulas it writes.
 - **Sheet-aware analysis:** ask questions about the active worksheet's values and formulas.
 - **Contextual chat:** ask follow-up questions, answer clarifying questions from the
   assistant, and receive streamed Markdown responses.
-- **Formula inference:** on the first request for a worksheet in a chat session, the
-  assistant checks for hardcoded calculated values and can propose formulas to replace
-  them. The original request continues after the proposal is accepted or rejected.
 - **Reviewable in-place edits:** requested updates are made on a temporary `Diff N` copy
   first. Proposed cells are highlighted in green, and the original worksheet changes only
   after you choose **Accept**. Choosing **Reject** deletes the diff without changing the
@@ -95,7 +92,7 @@ manage or revoke the key through your OpenRouter account.
 - Requests use only the active worksheet's used range, not the entire workbook.
 - Choose an available model from the **Model** menu in the task pane. The available models
   are configured in the source.
-- Formula inference, edits, comparisons, and analysis are model-generated and may be
+- Edits, comparisons, and analysis are model-generated and may be
   incomplete or incorrect. Review every proposed change and scenario before relying on it.
 - Large worksheets may exceed model context or output limits.
 

@@ -17,7 +17,8 @@ export type TaskpaneState = {
 };
 
 export type TaskpaneUpdateEvent =
-  | { type: "sign_in_openrouter" }
+  | { type: "sign_in_3p_auth" }
+  | { type: "save_openrouter_key"; apiKey: string }
   | { type: "sign_in_openai"; apiKey: string }
   | { type: "sign_out" };
 
@@ -56,7 +57,8 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
     this.authPages = new AuthPagesComponent(
       initialDom.authPagesMount,
       this.handleSaveOpenAiKey,
-      this.handleSignInOpenRouter
+      this.handleSignInOpenRouter3pAuth,
+      this.handleSaveOpenRouterKey
     );
     this.chatPage = new ChatPage(initialDom.chatMount, this.openrouterKeyStore);
   }
@@ -66,21 +68,15 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
   }
 
   async updateState(event: TaskpaneUpdateEvent): Promise<void> {
-    if (event.type === "sign_in_openrouter") {
-      this.authPages.updateState({ type: "openrouter_status", event: { type: "sign_in_started" } });
+    if (event.type === "sign_in_3p_auth") {
+      this.authPages.updateState({ type: "openrouter_status", event: { type: "sign_in_3p_auth" } });
       try {
-        this.openrouterKeyStore.set(await acquireOpenRouterApiKey());
+        const apiKey = await acquireOpenRouterApiKey();
         this.authPages.updateState({
           type: "openrouter_status",
           event: { type: "sign_in_succeeded" },
         });
-        this.state.configuredProvider = "openrouter";
-        this.accountMenu.updateState({
-          type: "set_identity",
-          identity: { provider: "openrouter", keySuffix: this.openrouterKeyStore.get().slice(-4) },
-        });
-        this.state.activePage = "chat";
-        this.mount.replaceChildren(this.signedInContainer);
+        this.completeOpenRouterSignIn(apiKey);
       } catch (error) {
         this.authPages.updateState({
           type: "openrouter_status",
@@ -93,6 +89,8 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
           },
         });
       }
+    } else if (event.type === "save_openrouter_key") {
+      this.completeOpenRouterSignIn(event.apiKey);
     } else if (event.type === "sign_in_openai") {
       this.openAiKeyStore.set(event.apiKey);
       this.state.configuredProvider = "openai";
@@ -118,9 +116,28 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
     }
   }
 
-  private handleSignInOpenRouter = async (): Promise<void> => {
-    await this.updateState({ type: "sign_in_openrouter" });
+  private handleSignInOpenRouter3pAuth = async (): Promise<void> => {
+    await this.updateState({ type: "sign_in_3p_auth" });
   };
+
+  private handleSaveOpenRouterKey = (apiKey: string): void => {
+    const trimmedKey = apiKey.trim();
+    if (trimmedKey.length > 0) {
+      void this.updateState({ type: "save_openrouter_key", apiKey: trimmedKey });
+    }
+  };
+
+  private completeOpenRouterSignIn(apiKey: string): void {
+    this.openrouterKeyStore.set(apiKey);
+    this.state.configuredProvider = "openrouter";
+    this.state.activePage = "chat";
+    this.accountMenu.updateState({
+      type: "set_identity",
+      identity: { provider: "openrouter", keySuffix: apiKey.slice(-4) },
+    });
+    this.authPages.updateState({ type: "reset" });
+    this.mount.replaceChildren(this.signedInContainer);
+  }
 
   private handleSaveOpenAiKey = (apiKey: string): void => {
     const trimmedKey = apiKey.trim();

@@ -85,33 +85,33 @@
   cursor: default;
 }
 
-.openai-key-mark {
+.api-key-mark {
   margin-bottom: 16px;
 }
 
-.openai-key-form {
+.api-key-form {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.openai-key-form label {
+.api-key-form label {
   font-size: 13px;
   font-weight: 600;
 }
 
-.openai-key-field {
+.api-key-field {
   display: flex;
   align-items: center;
   border: 1px solid var(--stroke-control);
   border-radius: 4px;
 }
 
-.openai-key-field:focus-within {
+.api-key-field:focus-within {
   border-color: var(--accent);
 }
 
-.openai-key-field input {
+.api-key-field input {
   flex: 1;
   min-width: 0;
   padding: 10px;
@@ -122,7 +122,7 @@
   font-size: 13px;
 }
 
-.openai-key-field button {
+.api-key-field button {
   padding: 8px 10px;
   background: transparent;
   border: none;
@@ -132,7 +132,7 @@
   cursor: pointer;
 }
 
-.openai-key-link {
+.api-key-link {
   margin-bottom: 12px;
   font-size: 12px;
   text-decoration: none;

@@ -23,6 +23,10 @@ Implement the helper as an instance method or a module-level function that recei
 
 Create child component instances in the parent constructor, using the child mounts returned by `createInitialDom()`. Each child constructor creates the DOM beneath its own mount. Child UI Components should generally be retained as instance variables in the parent. 
 
+### Let an entry page own pages reached through it
+
+When one page provides the primary entry point to another page and controls the transition between them, compose the second page as a child of the first page's UI component. The first page creates and retains the child instance, owns the local navigation state, and switches between its own view and the child's mount. Its parent selects the first page as a single destination and does not manage the child's navigation state or mount.
+
 ### Retrieve child mounts through their instances
 
 Store child component instances and retrieve their permanent mounts through `getMount()`. Normally, no duplicate parent fields for child mounts are needed.

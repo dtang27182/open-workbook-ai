@@ -42,14 +42,17 @@
     "@types/office-runtime": "^1.0.35",
     "eslint-plugin-office-addins": "^4.0.3",
     "jsdom": "^27.4.0",
-    "office-addin-cli": "^2.0.3",
-    "office-addin-debugging": "^6.0.3",
-    "office-addin-dev-certs": "^2.0.3",
+    "office-addin-cli": "^3.0.1",
+    "office-addin-debugging": "^7.0.1",
+    "office-addin-dev-certs": "^3.0.1",
     "office-addin-lint": "^3.0.3",
-    "office-addin-manifest": "^2.0.3",
+    "office-addin-manifest": "^3.0.1",
     "office-addin-prettier-config": "^2.0.1",
     "typescript": "^5.4.2",
     "vite": "^8.2.2"
+  },
+  "overrides": {
+    "adm-zip": "^0.6.1"
   },
   "prettier": "office-addin-prettier-config"
 }

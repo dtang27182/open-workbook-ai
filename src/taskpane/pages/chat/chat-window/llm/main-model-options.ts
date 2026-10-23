@@ -17,18 +17,25 @@ export const mainModelOptions = [
     },
   },
   {
-    label: "GPT-5.4 Mini",
+    label: "GPT-6 Sol",
     config: {
-      model: "openai/gpt-5.4-mini:exacto",
+      model: "openai/gpt-6-sol:exacto",
       provider: { order: ["openai"], allow_fallbacks: false },
       reasoning: { effort: "medium" },
     },
   },
   {
-    label: "Gemini 3.5 Flash",
+    label: "GPT-6.1 Sol",
     config: {
-      model: "google/gemini-3.5-flash:exacto",
-      provider: { order: ["google-ai-studio"], allow_fallbacks: false },
+      model: "openai/gpt-6.1-sol:exacto",
+      provider: { order: ["openai"], allow_fallbacks: false },
+      reasoning: { effort: "medium" },
+    },
+  },
+  {
+    label: "Claude Sonnet 5.5",
+    config: {
+      model: "anthropic/claude-sonnet-5.5:nitro",
       reasoning: { effort: "medium" },
     },
   },

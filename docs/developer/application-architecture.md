@@ -26,7 +26,7 @@ New requests start from `answered` or `errored`. Submit and clarification workfl
 | Model requests a scenario       | `answered`               | Create `Scenario N`, apply edits and a comparison, and append analysis; no Accept/Reject step.              |
 | Action fails                    | `errored`                | Show an error; this does not imply workbook changes have been rolled back.                                  |
 
-On the first request for a sheet, formula inference runs before the main query. Proposed formulas enter `pending_edit_preprocessed`. Accept applies them and saves a restore checkpoint; reject discards them. Either decision continues the original query, which can reach any model-response outcome above. If no formulas are proposed, the query continues immediately. The sheet is marked preprocessed whether its proposal is accepted or rejected.
+Formula inference is currently disabled for chat submissions. When enabled, it runs before the main query on the first request for a sheet. Proposed formulas enter `pending_edit_preprocessed`. Accept applies them and saves a restore checkpoint; reject discards them. Either decision continues the original query, which can reach any model-response outcome above. If no formulas are proposed, the query continues immediately. The sheet is marked preprocessed whether its proposal is accepted or rejected.
 
 ## Restore Semantics
 

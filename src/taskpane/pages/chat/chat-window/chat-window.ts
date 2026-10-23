@@ -33,7 +33,7 @@ import { runRejectDiffWorkflow } from "./workflows/reject-diff";
 import { runRestoreWorkflow } from "./workflows/restore";
 import { runSubmitMessageWorkflow } from "./workflows/submit-message";
 
-const preprocessingEnabled = true;
+const preprocessingEnabled = false;
 
 export type ChatWindowUpdateEvent =
   | { type: "submit_message"; message: string }

@@ -35,6 +35,7 @@ import type {
 } from "../src/taskpane/pages/chat/chat-window/llm/preprocess-formula-inference";
 import { OpenrouterKeyStore } from "../src/taskpane/pages/auth/openrouter-auth/openrouter-api-key";
 import { RestoreManager } from "../src/taskpane/pages/chat/chat-window/restore-manager";
+import { runPreprocessWorkflow } from "../src/taskpane/pages/chat/chat-window/workflows/preprocess";
 import {
   formatSheetAsMarkdown,
   formatSheetDataAsMarkdown,
@@ -89,7 +90,7 @@ test("Menu Sign Out Closes Popover Before Clearing Keys And Retains Chat On Sign
   const input = mount.querySelector<HTMLTextAreaElement>("#chat-input")!;
   const select = mount.querySelector<HTMLSelectElement>("#chat-model")!;
   input.value = "Retained draft";
-  select.value = "openai/gpt-5.4-mini:exacto";
+  select.value = "openai/gpt-6.1-sol:exacto";
   select.dispatchEvent(new window.Event("change", { bubbles: true }));
   window.localStorage.setItem("open-workbook-ai-openrouter-api-key", "legacy-key");
   const clear = OpenrouterKeyStore.prototype.clear;
@@ -102,7 +103,7 @@ test("Menu Sign Out Closes Popover Before Clearing Keys And Retains Chat On Sign
   });
   const updateAuth = OpenRouterAuthPage.prototype.updateState;
   context.mock.method(OpenRouterAuthPage.prototype, "updateState", function (event) {
-    if (event.type === "reset") {
+    if (event.type === "reset" && new OpenrouterKeyStore().hasKey() === false) {
       effects.push("reset auth");
       assert.equal(window.localStorage.getItem("open-workbook-ai-openrouter-oauth-key"), null);
       assert.equal(window.localStorage.getItem("open-workbook-ai-openrouter-api-key"), null);
@@ -123,12 +124,12 @@ test("Menu Sign Out Closes Popover Before Clearing Keys And Retains Chat On Sign
 
   mount.querySelector<HTMLButtonElement>("#choose-openrouter")!.click();
   assert.equal(mount.querySelector<HTMLButtonElement>("#openrouter-sign-in")!.disabled, false);
-  await taskpane.updateState({ type: "sign_in_openrouter" });
+  await taskpane.updateState({ type: "sign_in_3p_auth" });
   assert.equal(mount.querySelector("#chat-page"), chat);
   assert.equal(mount.querySelector('[aria-label="Menu"]'), trigger);
   assert.equal(menu.getAttribute("popover"), "auto");
   assert.equal(input.value, "Retained draft");
-  assert.equal(select.value, "openai/gpt-5.4-mini:exacto");
+  assert.equal(select.value, "openai/gpt-6.1-sol:exacto");
   assert.notEqual(mount.querySelector(".signed-in-view"), null);
   assert.equal(mount.querySelector("#auth-pages-mount"), null);
   assert.equal(
@@ -175,12 +176,13 @@ test("OpenRouter Back Returns To The Same Picker And Resets Auth Presentation", 
     () => {},
     async () => {
       signInCalls++;
-    }
+    },
+    () => {}
   );
   const picker = mount.querySelector("#choose-provider-mount")!;
   mount.querySelector<HTMLButtonElement>("#choose-openrouter")!.click();
   const authMount = mount.querySelector("#openrouter-auth-mount")!;
-  authPages.updateState({ type: "openrouter_status", event: { type: "sign_in_started" } });
+  authPages.updateState({ type: "openrouter_status", event: { type: "sign_in_3p_auth" } });
   assert.equal(mount.querySelector<HTMLButtonElement>("#openrouter-all-providers")!.disabled, true);
   mount.querySelector<HTMLButtonElement>("#openrouter-all-providers")!.click();
   assert.equal(mount.contains(authMount), true);
@@ -201,6 +203,72 @@ test("OpenRouter Back Returns To The Same Picker And Resets Auth Presentation", 
   assert.equal(mount.querySelector<HTMLElement>("#openrouter-auth-status")!.hidden, true);
   assert.equal(mount.querySelector<HTMLButtonElement>("#openrouter-sign-in")!.disabled, false);
   assert.equal(mount.querySelector<HTMLButtonElement>("#openrouter-all-providers")!.disabled, false);
+});
+
+test("OpenRouter Key Entry Stays Within Its Provider Page And Back Clears The Draft", () => {
+  const mount = document.createElement("div");
+  const authPages = new AuthPagesComponent(
+    mount,
+    () => {},
+    async () => {},
+    () => {}
+  );
+  mount.querySelector<HTMLButtonElement>("#choose-openrouter")!.click();
+  const routerMount = mount.querySelector("#openrouter-auth-mount")!;
+  mount.querySelector<HTMLButtonElement>("#openrouter-use-key")!.click();
+  const input = mount.querySelector<HTMLInputElement>("#openrouter-api-key")!;
+  assert.equal(mount.querySelector("#openrouter-auth-mount"), routerMount);
+  assert.equal(mount.querySelector("#openrouter-sign-in"), null);
+  assert.equal(
+    mount.querySelector<HTMLButtonElement>("#openrouter-key-form button[type=submit]")!.disabled,
+    false
+  );
+  assert.equal(input.checkValidity(), false);
+  input.value = "   ";
+  assert.equal(input.checkValidity(), false);
+  input.value = "unsaved-key";
+  assert.equal(input.checkValidity(), true);
+  mount.querySelector<HTMLButtonElement>("#openrouter-all-providers")!.click();
+  assert.equal(mount.querySelector("#openrouter-auth-mount"), routerMount);
+  assert.notEqual(mount.querySelector("#openrouter-sign-in"), null);
+  assert.equal(input.value, "");
+  authPages.updateState({ type: "reset" });
+  assert.notEqual(mount.querySelector("#choose-provider-mount"), null);
+});
+
+test("Saving An OpenRouter Key Uses The Existing Store Without Verification", (context) => {
+  new OpenrouterKeyStore().clear();
+  new OpenAIKeyStore().clear();
+  const mount = document.createElement("main");
+  document.body.appendChild(mount);
+  new TaskpaneComponent(mount);
+  context.after(() => {
+    new OpenrouterKeyStore().clear();
+    mount.remove();
+  });
+  const fetchMock = context.mock.method(globalThis, "fetch", async () => {
+    throw new Error("Saving a key must not call OpenRouter.");
+  });
+  mount.querySelector<HTMLButtonElement>("#choose-openrouter")!.click();
+  mount.querySelector<HTMLButtonElement>("#openrouter-use-key")!.click();
+  const input = mount.querySelector<HTMLInputElement>("#openrouter-api-key")!;
+  input.value = "  pasted-key-4321  ";
+  mount.querySelector<HTMLFormElement>("#openrouter-key-form")!.requestSubmit();
+  assert.equal(
+    window.localStorage.getItem("open-workbook-ai-openrouter-oauth-key"),
+    "pasted-key-4321"
+  );
+  assert.equal(
+    mount.querySelector(".account-menu-caption")!.textContent,
+    "Signed in to OpenRouter · key …4321"
+  );
+  assert.notEqual(mount.querySelector("#chat-page"), null);
+  assert.equal(input.value, "");
+  assert.equal(fetchMock.mock.callCount(), 0);
+  mount.querySelector<HTMLElement>("[popover]")!.hidePopover = () => {};
+  mount.querySelector<HTMLButtonElement>("#account-sign-out")!.click();
+  assert.equal(window.localStorage.getItem("open-workbook-ai-openrouter-oauth-key"), null);
+  assert.notEqual(mount.querySelector("#choose-provider-mount"), null);
 });
 
 test("Taskpane Rejects Startup When Both Provider Keys Exist", (context) => {
@@ -455,8 +523,9 @@ test("Native Model Select Retains Selection Through Review And Clear", async (co
     [
       "openai/gpt-5.6-sol:exacto",
       "anthropic/claude-opus-4.8:nitro",
-      "openai/gpt-5.4-mini:exacto",
-      "google/gemini-3.5-flash:exacto",
+      "openai/gpt-6-sol:exacto",
+      "openai/gpt-6.1-sol:exacto",
+      "anthropic/claude-sonnet-5.5:nitro",
     ]
   );
   select.value = "anthropic/claude-opus-4.8:nitro";
@@ -501,12 +570,12 @@ test("Selecting A Model In Chat Sends It With The Next Main Request", async () =
   try {
     const mount = chatWindow.getMount();
     const select = mount.querySelector<HTMLSelectElement>("#chat-model")!;
-    select.value = "openai/gpt-5.4-mini:exacto";
+    select.value = "openai/gpt-6.1-sol:exacto";
     select.dispatchEvent(new window.Event("change", { bubbles: true }));
     await submitChatMessageForTest(chatWindow, "Summarize the sheet.");
     assert.deepEqual(
       mocks.requests.map(({ model }) => model),
-      ["openai/gpt-5.6-sol:exacto", "openai/gpt-5.4-mini:exacto"]
+      ["openai/gpt-6.1-sol:exacto"]
     );
   } finally {
     mocks.restore();
@@ -855,15 +924,14 @@ test("Review Decisions Keep Worksheet Effects And The Existing Restore Boundary"
       assert.ok(chatState.llmConversationMessages.every((message) => !("presentation" in message)));
       if (decision === "accept") {
         assert.deepEqual(workbook.getSheet("Sheet1").formulas[0], ["product", "units"]);
-        assert.equal(mocks.requests.length, 3);
+        assert.equal(mocks.requests.length, 2);
         const restoreIndex = chatState.transcript.findIndex((entry) => entry.kind === "restore");
-        // With no preprocessing edits, the main-query checkpoint already contains the request.
-        assert.equal(restoreIndex, 2);
+        assert.equal(restoreIndex, 1);
         assert.ok(
           chatWindow
             .getMount()
             .querySelector(".chat-restore-divider")!
-            .previousElementSibling!.classList.contains("human")
+            .nextElementSibling!.classList.contains("human")
         );
         await submitChatMessageForTest(chatWindow, "Another edit.");
         assert.equal(footer.hidden, false);
@@ -872,14 +940,14 @@ test("Review Decisions Keep Worksheet Effects And The Existing Restore Boundary"
         assert.equal(footer.hidden, true);
         assert.deepEqual(workbook.getSheet("Sheet1").formulas, sheetFormulas);
         assert.equal(chatWindow.getMount().querySelector(".chat-edit-decision"), null);
-        assert.equal(getChatStateForTest(chatWindow).transcript.length, 2);
+        assert.equal(getChatStateForTest(chatWindow).transcript.length, 1);
         assert.equal(chatWindow.getMount().querySelector(".chat-scope")!.textContent, "Active worksheet");
         buttons.forEach((button, index) => {
           assert.equal(footer.querySelectorAll("button")[index], button);
         });
       } else if (decision === "reject") {
         assert.deepEqual(workbook.getSheet("Sheet1").formulas, sheetFormulas);
-        assert.equal(mocks.requests.length, 2);
+        assert.equal(mocks.requests.length, 1);
         assert.equal(chatWindow.getMount().querySelector(".chat-message-restore"), null);
       }
     } finally {
@@ -926,7 +994,7 @@ test("Preprocessing Keeps One Structured Plan Through Decisions And Later Restor
       return getOpenRouterResponseBody(request);
     });
     try {
-      await submitChatMessageForTest(chatWindow, "Lowercase the headers.");
+      await runPreprocessWorkflow(chatWindow["state"], "Lowercase the headers.", 1);
       assert.equal(getChatStateForTest(chatWindow).workflowState, "pending_edit_preprocessed");
       assert.equal(chatWindow.getMount().querySelectorAll(".chat-formula-inference").length, 1);
       assert.equal(mocks.requests.length, 0);
@@ -1492,7 +1560,7 @@ test("Selected Model Configures Each Main Request Without Changing Preprocessing
     for await (const _event of manager.runMainQueryPrompt("Explain.", 1, sheet, [])) {
       // Consume the streamed completion.
     }
-    manager.setMainModel("google/gemini-3.5-flash:exacto");
+    manager.setMainModel("anthropic/claude-sonnet-5.5:nitro");
     for await (const _event of manager.runClarificationResponsePrompt("FY2028", 1, [
       {
         type: "function_call",
@@ -1505,7 +1573,7 @@ test("Selected Model Configures Each Main Request Without Changing Preprocessing
     ])) {
       // Consume the streamed completion.
     }
-    manager.setMainModel("openai/gpt-5.4-mini:exacto");
+    manager.setMainModel("openai/gpt-6-sol:exacto");
     await manager.runScenarioComparisonPrompt(
       "Compare.",
       sheet,
@@ -1516,7 +1584,7 @@ test("Selected Model Configures Each Main Request Without Changing Preprocessing
     for await (const _event of manager.runPreprocessPrompt(sheet)) {
       // Consume preprocessing without a proposed edit.
     }
-    manager.setMainModel("openai/gpt-5.6-sol:exacto");
+    manager.setMainModel("openai/gpt-6.1-sol:exacto");
     await manager.runUpdateAnalysisPrompt("Analyze.", sheet, sheet, []);
 
     assert.deepEqual(
@@ -1528,12 +1596,12 @@ test("Selected Model Configures Each Main Request Without Changing Preprocessing
           reasoning: { effort: "medium" },
         },
         {
-          model: "google/gemini-3.5-flash:exacto",
-          provider: { order: ["google-ai-studio"], allow_fallbacks: false },
+          model: "anthropic/claude-sonnet-5.5:nitro",
+          provider: undefined,
           reasoning: { effort: "medium" },
         },
         {
-          model: "openai/gpt-5.4-mini:exacto",
+          model: "openai/gpt-6-sol:exacto",
           provider: { order: ["openai"], allow_fallbacks: false },
           reasoning: { effort: "medium" },
         },
@@ -1543,7 +1611,7 @@ test("Selected Model Configures Each Main Request Without Changing Preprocessing
           reasoning: { effort: "medium" },
         },
         {
-          model: "openai/gpt-5.6-sol:exacto",
+          model: "openai/gpt-6.1-sol:exacto",
           provider: { order: ["openai"], allow_fallbacks: false },
           reasoning: { effort: "medium" },
         },
