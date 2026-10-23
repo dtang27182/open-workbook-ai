@@ -2,7 +2,7 @@
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "allowJs": false,
-    "lib": ["es2020", "dom"],
+    "lib": ["es2022", "dom"],
     "module": "commonjs",
     "outDir": "../.unit-test-build",
     "rootDir": "..",
