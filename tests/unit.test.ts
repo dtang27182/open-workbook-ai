@@ -525,7 +525,6 @@ test("Native Model Select Retains Selection Through Review And Clear", async (co
       "anthropic/claude-opus-4.8:nitro",
       "openai/gpt-6-sol:exacto",
       "openai/gpt-6.1-sol:exacto",
-      "anthropic/claude-opus-5.5:nitro",
       "anthropic/claude-sonnet-5.5:nitro",
     ]
   );
@@ -1557,7 +1556,7 @@ test("Selected Model Configures Each Main Request Without Changing Preprocessing
   });
 
   try {
-    manager.setMainModel("anthropic/claude-opus-5.5:nitro");
+    manager.setMainModel("anthropic/claude-opus-4.8:nitro");
     for await (const _event of manager.runMainQueryPrompt("Explain.", 1, sheet, [])) {
       // Consume the streamed completion.
     }
@@ -1592,7 +1591,7 @@ test("Selected Model Configures Each Main Request Without Changing Preprocessing
       mocks.requests.map(({ model, provider, reasoning }) => ({ model, provider, reasoning })),
       [
         {
-          model: "anthropic/claude-opus-5.5:nitro",
+          model: "anthropic/claude-opus-4.8:nitro",
           provider: undefined,
           reasoning: { effort: "medium" },
         },

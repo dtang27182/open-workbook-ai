@@ -33,13 +33,6 @@ export const mainModelOptions = [
     },
   },
   {
-    label: "Claude Opus 5.5",
-    config: {
-      model: "anthropic/claude-opus-5.5:nitro",
-      reasoning: { effort: "medium" },
-    },
-  },
-  {
     label: "Claude Sonnet 5.5",
     config: {
       model: "anthropic/claude-sonnet-5.5:nitro",
