@@ -190,89 +190,17 @@ liveTest(
   }
 );
 
-liveTest(
-  "Analysis Request Can Trigger Accepted Preprocessing Edit",
-  createNonPreprocessedTestHarness,
-  async (harness) => {
-    const result = await submitChatMessageForTest(
-      harness.chatWindow,
-      "Summarize what this spreadsheet contains."
-    );
+liveTest("Analysis Request Skips Preprocessing", createNonPreprocessedTestHarness, async (harness) => {
+  const result = await submitChatMessageForTest(
+    harness.chatWindow,
+    "Summarize what this spreadsheet contains."
+  );
 
-    assert.equal(result.didCreateDiff, true);
-    assert.equal(getChatStateForTest(harness.chatWindow).workflowState, "pending_edit_preprocessed");
-    assert.deepEqual(harness.workbook.getSheet("Sheet1").formulas, nonPreprocessedSheetFormulas);
-
-    await harness.chatWindow.updateState({ type: "accept_pending_diff" });
-
-    assert.equal(isFormula(harness.workbook.getSheet("Sheet1").formulas[1][3]), true);
-    assert.equal(getChatStateForTest(harness.chatWindow).workflowState, "answered");
-    // The live response text can vary, so only verify that the original query produced a final answer.
-    assert.ok(getLatestMessageEntry(harness.chatWindow).text.length > 0);
-  }
-);
-
-liveTest(
-  "Restore Reverts An Accepted Preprocessing Edit",
-  createNonPreprocessedTestHarness,
-  async (harness) => {
-    const initialTranscript = structuredClone(getChatStateForTest(harness.chatWindow).transcript);
-    const result = await submitChatMessageForTest(
-      harness.chatWindow,
-      "Summarize what this spreadsheet contains."
-    );
-    await harness.chatWindow.updateState({ type: "accept_pending_diff" });
-    const restoreEntry = findRestoreEntry(harness.chatWindow);
-
-    assert.equal(result.didCreateDiff, true);
-    assert.ok(restoreEntry);
-    assert.equal(isFormula(harness.workbook.getSheet("Sheet1").formulas[1][3]), true);
-
-    await harness.chatWindow.updateState({
-      type: "restore_to_point",
-      restorePointId: restoreEntry.restorePointId,
-    });
-
-    assert.deepEqual(harness.workbook.getSheet("Sheet1").formulas, nonPreprocessedSheetFormulas);
-    assert.deepEqual(getChatStateForTest(harness.chatWindow).transcript, initialTranscript);
-  }
-);
-
-liveTest(
-  "Accepted Preprocessing Does Not Repeat For The Same Sheet",
-  createNonPreprocessedTestHarness,
-  async (harness) => {
-    await submitChatMessageForTest(
-      harness.chatWindow,
-      "Summarize what this spreadsheet contains."
-    );
-    assert.equal(getChatStateForTest(harness.chatWindow).workflowState, "pending_edit_preprocessed");
-
-    await harness.chatWindow.updateState({ type: "accept_pending_diff" });
-    await submitChatMessageForTest(harness.chatWindow, "Summarize this spreadsheet again.");
-
-    assert.equal(getChatStateForTest(harness.chatWindow).workflowState, "answered");
-    assert.equal(countPreprocessRequests(harness), 1);
-  }
-);
-
-liveTest(
-  "Rejected Preprocessing Does Not Repeat For The Same Sheet",
-  createNonPreprocessedTestHarness,
-  async (harness) => {
-    await submitChatMessageForTest(
-      harness.chatWindow,
-      "Summarize what this spreadsheet contains."
-    );
-    assert.equal(getChatStateForTest(harness.chatWindow).workflowState, "pending_edit_preprocessed");
-
-    await harness.chatWindow.updateState({ type: "reject_pending_diff" });
-    await submitChatMessageForTest(harness.chatWindow, "Summarize this spreadsheet again.");
-
-    assert.equal(getChatStateForTest(harness.chatWindow).workflowState, "answered");
-    assert.equal(countPreprocessRequests(harness), 1);
-  }
-);
+  assert.ok(result.message.length > 0);
+  assert.equal(result.didCreateDiff, false);
+  assert.equal(countPreprocessRequests(harness), 0);
+  assert.deepEqual(harness.workbook.getSheet("Sheet1").formulas, nonPreprocessedSheetFormulas);
+});
 
 test("Integration Product Behaviors", { concurrency: 100 }, async (context) => {
   await Promise.all(
@@ -360,10 +288,6 @@ function countPreprocessRequests(harness: TestHarness) {
 function isPreprocessRequest(request: OpenRouterRequest) {
   const input = JSON.parse(request.input.at(-1)!.content);
   return input.userRequest === "Preprocess worksheet formulas.";
-}
-
-function isFormula(value: unknown) {
-  return typeof value === "string" && value.startsWith("=");
 }
 
 function writeBufferedLogs(context: TestContext, logLines: string[]) {

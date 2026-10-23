@@ -35,6 +35,7 @@ import type {
 } from "../src/taskpane/pages/chat/chat-window/llm/preprocess-formula-inference";
 import { OpenrouterKeyStore } from "../src/taskpane/pages/auth/openrouter-auth/openrouter-api-key";
 import { RestoreManager } from "../src/taskpane/pages/chat/chat-window/restore-manager";
+import { runPreprocessWorkflow } from "../src/taskpane/pages/chat/chat-window/workflows/preprocess";
 import {
   formatSheetAsMarkdown,
   formatSheetDataAsMarkdown,
@@ -573,7 +574,7 @@ test("Selecting A Model In Chat Sends It With The Next Main Request", async () =
     await submitChatMessageForTest(chatWindow, "Summarize the sheet.");
     assert.deepEqual(
       mocks.requests.map(({ model }) => model),
-      ["openai/gpt-5.6-sol:exacto", "openai/gpt-5.4-mini:exacto"]
+      ["openai/gpt-5.4-mini:exacto"]
     );
   } finally {
     mocks.restore();
@@ -922,15 +923,14 @@ test("Review Decisions Keep Worksheet Effects And The Existing Restore Boundary"
       assert.ok(chatState.llmConversationMessages.every((message) => !("presentation" in message)));
       if (decision === "accept") {
         assert.deepEqual(workbook.getSheet("Sheet1").formulas[0], ["product", "units"]);
-        assert.equal(mocks.requests.length, 3);
+        assert.equal(mocks.requests.length, 2);
         const restoreIndex = chatState.transcript.findIndex((entry) => entry.kind === "restore");
-        // With no preprocessing edits, the main-query checkpoint already contains the request.
-        assert.equal(restoreIndex, 2);
+        assert.equal(restoreIndex, 1);
         assert.ok(
           chatWindow
             .getMount()
             .querySelector(".chat-restore-divider")!
-            .previousElementSibling!.classList.contains("human")
+            .nextElementSibling!.classList.contains("human")
         );
         await submitChatMessageForTest(chatWindow, "Another edit.");
         assert.equal(footer.hidden, false);
@@ -939,14 +939,14 @@ test("Review Decisions Keep Worksheet Effects And The Existing Restore Boundary"
         assert.equal(footer.hidden, true);
         assert.deepEqual(workbook.getSheet("Sheet1").formulas, sheetFormulas);
         assert.equal(chatWindow.getMount().querySelector(".chat-edit-decision"), null);
-        assert.equal(getChatStateForTest(chatWindow).transcript.length, 2);
+        assert.equal(getChatStateForTest(chatWindow).transcript.length, 1);
         assert.equal(chatWindow.getMount().querySelector(".chat-scope")!.textContent, "Active worksheet");
         buttons.forEach((button, index) => {
           assert.equal(footer.querySelectorAll("button")[index], button);
         });
       } else if (decision === "reject") {
         assert.deepEqual(workbook.getSheet("Sheet1").formulas, sheetFormulas);
-        assert.equal(mocks.requests.length, 2);
+        assert.equal(mocks.requests.length, 1);
         assert.equal(chatWindow.getMount().querySelector(".chat-message-restore"), null);
       }
     } finally {
@@ -993,7 +993,7 @@ test("Preprocessing Keeps One Structured Plan Through Decisions And Later Restor
       return getOpenRouterResponseBody(request);
     });
     try {
-      await submitChatMessageForTest(chatWindow, "Lowercase the headers.");
+      await runPreprocessWorkflow(chatWindow["state"], "Lowercase the headers.", 1);
       assert.equal(getChatStateForTest(chatWindow).workflowState, "pending_edit_preprocessed");
       assert.equal(chatWindow.getMount().querySelectorAll(".chat-formula-inference").length, 1);
       assert.equal(mocks.requests.length, 0);

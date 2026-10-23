@@ -81,31 +81,9 @@ When the user clicks that restore control, the assistant should:
 - remove the transcript entries for that edit and any later messages
 - revert the assistant conversation context to the same checkpoint
 
-## Behavior 6: Analysis Request Can Trigger Accepted Preprocessing Edit
+## Behavior 6: Analysis Request Skips Preprocessing
 
 From a new chat session, when the active sheet contains hardcoded calculated values and the user asks an analysis-only question, the assistant should:
 
-- create a reviewable preprocessing diff before answering the analysis question
-- leave the original sheet unchanged until the user accepts the diff
-
-When the user accepts the preprocessing diff, the assistant should:
-
-- apply the inferred formula edits
-- continue with the original analysis question
-
-## Behavior 7: Restore Reverts An Accepted Preprocessing Edit
-
-When the user accepts a preprocessing diff, the chat transcript should show a restore control for that preprocessing edit.
-
-When the user clicks that restore control, the assistant should:
-
-- restore the spreadsheet to the checkpoint from before preprocessing
-- remove the transcript entries for the preprocessing edit and any later messages
-
-## Behavior 8: Accepted Preprocessing Does Not Repeat For The Same Sheet
-
-After the preprocessing workflow has run for a sheet and the user accepts the preprocessing diff, later user queries against the same sheet should not trigger another preprocessing review.
-
-## Behavior 9: Rejected Preprocessing Does Not Repeat For The Same Sheet
-
-After the preprocessing workflow has run for a sheet and the user rejects the preprocessing diff, later user queries against the same sheet should not trigger another preprocessing review.
+- answer the analysis question without making a preprocessing request
+- leave the spreadsheet unchanged and create no preprocessing diff

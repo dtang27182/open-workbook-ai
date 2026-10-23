@@ -2,6 +2,8 @@
 
 This specification describes implementation behaviors covered by unit tests. These behaviors support user-visible features, but are tested below the live integration boundary because they depend on specific internal workflow choices.
 
+The preprocessing workflow remains implemented but is disabled during normal chat submissions.
+
 ## Behavior 1: Model Proposed Updates Are Reflected In The Generated Diff Sheet
 
 When the model returns proposed cell edits, the assistant should create a reviewable diff sheet before applying those edits to the original sheet.
