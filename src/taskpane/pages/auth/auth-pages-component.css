@@ -42,6 +42,11 @@
   font-weight: 600;
 }
 
+.openrouter-mark {
+  background: #05090a;
+  border-color: #05090a;
+}
+
 .provider-card-copy {
   display: flex;
   flex: 1;
