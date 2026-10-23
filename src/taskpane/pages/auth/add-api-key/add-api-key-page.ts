@@ -22,6 +22,7 @@ export class AddApiKeyPage implements Component<AddApiKeyUpdateEvent> {
         ? {
             back: "All providers",
             mark: "OA",
+            markClass: "",
             name: "OpenAI",
             keyUrl: "https://platform.openai.com/api-keys",
             keyDomain: "platform.openai.com",
@@ -30,7 +31,8 @@ export class AddApiKeyPage implements Component<AddApiKeyUpdateEvent> {
           }
         : {
             back: "OpenRouter",
-            mark: "OR",
+            mark: '<img src="/assets/openrouter-glyph.svg" alt="" width="26" />',
+            markClass: " openrouter-mark",
             name: "OpenRouter",
             keyUrl: "https://openrouter.ai/keys",
             keyDomain: "openrouter.ai/keys",
@@ -42,6 +44,7 @@ export class AddApiKeyPage implements Component<AddApiKeyUpdateEvent> {
       id: provider,
       back: values.back,
       mark: values.mark,
+      markClass: values.markClass,
       provider: values.name,
       keyUrl: values.keyUrl,
       keyDomain: values.keyDomain,
