@@ -34,7 +34,7 @@ Ordinary assistant Markdown retains sanitization and is not interpreted as an in
 
 ## Behavior 5: Model Selection Applies To Subsequent Main Requests
 
-The native model select sits below the textarea alongside Send and offers the four fixed models referenced by the application. It remains operable while a request runs and is hidden with the composer while a diff awaits review. Clear chat, Restore, and sign-out/sign-in within the same task pane retain the selection; a new task pane starts with GPT-5.6 Sol.
+The native model select sits below the textarea alongside Send and offers the six fixed models referenced by the application. It remains operable while a request runs and is hidden with the composer while a diff awaits review. Clear chat, Restore, and sign-out/sign-in within the same task pane retain the selection; a new task pane starts with GPT-5.6 Sol.
 
 Main query, clarification response, scenario comparison, and post-acceptance analysis requests use the latest selected model, provider settings, and medium reasoning effort. An already dispatched request keeps its original configuration. Formula detection and inference continue using their existing independent model configurations.
 

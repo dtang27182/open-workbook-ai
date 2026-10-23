@@ -90,7 +90,7 @@ test("Menu Sign Out Closes Popover Before Clearing Keys And Retains Chat On Sign
   const input = mount.querySelector<HTMLTextAreaElement>("#chat-input")!;
   const select = mount.querySelector<HTMLSelectElement>("#chat-model")!;
   input.value = "Retained draft";
-  select.value = "openai/gpt-5.4-mini:exacto";
+  select.value = "openai/gpt-6.1-sol:exacto";
   select.dispatchEvent(new window.Event("change", { bubbles: true }));
   window.localStorage.setItem("open-workbook-ai-openrouter-api-key", "legacy-key");
   const clear = OpenrouterKeyStore.prototype.clear;
@@ -129,7 +129,7 @@ test("Menu Sign Out Closes Popover Before Clearing Keys And Retains Chat On Sign
   assert.equal(mount.querySelector('[aria-label="Menu"]'), trigger);
   assert.equal(menu.getAttribute("popover"), "auto");
   assert.equal(input.value, "Retained draft");
-  assert.equal(select.value, "openai/gpt-5.4-mini:exacto");
+  assert.equal(select.value, "openai/gpt-6.1-sol:exacto");
   assert.notEqual(mount.querySelector(".signed-in-view"), null);
   assert.equal(mount.querySelector("#auth-pages-mount"), null);
   assert.equal(
@@ -523,8 +523,10 @@ test("Native Model Select Retains Selection Through Review And Clear", async (co
     [
       "openai/gpt-5.6-sol:exacto",
       "anthropic/claude-opus-4.8:nitro",
-      "openai/gpt-5.4-mini:exacto",
-      "google/gemini-3.5-flash:exacto",
+      "openai/gpt-6-sol:exacto",
+      "openai/gpt-6.1-sol:exacto",
+      "anthropic/claude-opus-5.5:nitro",
+      "anthropic/claude-sonnet-5.5:nitro",
     ]
   );
   select.value = "anthropic/claude-opus-4.8:nitro";
@@ -569,12 +571,12 @@ test("Selecting A Model In Chat Sends It With The Next Main Request", async () =
   try {
     const mount = chatWindow.getMount();
     const select = mount.querySelector<HTMLSelectElement>("#chat-model")!;
-    select.value = "openai/gpt-5.4-mini:exacto";
+    select.value = "openai/gpt-6.1-sol:exacto";
     select.dispatchEvent(new window.Event("change", { bubbles: true }));
     await submitChatMessageForTest(chatWindow, "Summarize the sheet.");
     assert.deepEqual(
       mocks.requests.map(({ model }) => model),
-      ["openai/gpt-5.4-mini:exacto"]
+      ["openai/gpt-6.1-sol:exacto"]
     );
   } finally {
     mocks.restore();
@@ -1555,11 +1557,11 @@ test("Selected Model Configures Each Main Request Without Changing Preprocessing
   });
 
   try {
-    manager.setMainModel("anthropic/claude-opus-4.8:nitro");
+    manager.setMainModel("anthropic/claude-opus-5.5:nitro");
     for await (const _event of manager.runMainQueryPrompt("Explain.", 1, sheet, [])) {
       // Consume the streamed completion.
     }
-    manager.setMainModel("google/gemini-3.5-flash:exacto");
+    manager.setMainModel("anthropic/claude-sonnet-5.5:nitro");
     for await (const _event of manager.runClarificationResponsePrompt("FY2028", 1, [
       {
         type: "function_call",
@@ -1572,7 +1574,7 @@ test("Selected Model Configures Each Main Request Without Changing Preprocessing
     ])) {
       // Consume the streamed completion.
     }
-    manager.setMainModel("openai/gpt-5.4-mini:exacto");
+    manager.setMainModel("openai/gpt-6-sol:exacto");
     await manager.runScenarioComparisonPrompt(
       "Compare.",
       sheet,
@@ -1583,24 +1585,24 @@ test("Selected Model Configures Each Main Request Without Changing Preprocessing
     for await (const _event of manager.runPreprocessPrompt(sheet)) {
       // Consume preprocessing without a proposed edit.
     }
-    manager.setMainModel("openai/gpt-5.6-sol:exacto");
+    manager.setMainModel("openai/gpt-6.1-sol:exacto");
     await manager.runUpdateAnalysisPrompt("Analyze.", sheet, sheet, []);
 
     assert.deepEqual(
       mocks.requests.map(({ model, provider, reasoning }) => ({ model, provider, reasoning })),
       [
         {
-          model: "anthropic/claude-opus-4.8:nitro",
+          model: "anthropic/claude-opus-5.5:nitro",
           provider: undefined,
           reasoning: { effort: "medium" },
         },
         {
-          model: "google/gemini-3.5-flash:exacto",
-          provider: { order: ["google-ai-studio"], allow_fallbacks: false },
+          model: "anthropic/claude-sonnet-5.5:nitro",
+          provider: undefined,
           reasoning: { effort: "medium" },
         },
         {
-          model: "openai/gpt-5.4-mini:exacto",
+          model: "openai/gpt-6-sol:exacto",
           provider: { order: ["openai"], allow_fallbacks: false },
           reasoning: { effort: "medium" },
         },
@@ -1610,7 +1612,7 @@ test("Selected Model Configures Each Main Request Without Changing Preprocessing
           reasoning: { effort: "medium" },
         },
         {
-          model: "openai/gpt-5.6-sol:exacto",
+          model: "openai/gpt-6.1-sol:exacto",
           provider: { order: ["openai"], allow_fallbacks: false },
           reasoning: { effort: "medium" },
         },
