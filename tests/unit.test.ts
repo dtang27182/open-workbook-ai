@@ -516,16 +516,16 @@ test("Native Model Select Retains Selection Through Review And Clear", async (co
   context.after(() => mount.remove());
   const select = mount.querySelector<HTMLSelectElement>("#chat-model")!;
 
-  assert.equal(select.value, "openai/gpt-5.6-sol:exacto");
+  assert.equal(select.value, "openai/gpt-6.1-sol:exacto");
   assert.equal(select.parentElement!.previousElementSibling!.id, "chat-input");
   assert.deepEqual(
     Array.from(select.options, (option) => option.value),
     [
-      "openai/gpt-5.6-sol:exacto",
-      "anthropic/claude-opus-4.8:nitro",
-      "openai/gpt-6-sol:exacto",
       "openai/gpt-6.1-sol:exacto",
+      "openai/gpt-6-sol:exacto",
+      "openai/gpt-5.6-sol:exacto",
       "anthropic/claude-sonnet-5.5:nitro",
+      "anthropic/claude-opus-4.8:nitro",
     ]
   );
   select.value = "anthropic/claude-opus-4.8:nitro";
@@ -545,7 +545,7 @@ test("Native Model Select Retains Selection Through Review And Clear", async (co
   const newChatWindow = createChatWindowForTest(createWorkbook().excelApi, openrouterKeyStore);
   assert.equal(
     newChatWindow.getMount().querySelector<HTMLSelectElement>("#chat-model")!.value,
-    "openai/gpt-5.6-sol:exacto"
+    "openai/gpt-6.1-sol:exacto"
   );
 });
 
@@ -570,12 +570,12 @@ test("Selecting A Model In Chat Sends It With The Next Main Request", async () =
   try {
     const mount = chatWindow.getMount();
     const select = mount.querySelector<HTMLSelectElement>("#chat-model")!;
-    select.value = "openai/gpt-6.1-sol:exacto";
+    select.value = "openai/gpt-6-sol:exacto";
     select.dispatchEvent(new window.Event("change", { bubbles: true }));
     await submitChatMessageForTest(chatWindow, "Summarize the sheet.");
     assert.deepEqual(
       mocks.requests.map(({ model }) => model),
-      ["openai/gpt-6.1-sol:exacto"]
+      ["openai/gpt-6-sol:exacto"]
     );
   } finally {
     mocks.restore();
