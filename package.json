@@ -27,9 +27,10 @@
     "test:unit": "tsc --noEmit --project tests/tsconfig.unit.json && node tests/run-tests.mjs unit",
     "validate": "office-addin-manifest validate manifest.xml",
     "watch": "vite build --mode development --watch",
-    "hld-visualizer": "node ai-coding-toolkit/node_modules/vite/bin/vite.js ai-coding-toolkit/feature-design/visualizer",
+    "hld-visualizer": "node ai-coding-toolkit/node_modules/vite/bin/vite.js ai-coding-toolkit/common/hld/visualizer",
     "diff-visualizer": "node ai-coding-toolkit/node_modules/vite/bin/vite.js ai-coding-toolkit/enrich-diff/visualizer",
-    "adv-diff": "node ai-coding-toolkit/node_modules/vite/bin/vite.js ai-coding-toolkit/advanced-diff-viewer/visualizer"
+    "adv-diff": "node ai-coding-toolkit/node_modules/vite/bin/vite.js ai-coding-toolkit/advanced-diff-viewer/visualizer",
+    "user-journey-dataflow-viewer": "node ai-coding-toolkit/node_modules/vite/bin/vite.js ai-coding-toolkit/user-journey-dataflow/visualizer"
   },
   "dependencies": {
     "dompurify": "^3.4.12",
