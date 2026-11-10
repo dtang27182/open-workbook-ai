@@ -50,7 +50,7 @@ Sign out calls `hidePopover()` before clearing the active provider's key from me
 
 AuthPagesComponent retains three child page instances and attaches only the active page's existing mount. Both provider choices navigate locally; choosing OpenRouter does not start authorization until its auth page's Sign in action is used. OpenRouter status updates retain the existing authorization presentation and request path.
 
-OpenRouter's All providers button returns to the retained picker and resets its authorization presentation. The button is disabled while authorization is in progress and reenabled on failure.
+OpenRouter's Back button returns to the retained picker and resets its authorization presentation. The button is disabled while authorization is in progress and reenabled on failure.
 
 Taskpane construction throws an explicit error when both provider keys exist, preserving both saved credentials.
 
