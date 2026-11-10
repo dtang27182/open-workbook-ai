@@ -82,7 +82,7 @@ export class OpenRouterAuthPage implements Component<OpenRouterAuthUpdateEvent> 
   private createElement(): HTMLElement {
     const element = document.createElement("section");
     element.id = "openrouter-auth-page";
-    element.className = "auth-view";
+    element.className = "auth-view auth-banded";
     element.innerHTML = openrouterAuthPageHtml;
 
     const backButton = element.querySelector<HTMLButtonElement>("#openrouter-all-providers")!;

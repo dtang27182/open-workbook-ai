@@ -3,6 +3,9 @@
 import { TaskpaneComponent } from "./taskpane-component";
 
 Office.onReady(() => {
+  if (Office.context.requirements.isSetSupported("TaskPaneApi", "1.1")) {
+    Office.extensionLifeCycle.taskpane.setWidth(420);
+  }
   const appBody = document.getElementById("app-body")!;
 
   new TaskpaneComponent(appBody);

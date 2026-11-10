@@ -47,6 +47,10 @@
   border-color: #05090a;
 }
 
+.openrouter-mark img {
+  filter: brightness(0) invert(1);
+}
+
 .provider-card-copy {
   display: flex;
   flex: 1;
