@@ -13,8 +13,8 @@ import {
 } from "../src/taskpane/pages/chat/chat-window/llm/llm-manager";
 import {
   type OpenRouterRequestBody,
-  OpenRouterClient,
-} from "../src/taskpane/pages/chat/chat-window/llm/openrouter-client";
+  InferenceClient,
+} from "../src/taskpane/pages/chat/chat-window/llm/inference-client";
 import {
   type SheetSnapshot,
   ExcelManager,
@@ -1667,9 +1667,9 @@ test("OpenRouter Clients Share Key Changes Only Through Their Supplied Stores", 
   const secondStore = new OpenrouterKeyStore();
   firstStore.set("first-key");
   secondStore.set("second-key");
-  const firstClient = new OpenRouterClient(firstStore, new OpenAIKeyStore());
-  const sharedClient = new OpenRouterClient(firstStore, new OpenAIKeyStore());
-  const secondClient = new OpenRouterClient(secondStore, new OpenAIKeyStore());
+  const firstClient = new InferenceClient(firstStore, new OpenAIKeyStore());
+  const sharedClient = new InferenceClient(firstStore, new OpenAIKeyStore());
+  const secondClient = new InferenceClient(secondStore, new OpenAIKeyStore());
   const authorizations: string[] = [];
   t.mock.method(globalThis, "fetch", async (_input, init) => {
     authorizations.push(new Headers(init.headers).get("Authorization")!);
@@ -1708,7 +1708,7 @@ test("OpenRouter Request Errors Preserve Key Invalidation Behavior", async (t) =
   const affectedStore = new OpenrouterKeyStore();
   const otherStore = new OpenrouterKeyStore();
   otherStore.set("other-key");
-  const client = new OpenRouterClient(affectedStore, new OpenAIKeyStore());
+  const client = new InferenceClient(affectedStore, new OpenAIKeyStore());
   let status = 401;
   t.mock.method(
     globalThis,
@@ -1734,7 +1734,7 @@ test("OpenRouter Request Errors Preserve Key Invalidation Behavior", async (t) =
 test("OpenRouter Streaming Assembles Text And Clarification Across Chunks", async (t) => {
   const keyStore = new OpenrouterKeyStore();
   keyStore.set("stream-key");
-  const client = new OpenRouterClient(keyStore, new OpenAIKeyStore());
+  const client = new InferenceClient(keyStore, new OpenAIKeyStore());
   const toolCall = {
     type: "function_call",
     id: "question-item",
@@ -1802,7 +1802,7 @@ test("Inference Client Routes Each Request To The Authenticated Provider", async
     });
     return createOpenRouterResponse(createOutputTextResponse("Response"), body.stream === true);
   });
-  const client = new OpenRouterClient(openrouterStore, openAiStore);
+  const client = new InferenceClient(openrouterStore, openAiStore);
 
   await client.request({ ...createClientRequest(), model: "gpt-6-sol" });
   await collectEvents(client.requestStreamEvents({ ...createClientRequest(), model: "gpt-6-sol" }));
@@ -1859,7 +1859,7 @@ test("OpenAI Rejection Clears Its Key And Incomplete Streams Do Not Complete", a
     "fetch",
     async () => new Response(JSON.stringify({ error: { message: "Rejected." } }), { status: 401 })
   );
-  const client = new OpenRouterClient(openrouterStore, openAiStore);
+  const client = new InferenceClient(openrouterStore, openAiStore);
   for (const streaming of [false, true]) {
     openAiStore.set("rejected-openai-key");
     await assert.rejects(

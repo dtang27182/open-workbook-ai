@@ -10,8 +10,8 @@ import {
   extractOpenRouterText,
   extractPartialMainQueryText,
   parseSpreadsheetResponse,
-  OpenRouterClient,
-} from "./openrouter-client";
+  InferenceClient,
+} from "./inference-client";
 import type { SheetSnapshot, CellEdit } from "../excel-manager";
 import {
   type PreprocessPromptEvent,
@@ -315,14 +315,14 @@ const scenarioComparisonResponseSchema = {
 };
 
 export class LLMManager {
-  private readonly openRouterClient: OpenRouterClient;
+  private readonly inferenceClient: InferenceClient;
   private activeMainModelOptions: readonly MainModelOption[] = openRouterMainModelOptions;
   private activePreprocessModelConfigs: { detection: MainModelConfig; inference: MainModelConfig } =
     openRouterPreprocessModelConfigs;
   private mainModelConfig: MainModelConfig = openRouterMainModelOptions[0].config;
 
   constructor(openrouterKeyStore: OpenrouterKeyStore, openAiKeyStore: OpenAIKeyStore) {
-    this.openRouterClient = new OpenRouterClient(openrouterKeyStore, openAiKeyStore);
+    this.inferenceClient = new InferenceClient(openrouterKeyStore, openAiKeyStore);
   }
 
   configureForProvider(provider: ModelProvider): {
@@ -352,7 +352,7 @@ export class LLMManager {
     console.dir("Initiating sheet preprocessing");
     const sheetContext = buildSheetContext(sheet);
     const detectionSheetContext = buildCompactSheetContext(sheet);
-    const detectionResponse = await this.openRouterClient.request({
+    const detectionResponse = await this.inferenceClient.request({
       ...this.activePreprocessModelConfigs.detection,
       instructions: formulaDetectionInstructions,
       input: [
@@ -381,7 +381,7 @@ export class LLMManager {
       const completedRegionResults: FormulaInferenceRegionResult[] = [];
       let resolveNextRegionResult: (() => void) | undefined;
       const regionResultsPromise = inferFormulaRegions(
-        this.openRouterClient,
+        this.inferenceClient,
         this.activePreprocessModelConfigs.inference,
         formulaInferencePlan,
         sheetContext,
@@ -448,7 +448,7 @@ export class LLMManager {
     };
     let result: OpenRouterResponseBody | undefined;
     let hasStartedCreatingProposedChange = false;
-    for await (const event of this.openRouterClient.requestStreamEvents(requestBody)) {
+    for await (const event of this.inferenceClient.requestStreamEvents(requestBody)) {
       if (event.type === "output_text") {
         const partialText = extractPartialMainQueryText(event.outputText);
         const createNewSheetMatch = /"createNewSheet"\s*:\s*(true|false)/.exec(event.outputText);
@@ -526,7 +526,7 @@ export class LLMManager {
     );
     let result: OpenRouterResponseBody | undefined;
     let hasStartedCreatingProposedChange = false;
-    for await (const event of this.openRouterClient.requestStreamEvents(requestBody)) {
+    for await (const event of this.inferenceClient.requestStreamEvents(requestBody)) {
       if (event.type === "output_text") {
         const partialText = extractPartialMainQueryText(event.outputText);
         const createNewSheetMatch = /"createNewSheet"\s*:\s*(true|false)/.exec(event.outputText);
@@ -649,7 +649,7 @@ Return analysis as concise GitHub-flavored Markdown that directly answers the us
       requestCharacters: JSON.stringify(requestBody).length,
     });
     const comparisonStartTime = Date.now();
-    const responseBody = await this.openRouterClient.request(requestBody);
+    const responseBody = await this.inferenceClient.request(requestBody);
     console.log("Scenario comparison duration (s):", (Date.now() - comparisonStartTime) / 1000);
     const response = JSON.parse(
       extractOpenRouterText(responseBody)
@@ -691,7 +691,7 @@ Return analysis as concise GitHub-flavored Markdown that directly answers the us
     updatedSheet: SheetSnapshot,
     llmConversationMessages: LlmConversationHistory
   ): Promise<string> {
-    const result = await this.openRouterClient.request(
+    const result = await this.inferenceClient.request(
       buildUpdateAnalysisRequestBody(
         userRequest,
         originalSheet,
@@ -710,7 +710,7 @@ type FormulaInferenceRegionResult = {
 };
 
 async function inferFormulaRegions(
-  openRouterClient: OpenRouterClient,
+  inferenceClient: InferenceClient,
   formulaInferenceModelConfig: MainModelConfig,
   formulaInferencePlan: FormulaInferencePlan,
   sheetContext: ReturnType<typeof buildSheetContext>,
@@ -720,7 +720,7 @@ async function inferFormulaRegions(
     formulaInferencePlan.regions.map(async (region, index) => {
       await rateLimitFormulaInferenceRequest(index);
       const regionResult = await inferFormulaRegionWithRetry(
-        openRouterClient,
+        inferenceClient,
         formulaInferenceModelConfig,
         region,
         sheetContext
@@ -732,7 +732,7 @@ async function inferFormulaRegions(
 }
 
 async function inferFormulaRegionWithRetry(
-  openRouterClient: OpenRouterClient,
+  inferenceClient: InferenceClient,
   formulaInferenceModelConfig: MainModelConfig,
   region: FormulaInferencePlan["regions"][number],
   sheetContext: ReturnType<typeof buildSheetContext>
@@ -740,7 +740,7 @@ async function inferFormulaRegionWithRetry(
   let regionResult: FormulaInferenceRegionResult;
   try {
     regionResult = await inferFormulaRegion(
-      openRouterClient,
+      inferenceClient,
       formulaInferenceModelConfig,
       region,
       sheetContext,
@@ -754,7 +754,7 @@ async function inferFormulaRegionWithRetry(
     });
     try {
       regionResult = await inferFormulaRegion(
-        openRouterClient,
+        inferenceClient,
         formulaInferenceModelConfig,
         region,
         sheetContext,
@@ -773,13 +773,13 @@ async function inferFormulaRegionWithRetry(
 }
 
 async function inferFormulaRegion(
-  openRouterClient: OpenRouterClient,
+  inferenceClient: InferenceClient,
   formulaInferenceModelConfig: MainModelConfig,
   region: FormulaInferencePlan["regions"][number],
   sheetContext: ReturnType<typeof buildSheetContext>,
   attemptNumber: number
 ): Promise<FormulaInferenceRegionResult> {
-  const response = await openRouterClient.request({
+  const response = await inferenceClient.request({
     ...formulaInferenceModelConfig,
     instructions: formulaInferenceInstructions,
     input: [

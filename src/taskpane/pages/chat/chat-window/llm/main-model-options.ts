@@ -1,4 +1,4 @@
-import type { OpenRouterRequestBody } from "./openrouter-client";
+import type { OpenRouterRequestBody } from "./inference-client";
 
 export type ModelProvider = "openai" | "openrouter";
 

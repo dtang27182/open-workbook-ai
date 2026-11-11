@@ -77,7 +77,7 @@ export type OpenRouterStreamResultEvent =
   | { type: "output_text"; outputText: string }
   | { type: "complete"; response: OpenRouterResponseBody };
 
-export class OpenRouterClient {
+export class InferenceClient {
   private readonly openrouterKeyStore: OpenrouterKeyStore;
   private readonly openAiKeyStore: OpenAIKeyStore;
 

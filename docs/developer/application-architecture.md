@@ -9,7 +9,7 @@ The component contract is defined in [UI Component Architecture](./ui-component-
 - `pages/chat/chat-window/chat-window.ts` owns chat events and applies model responses. Its `workflows/` functions coordinate actions, and `dom/` helpers update the UI.
 - `pages/chat/chat-window/chat-input/chat-input.ts` owns the input form, textarea, Send button, and autosizing. `ChatWindow` supplies half the panel height as its height limit and owns the separate Clear button.
 - `ChatWindowState` holds the retained `ChatInput` component, dependencies, and restorable `ChatState`: transcript, LLM history, workflow state, pending edit, preprocessed sheet names, and the next workflow ID.
-- `LLMManager` handles model operations through `OpenRouterClient`, which owns HTTP and streaming. The other `llm/` helpers format worksheet context and formula-inference results.
+- `LLMManager` handles model operations through `InferenceClient`, which owns HTTP and streaming. The other `llm/` helpers format worksheet context and formula-inference results.
 - `ExcelManager` owns worksheet reads, writes, diff/scenario creation, and generated sheet counters. `RestoreManager` owns potential and accepted restore checkpoints.
 
 ## Workflow State Transitions
