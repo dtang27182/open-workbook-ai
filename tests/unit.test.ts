@@ -440,6 +440,46 @@ test("OpenAI Key Store Restores And Clears Its Own Key Independently Of OpenRout
   assert.equal(new OpenrouterKeyStore().get(), "openrouter-key");
 });
 
+test("Provider Sign-In Switches The Retained Model Selector And Preserves Matching Choices", async (context) => {
+  const openrouterStore = new OpenrouterKeyStore();
+  const openAiStore = new OpenAIKeyStore();
+  openrouterStore.clear();
+  openAiStore.set("openai-key");
+  const mount = document.createElement("main");
+  document.body.appendChild(mount);
+  context.after(() => {
+    openrouterStore.clear();
+    openAiStore.clear();
+    mount.remove();
+  });
+  const taskpane = new TaskpaneComponent(mount);
+  mount.querySelector<HTMLElement>("[popover]")!.hidePopover = () => {};
+  const chat = mount.querySelector("#chat-page")!;
+  const select = mount.querySelector<HTMLSelectElement>("#chat-model")!;
+  assert.deepEqual(Array.from(select.options, (option) => option.value), [
+    "gpt-6.1-sol",
+    "gpt-6-sol",
+    "gpt-5.6-sol",
+  ]);
+
+  select.value = "gpt-6-sol";
+  select.dispatchEvent(new window.Event("change", { bubbles: true }));
+  await taskpane.updateState({ type: "sign_out" });
+  await taskpane.updateState({ type: "save_openrouter_key", apiKey: "openrouter-key" });
+  assert.equal(mount.querySelector("#chat-page"), chat);
+  assert.equal(mount.querySelector("#chat-model"), select);
+  assert.equal(select.value, "openai/gpt-6-sol:exacto");
+  assert.equal(select.options.length, 5);
+
+  select.value = "anthropic/claude-opus-4.8:nitro";
+  select.dispatchEvent(new window.Event("change", { bubbles: true }));
+  await taskpane.updateState({ type: "sign_out" });
+  await taskpane.updateState({ type: "sign_in_openai", apiKey: "new-openai-key" });
+  assert.equal(mount.querySelector("#chat-page"), chat);
+  assert.equal(select.value, "gpt-6.1-sol");
+  assert.equal(select.options.length, 3);
+});
+
 test("Chat Input Submits Multiline Text Through Send And Plain Enter", (context) => {
   const messages: string[] = [];
   const chatInput = new ChatInput(
@@ -1354,7 +1394,7 @@ test("Sheet Markdown Preserves Values Formulas And Escaping", () => {
 });
 
 test("LLM Manager Preserves Main Query Streaming And Replacement History", async () => {
-  const manager = new LLMManager(openrouterKeyStore);
+  const manager = new LLMManager(openrouterKeyStore, new OpenAIKeyStore());
   const mocks = installMocks(() =>
     createOutputTextResponse({
       shouldEditSheet: true,
@@ -1413,7 +1453,7 @@ test("LLM Manager Preserves Main Query Streaming And Replacement History", async
 });
 
 test("LLM Manager Continues A Pending Clarification", async () => {
-  const manager = new LLMManager(openrouterKeyStore);
+  const manager = new LLMManager(openrouterKeyStore, new OpenAIKeyStore());
   const history: LlmConversationHistory = [
     { role: "user", text: "Update the forecast.", workflowId: 3 },
     {
@@ -1472,7 +1512,7 @@ test("LLM Manager Continues A Pending Clarification", async () => {
 });
 
 test("LLM Manager Preserves Preprocess Scenario And Update Analysis Operations", async () => {
-  const manager = new LLMManager(openrouterKeyStore);
+  const manager = new LLMManager(openrouterKeyStore, new OpenAIKeyStore());
   const mocks = installMocks((requestBody) => {
     const format = requestBody.text as { format: { type: string; name?: string } };
     if (format.format.name === "formula_inference_plan") {
@@ -1533,7 +1573,7 @@ test("LLM Manager Preserves Preprocess Scenario And Update Analysis Operations",
 });
 
 test("Selected Model Configures Each Main Request Without Changing Preprocessing", async () => {
-  const manager = new LLMManager(openrouterKeyStore);
+  const manager = new LLMManager(openrouterKeyStore, new OpenAIKeyStore());
   const sheet = createRestoreManagerSheet("Sheet1");
   const mocks = installMocks((requestBody) => {
     const format = requestBody.text as { format: { name?: string } };
@@ -1627,9 +1667,9 @@ test("OpenRouter Clients Share Key Changes Only Through Their Supplied Stores", 
   const secondStore = new OpenrouterKeyStore();
   firstStore.set("first-key");
   secondStore.set("second-key");
-  const firstClient = new OpenRouterClient(firstStore);
-  const sharedClient = new OpenRouterClient(firstStore);
-  const secondClient = new OpenRouterClient(secondStore);
+  const firstClient = new OpenRouterClient(firstStore, new OpenAIKeyStore());
+  const sharedClient = new OpenRouterClient(firstStore, new OpenAIKeyStore());
+  const secondClient = new OpenRouterClient(secondStore, new OpenAIKeyStore());
   const authorizations: string[] = [];
   t.mock.method(globalThis, "fetch", async (_input, init) => {
     authorizations.push(new Headers(init.headers).get("Authorization")!);
@@ -1655,10 +1695,10 @@ test("OpenRouter Clients Share Key Changes Only Through Their Supplied Stores", 
   ]);
 
   firstStore.clear();
-  await assert.rejects(firstClient.request(request), /Sign in with OpenRouter/);
+  await assert.rejects(firstClient.request(request), /Sign in before sending a request/);
   await assert.rejects(
     collectEvents(sharedClient.requestStreamEvents(request)),
-    /Sign in with OpenRouter/
+    /Sign in before sending a request/
   );
   assert.equal(authorizations.length, 5);
   assert.equal(secondStore.get(), "second-key");
@@ -1668,7 +1708,7 @@ test("OpenRouter Request Errors Preserve Key Invalidation Behavior", async (t) =
   const affectedStore = new OpenrouterKeyStore();
   const otherStore = new OpenrouterKeyStore();
   otherStore.set("other-key");
-  const client = new OpenRouterClient(affectedStore);
+  const client = new OpenRouterClient(affectedStore, new OpenAIKeyStore());
   let status = 401;
   t.mock.method(
     globalThis,
@@ -1694,7 +1734,7 @@ test("OpenRouter Request Errors Preserve Key Invalidation Behavior", async (t) =
 test("OpenRouter Streaming Assembles Text And Clarification Across Chunks", async (t) => {
   const keyStore = new OpenrouterKeyStore();
   keyStore.set("stream-key");
-  const client = new OpenRouterClient(keyStore);
+  const client = new OpenRouterClient(keyStore, new OpenAIKeyStore());
   const toolCall = {
     type: "function_call",
     id: "question-item",
@@ -1708,6 +1748,7 @@ test("OpenRouter Streaming Assembles Text And Clarification Across Chunks", asyn
     { type: "response.function_call_arguments.done", arguments: argumentsText },
     { type: "response.output_text.delta", delta: "Hello " },
     { type: "response.output_text.delta", delta: "world" },
+    { type: "response.completed" },
   ];
   t.mock.method(globalThis, "fetch", async (_input, init) => {
     assert.equal(JSON.parse(init.body).stream, true);
@@ -1739,6 +1780,288 @@ test("OpenRouter Streaming Assembles Text And Clarification Across Chunks", asyn
         ],
       },
     },
+  ]);
+});
+
+test("Inference Client Routes Each Request To The Authenticated Provider", async (context) => {
+  const openrouterStore = new OpenrouterKeyStore();
+  const openAiStore = new OpenAIKeyStore();
+  openrouterStore.clear();
+  openAiStore.set("openai-key");
+  context.after(() => {
+    openrouterStore.clear();
+    openAiStore.clear();
+  });
+  const calls: Array<{ url: string; authorization: string; body: OpenRouterRequestBody }> = [];
+  context.mock.method(globalThis, "fetch", async (input, init) => {
+    const body = JSON.parse(init.body) as OpenRouterRequestBody;
+    calls.push({
+      url: String(input),
+      authorization: new Headers(init.headers).get("Authorization")!,
+      body,
+    });
+    return createOpenRouterResponse(createOutputTextResponse("Response"), body.stream === true);
+  });
+  const client = new OpenRouterClient(openrouterStore, openAiStore);
+
+  await client.request({ ...createClientRequest(), model: "gpt-6-sol" });
+  await collectEvents(client.requestStreamEvents({ ...createClientRequest(), model: "gpt-6-sol" }));
+  openAiStore.clear();
+  openrouterStore.set("openrouter-key");
+  await client.request({
+    ...createClientRequest(),
+    model: "openai/gpt-6-sol:exacto",
+    provider: { order: ["openai"], allow_fallbacks: false },
+  });
+
+  assert.deepEqual(
+    calls.map(({ url, authorization, body }) => ({
+      url,
+      authorization,
+      model: body.model,
+      provider: body.provider,
+      stream: body.stream,
+    })),
+    [
+      {
+        url: "https://api.openai.com/v1/responses",
+        authorization: "Bearer openai-key",
+        model: "gpt-6-sol",
+        provider: undefined,
+        stream: undefined,
+      },
+      {
+        url: "https://api.openai.com/v1/responses",
+        authorization: "Bearer openai-key",
+        model: "gpt-6-sol",
+        provider: undefined,
+        stream: true,
+      },
+      {
+        url: "https://openrouter.ai/api/v1/responses",
+        authorization: "Bearer openrouter-key",
+        model: "openai/gpt-6-sol:exacto",
+        provider: { order: ["openai"], allow_fallbacks: false },
+        stream: undefined,
+      },
+    ]
+  );
+});
+
+test("OpenAI Rejection Clears Its Key And Incomplete Streams Do Not Complete", async (context) => {
+  const openrouterStore = new OpenrouterKeyStore();
+  const openAiStore = new OpenAIKeyStore();
+  openrouterStore.clear();
+  openAiStore.set("rejected-openai-key");
+  context.after(() => openAiStore.clear());
+  const fetchMock = context.mock.method(
+    globalThis,
+    "fetch",
+    async () => new Response(JSON.stringify({ error: { message: "Rejected." } }), { status: 401 })
+  );
+  const client = new OpenRouterClient(openrouterStore, openAiStore);
+  for (const streaming of [false, true]) {
+    openAiStore.set("rejected-openai-key");
+    await assert.rejects(
+      streaming
+        ? collectEvents(client.requestStreamEvents(createClientRequest()))
+        : client.request(createClientRequest()),
+      /OpenAI rejected the API key/
+    );
+    assert.equal(openAiStore.hasKey(), false);
+  }
+
+  openAiStore.set("stream-key");
+  fetchMock.mock.mockImplementation(async () =>
+    new Response('data: {"type":"response.output_text.delta","delta":"partial"}\n\n', {
+      headers: { "Content-Type": "text/event-stream" },
+    })
+  );
+  await assert.rejects(
+    collectEvents(client.requestStreamEvents(createClientRequest())),
+    /ended before completion/
+  );
+  fetchMock.mock.mockImplementation(async () =>
+    new Response(
+      JSON.stringify({ status: "incomplete", incomplete_details: { reason: "max_output_tokens" } })
+    )
+  );
+  await assert.rejects(client.request(createClientRequest()), /max_output_tokens/);
+  fetchMock.mock.mockImplementation(async () =>
+    new Response(
+      'data: {"type":"response.failed","response":{"error":{"message":"Model failed."}}}\n\n',
+      { headers: { "Content-Type": "text/event-stream" } }
+    )
+  );
+  await assert.rejects(
+    collectEvents(client.requestStreamEvents(createClientRequest())),
+    /Model failed/
+  );
+});
+
+test("OpenAI Preprocessing Uses Native Detection And Region Models On Retry", async (context) => {
+  const openrouterStore = new OpenrouterKeyStore();
+  const openAiStore = new OpenAIKeyStore();
+  openrouterStore.clear();
+  openAiStore.set("preprocess-key");
+  context.after(() => openAiStore.clear());
+  const requests: OpenRouterRequestBody[] = [];
+  context.mock.method(globalThis, "fetch", async (input, init) => {
+    assert.equal(String(input), "https://api.openai.com/v1/responses");
+    assert.equal(new Headers(init.headers).get("Authorization"), "Bearer preprocess-key");
+    const request = JSON.parse(init.body) as OpenRouterRequestBody;
+    requests.push(request);
+    const format = request.text as { format: { name: string } };
+    if (format.format.name === "formula_inference_plan") {
+      return new Response(
+        JSON.stringify(
+          createOutputTextResponse({
+            shouldInferFormulas: true,
+            confidence: "high",
+            summary: "One region.",
+            regions: [
+              {
+                targetRange: "A1",
+                structure: "single cell",
+                sourceRanges: [],
+                relationship: "Test",
+                evidenceCells: ["A1"],
+              },
+            ],
+          })
+        )
+      );
+    } else if (requests.length === 2) {
+      return new Response(JSON.stringify({ error: { message: "Retry." } }), { status: 500 });
+    } else {
+      return new Response(
+        JSON.stringify(
+          createOutputTextResponse({ functionSource: "function generateFormulaEdits() { return []; }" })
+        )
+      );
+    }
+  });
+  const manager = new LLMManager(openrouterStore, openAiStore);
+  manager.configureForProvider("openai");
+  const events = [];
+  for await (const event of manager.runPreprocessPrompt(createRestoreManagerSheet("Sheet1"))) {
+    events.push(event.type);
+  }
+  assert.deepEqual(events, ["detection_complete", "region_complete", "complete"]);
+  assert.deepEqual(requests.map(({ model }) => model), [
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-terra",
+  ]);
+  assert.equal(requests.every((request) => request.provider === undefined), true);
+});
+
+test("OpenAI Clarification Continues Without Replaying Reasoning Items", async (context) => {
+  const openrouterStore = new OpenrouterKeyStore();
+  const openAiStore = new OpenAIKeyStore();
+  openrouterStore.clear();
+  openAiStore.set("clarification-key");
+  context.after(() => openAiStore.clear());
+  const requests: OpenRouterRequestBody[] = [];
+  const reasoningItem = { type: "reasoning", id: "reasoning-1", summary: [] };
+  const functionCall = {
+    type: "function_call",
+    id: "question-1",
+    call_id: "call-1",
+    name: "ask_clarifying_question",
+    arguments: JSON.stringify({ question: "Which period?" }),
+  };
+  context.mock.method(globalThis, "fetch", async (_input, init) => {
+    requests.push(JSON.parse(init.body) as OpenRouterRequestBody);
+    const output =
+      requests.length === 1
+        ? [reasoningItem, functionCall]
+        : createOutputTextResponse({
+            shouldEditSheet: false,
+            createNewSheet: false,
+            answer: "The clarification was applied.",
+            editExplanation: null,
+            cellEdits: [],
+            comparisonRanges: [],
+          }).output;
+    return new Response(
+      `data: ${JSON.stringify({ type: "response.completed", response: { output } })}\n\n`,
+      { headers: { "Content-Type": "text/event-stream" } }
+    );
+  });
+  const manager = new LLMManager(openrouterStore, openAiStore);
+  manager.configureForProvider("openai");
+  const mainEvents = [];
+  for await (const event of manager.runMainQueryPrompt(
+    "Update the forecast.",
+    1,
+    createRestoreManagerSheet("Sheet1"),
+    []
+  )) {
+    mainEvents.push(event);
+  }
+  const clarification = mainEvents.at(-1)!;
+  assert.equal(clarification.type, "clarification_requested");
+  if (clarification.type === "clarification_requested") {
+    for await (const _event of manager.runClarificationResponsePrompt(
+      "FY2028",
+      1,
+      clarification.updatedLlmConversationMessages
+    )) {
+      // Consume the completed clarification.
+    }
+  }
+
+  assert.deepEqual(requests[1].input.slice(-2), [
+    functionCall,
+    { type: "function_call_output", call_id: "call-1", output: "FY2028" },
+  ]);
+  assert.deepEqual(
+    requests[1].input.map((item) => ("type" in item ? item.type : item.role)),
+    ["user", "function_call", "function_call_output"]
+  );
+  assert.equal(requests.every((request) => request.model === "gpt-6.1-sol"), true);
+});
+
+test("OpenAI Comparison And Post-Edit Analysis Use The Selected Native Model", async (context) => {
+  const openrouterStore = new OpenrouterKeyStore();
+  const openAiStore = new OpenAIKeyStore();
+  openrouterStore.clear();
+  openAiStore.set("analysis-key");
+  context.after(() => openAiStore.clear());
+  const requests: OpenRouterRequestBody[] = [];
+  context.mock.method(globalThis, "fetch", async (input, init) => {
+    assert.equal(String(input), "https://api.openai.com/v1/responses");
+    assert.equal(new Headers(init.headers).get("Authorization"), "Bearer analysis-key");
+    const request = JSON.parse(init.body) as OpenRouterRequestBody;
+    requests.push(request);
+    const format = request.text as { format: { name?: string } };
+    return new Response(
+      JSON.stringify(
+        createOutputTextResponse(
+          format.format.name === "scenario_comparison_response"
+            ? { cellEdits: [], analysis: "Compared." }
+            : "Analyzed."
+        )
+      )
+    );
+  });
+  const manager = new LLMManager(openrouterStore, openAiStore);
+  manager.configureForProvider("openai");
+  manager.setMainModel("gpt-6-sol");
+  const sheet = createRestoreManagerSheet("Sheet1");
+
+  await manager.runScenarioComparisonPrompt(
+    "Compare.",
+    sheet,
+    sheet,
+    [{ purpose: "Output", address: "A1:A1" }],
+    []
+  );
+  await manager.runUpdateAnalysisPrompt("Analyze.", sheet, sheet, []);
+  assert.deepEqual(requests.map(({ model, provider }) => ({ model, provider })), [
+    { model: "gpt-6-sol", provider: undefined },
+    { model: "gpt-6-sol", provider: undefined },
   ]);
 });
 
@@ -1925,7 +2248,7 @@ function createOpenRouterResponse(body: object, isStreaming: boolean) {
       type: "response.output_text.delta",
       delta: outputText,
     });
-    response = new Response(`data: ${streamEvent}\n\n`, {
+    response = new Response(`data: ${streamEvent}\n\ndata: {"type":"response.completed"}\n\n`, {
       headers: { "Content-Type": "text/event-stream" },
     });
   } else {

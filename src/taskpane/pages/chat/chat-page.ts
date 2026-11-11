@@ -4,24 +4,42 @@ import { Component } from "../../component";
 import { ChatHeader } from "./chat-header";
 import { ChatWindow } from "./chat-window/chat-window";
 import { OpenrouterKeyStore } from "../auth/openrouter-auth/openrouter-api-key";
+import { OpenAIKeyStore } from "../auth/add-openai-key/openai-key-store";
+import type { ModelProvider } from "./chat-window/llm/main-model-options";
 
-export class ChatPage implements Component<never> {
+export type ChatPageUpdateEvent = { type: "provider_changed"; provider: ModelProvider };
+
+export class ChatPage implements Component<ChatPageUpdateEvent> {
   private readonly mount: HTMLElement;
   private readonly chatHeader: ChatHeader;
   private readonly chatWindow: ChatWindow;
 
-  constructor(mount: HTMLElement, keyStore: OpenrouterKeyStore) {
+  constructor(
+    mount: HTMLElement,
+    openrouterKeyStore: OpenrouterKeyStore,
+    openAiKeyStore: OpenAIKeyStore,
+    configuredProvider: ModelProvider | undefined
+  ) {
     this.mount = mount;
     const initialDom = this.createInitialDom();
     this.chatHeader = new ChatHeader(initialDom.chatHeaderMount);
-    this.chatWindow = new ChatWindow(initialDom.chatWindowMount, keyStore);
+    this.chatWindow = new ChatWindow(
+      initialDom.chatWindowMount,
+      openrouterKeyStore,
+      openAiKeyStore,
+      configuredProvider
+    );
   }
 
   getMount(): HTMLElement {
     return this.mount;
   }
 
-  updateState(): void {}
+  updateState(event: ChatPageUpdateEvent): void {
+    if (event.type === "provider_changed") {
+      void this.chatWindow.updateState(event);
+    }
+  }
 
   private createInitialDom(): {
     chatHeaderMount: HTMLElement;

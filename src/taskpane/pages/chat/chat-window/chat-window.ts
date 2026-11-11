@@ -25,7 +25,8 @@ import {
   updateReviewWarning,
 } from "./dom/chat-window-dom";
 import { OpenrouterKeyStore } from "../../auth/openrouter-auth/openrouter-api-key";
-import type { MainModelId } from "./llm/main-model-options";
+import { OpenAIKeyStore } from "../../auth/add-openai-key/openai-key-store";
+import type { MainModelId, ModelProvider } from "./llm/main-model-options";
 import { runAcceptDiffWorkflow } from "./workflows/accept-diff";
 import { runClarificationWorkflow } from "./workflows/clarification";
 import { runPreprocessWorkflow } from "./workflows/preprocess";
@@ -41,12 +42,19 @@ export type ChatWindowUpdateEvent =
   | { type: "reject_pending_diff" }
   | { type: "restore_to_point"; restorePointId: number }
   | { type: "select_model"; modelId: MainModelId }
+  | { type: "provider_changed"; provider: ModelProvider }
   | { type: "clear" };
 
 export class ChatWindow implements Component<ChatWindowUpdateEvent> {
   private readonly state: ChatWindowState;
 
-  constructor(mount: HTMLElement, keyStore: OpenrouterKeyStore, excelApi?: ExcelApi) {
+  constructor(
+    mount: HTMLElement,
+    openrouterKeyStore: OpenrouterKeyStore,
+    openAiKeyStore: OpenAIKeyStore,
+    configuredProvider: ModelProvider | undefined,
+    excelApi?: ExcelApi
+  ) {
     const domHandlers: ChatWindowDomHandlers = {
       onClear: () => {
         void this.updateState({ type: "clear" });
@@ -72,9 +80,12 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
       mount,
       domHandlers,
       new ExcelManager(excelApi),
-      new LLMManager(keyStore),
+      new LLMManager(openrouterKeyStore, openAiKeyStore),
       chatInput
     );
+    if (configuredProvider !== undefined) {
+      this.configureForProvider(configuredProvider);
+    }
     this.reset();
   }
 
@@ -114,6 +125,8 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
       this.reset();
     } else if (event.type === "select_model") {
       this.state.llmManager.setMainModel(event.modelId);
+    } else if (event.type === "provider_changed") {
+      this.configureForProvider(event.provider);
     } else if (
       event.type === "submit_message" ||
       event.type === "accept_pending_diff" ||
@@ -151,6 +164,15 @@ export class ChatWindow implements Component<ChatWindowUpdateEvent> {
         );
       }
     }
+  }
+
+  private configureForProvider(provider: ModelProvider): void {
+    const selection = this.state.llmManager.configureForProvider(provider);
+    this.state.chatInput.updateState({
+      type: "set_model_options",
+      options: selection.options,
+      selectedModelId: selection.selectedModelId,
+    });
   }
 
   private async submitMessage(message: string): Promise<void> {

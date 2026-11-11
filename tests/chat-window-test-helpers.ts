@@ -3,12 +3,22 @@ import type { ExcelApi } from "../src/taskpane/pages/chat/chat-window/excel-mana
 import type { ChatState } from "../src/taskpane/pages/chat/chat-window/chat-window-state";
 import type { ChatMessageTranscriptItem } from "../src/taskpane/pages/chat/chat-window/dom/transcript-helpers";
 import { OpenrouterKeyStore } from "../src/taskpane/pages/auth/openrouter-auth/openrouter-api-key";
+import { OpenAIKeyStore } from "../src/taskpane/pages/auth/add-openai-key/openai-key-store";
+import type { ModelProvider } from "../src/taskpane/pages/chat/chat-window/llm/main-model-options";
 
 export function createChatWindowForTest(
   excelApi: ExcelApi,
-  keyStore: OpenrouterKeyStore
+  keyStore: OpenrouterKeyStore,
+  openAiKeyStore: OpenAIKeyStore = new OpenAIKeyStore(),
+  configuredProvider: ModelProvider = "openrouter"
 ): ChatWindow {
-  return new ChatWindow(document.createElement("div"), keyStore, excelApi);
+  return new ChatWindow(
+    document.createElement("div"),
+    keyStore,
+    openAiKeyStore,
+    configuredProvider,
+    excelApi
+  );
 }
 
 export function getChatStateForTest(chatWindow: ChatWindow): ChatState {

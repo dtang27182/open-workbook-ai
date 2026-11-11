@@ -41,16 +41,22 @@ export function formatFormulaInferenceRegionResult(
 Generated ${cellEditCount} formula edits.`;
 }
 
-export const formulaDetectionModelConfig = {
-  model: "openai/gpt-5.6-sol:exacto",
-  provider: { order: ["openai"], allow_fallbacks: false },
-  reasoning: { effort: "medium" },
+export const openRouterPreprocessModelConfigs = {
+  detection: {
+    model: "openai/gpt-5.6-sol:exacto",
+    provider: { order: ["openai"], allow_fallbacks: false },
+    reasoning: { effort: "medium" },
+  },
+  inference: {
+    model: "openai/gpt-5.6-terra:exacto",
+    provider: { order: ["openai"], allow_fallbacks: false },
+    reasoning: { effort: "medium" },
+  },
 };
 
-export const formulaInferenceModelConfig = {
-  model: "openai/gpt-5.6-terra:exacto",
-  provider: { order: ["openai"], allow_fallbacks: false },
-  reasoning: { effort: "medium" },
+export const openAiPreprocessModelConfigs = {
+  detection: { model: "gpt-5.6-sol", reasoning: { effort: "medium" } },
+  inference: { model: "gpt-5.6-terra", reasoning: { effort: "medium" } },
 };
 
 const formulaInferenceRequestIntervalMs = 5;

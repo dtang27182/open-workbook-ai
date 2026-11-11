@@ -17,18 +17,36 @@ import {
   type PreprocessPromptEvent,
   executeFormulaGenerator,
   formulaDetectionInstructions,
-  formulaDetectionModelConfig,
   formulaDetectionResponseSchema,
   type FormulaGeneratorResult,
   formulaGeneratorResponseSchema,
   type FormulaInferencePlan,
   formulaInferenceInstructions,
-  formulaInferenceModelConfig,
+  openAiPreprocessModelConfigs,
+  openRouterPreprocessModelConfigs,
   rateLimitFormulaInferenceRequest,
 } from "./preprocess-formula-inference";
 import { OpenrouterKeyStore } from "../../../auth/openrouter-auth/openrouter-api-key";
+import { OpenAIKeyStore } from "../../../auth/add-openai-key/openai-key-store";
 import { formatSheetAsMarkdown, formatSheetDataAsMarkdown } from "./sheet-markdown";
-import { type MainModelConfig, type MainModelId, mainModelOptions } from "./main-model-options";
+import {
+  type MainModelConfig,
+  type MainModelId,
+  type MainModelOption,
+  type ModelProvider,
+  openAiMainModelOptions,
+  openRouterMainModelOptions,
+} from "./main-model-options";
+
+const mainModelOptionsByProvider = {
+  openai: openAiMainModelOptions,
+  openrouter: openRouterMainModelOptions,
+};
+
+const preprocessModelConfigsByProvider = {
+  openai: openAiPreprocessModelConfigs,
+  openrouter: openRouterPreprocessModelConfigs,
+};
 
 type LlmConversationSheetContext = Readonly<{
   range: Readonly<{
@@ -298,14 +316,33 @@ const scenarioComparisonResponseSchema = {
 
 export class LLMManager {
   private readonly openRouterClient: OpenRouterClient;
-  private mainModelConfig: MainModelConfig = mainModelOptions[0].config;
+  private activeMainModelOptions: readonly MainModelOption[] = openRouterMainModelOptions;
+  private activePreprocessModelConfigs: { detection: MainModelConfig; inference: MainModelConfig } =
+    openRouterPreprocessModelConfigs;
+  private mainModelConfig: MainModelConfig = openRouterMainModelOptions[0].config;
 
-  constructor(keyStore: OpenrouterKeyStore) {
-    this.openRouterClient = new OpenRouterClient(keyStore);
+  constructor(openrouterKeyStore: OpenrouterKeyStore, openAiKeyStore: OpenAIKeyStore) {
+    this.openRouterClient = new OpenRouterClient(openrouterKeyStore, openAiKeyStore);
+  }
+
+  configureForProvider(provider: ModelProvider): {
+    options: readonly MainModelOption[];
+    selectedModelId: MainModelId;
+  } {
+    const currentSelectionKey = this.activeMainModelOptions.find(
+      (option) => option.config.model === this.mainModelConfig.model
+    )!.selectionKey;
+    this.activeMainModelOptions = mainModelOptionsByProvider[provider];
+    this.activePreprocessModelConfigs = preprocessModelConfigsByProvider[provider];
+    const selectedOption =
+      this.activeMainModelOptions.find((option) => option.selectionKey === currentSelectionKey) ||
+      this.activeMainModelOptions[0];
+    this.mainModelConfig = selectedOption.config;
+    return { options: this.activeMainModelOptions, selectedModelId: selectedOption.config.model };
   }
 
   setMainModel(modelId: MainModelId): void {
-    this.mainModelConfig = mainModelOptions.find(
+    this.mainModelConfig = this.activeMainModelOptions.find(
       (option) => option.config.model === modelId
     )!.config;
   }
@@ -316,7 +353,7 @@ export class LLMManager {
     const sheetContext = buildSheetContext(sheet);
     const detectionSheetContext = buildCompactSheetContext(sheet);
     const detectionResponse = await this.openRouterClient.request({
-      ...formulaDetectionModelConfig,
+      ...this.activePreprocessModelConfigs.detection,
       instructions: formulaDetectionInstructions,
       input: [
         {
@@ -345,6 +382,7 @@ export class LLMManager {
       let resolveNextRegionResult: (() => void) | undefined;
       const regionResultsPromise = inferFormulaRegions(
         this.openRouterClient,
+        this.activePreprocessModelConfigs.inference,
         formulaInferencePlan,
         sheetContext,
         (regionResult) => {
@@ -673,6 +711,7 @@ type FormulaInferenceRegionResult = {
 
 async function inferFormulaRegions(
   openRouterClient: OpenRouterClient,
+  formulaInferenceModelConfig: MainModelConfig,
   formulaInferencePlan: FormulaInferencePlan,
   sheetContext: ReturnType<typeof buildSheetContext>,
   onRegionComplete: (regionResult: FormulaInferenceRegionResult) => void
@@ -682,6 +721,7 @@ async function inferFormulaRegions(
       await rateLimitFormulaInferenceRequest(index);
       const regionResult = await inferFormulaRegionWithRetry(
         openRouterClient,
+        formulaInferenceModelConfig,
         region,
         sheetContext
       );
@@ -693,12 +733,19 @@ async function inferFormulaRegions(
 
 async function inferFormulaRegionWithRetry(
   openRouterClient: OpenRouterClient,
+  formulaInferenceModelConfig: MainModelConfig,
   region: FormulaInferencePlan["regions"][number],
   sheetContext: ReturnType<typeof buildSheetContext>
 ): Promise<FormulaInferenceRegionResult> {
   let regionResult: FormulaInferenceRegionResult;
   try {
-    regionResult = await inferFormulaRegion(openRouterClient, region, sheetContext, 1);
+    regionResult = await inferFormulaRegion(
+      openRouterClient,
+      formulaInferenceModelConfig,
+      region,
+      sheetContext,
+      1
+    );
   } catch (firstError) {
     console.warn("Formula inference failed. Retrying region.", {
       targetRange: region.targetRange,
@@ -706,7 +753,13 @@ async function inferFormulaRegionWithRetry(
       error: firstError,
     });
     try {
-      regionResult = await inferFormulaRegion(openRouterClient, region, sheetContext, 2);
+      regionResult = await inferFormulaRegion(
+        openRouterClient,
+        formulaInferenceModelConfig,
+        region,
+        sheetContext,
+        2
+      );
     } catch (secondError) {
       console.error("Formula inference failed after retry.", {
         targetRange: region.targetRange,
@@ -721,6 +774,7 @@ async function inferFormulaRegionWithRetry(
 
 async function inferFormulaRegion(
   openRouterClient: OpenRouterClient,
+  formulaInferenceModelConfig: MainModelConfig,
   region: FormulaInferencePlan["regions"][number],
   sheetContext: ReturnType<typeof buildSheetContext>,
   attemptNumber: number

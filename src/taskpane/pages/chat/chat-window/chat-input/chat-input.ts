@@ -2,19 +2,29 @@
 
 import { Component } from "../../../../component";
 import { cloneChatPageElement } from "../../chat-page-template";
-import { type MainModelId, mainModelOptions } from "../llm/main-model-options";
+import {
+  type MainModelId,
+  type MainModelOption,
+  openRouterMainModelOptions,
+} from "../llm/main-model-options";
 
 export type ChatInputUpdateEvent =
   | { type: "text_updated" }
   | { type: "panel_resized"; maxHeight: number }
   | { type: "clear" }
-  | { type: "set_disabled"; disabled: boolean };
+  | { type: "set_disabled"; disabled: boolean }
+  | {
+      type: "set_model_options";
+      options: readonly MainModelOption[];
+      selectedModelId: MainModelId;
+    };
 
 export class ChatInput implements Component<ChatInputUpdateEvent> {
   private readonly mount: HTMLElement;
   private readonly form: HTMLFormElement;
   private readonly input: HTMLTextAreaElement;
   private readonly sendButton: HTMLButtonElement;
+  private readonly modelSelect: HTMLSelectElement;
   private readonly widthObserver: ResizeObserver;
   private maxHeight = 0;
 
@@ -27,14 +37,13 @@ export class ChatInput implements Component<ChatInputUpdateEvent> {
     this.form = cloneChatPageElement<HTMLFormElement>("#chat-form");
     this.input = this.form.querySelector<HTMLTextAreaElement>("#chat-input")!;
     this.sendButton = this.form.querySelector<HTMLButtonElement>("#chat-send")!;
-    const modelSelect = this.form.querySelector<HTMLSelectElement>("#chat-model")!;
-    mainModelOptions.forEach((model) => {
-      const option = document.createElement("option");
-      option.value = model.config.model;
-      option.textContent = model.label;
-      modelSelect.appendChild(option);
+    this.modelSelect = this.form.querySelector<HTMLSelectElement>("#chat-model")!;
+    this.updateState({
+      type: "set_model_options",
+      options: openRouterMainModelOptions,
+      selectedModelId: openRouterMainModelOptions[0].config.model,
     });
-    modelSelect.onchange = () => onModelSelected(modelSelect.value as MainModelId);
+    this.modelSelect.onchange = () => onModelSelected(this.modelSelect.value as MainModelId);
     this.mount.replaceChildren(this.form);
 
     this.form.onsubmit = (event) => {
@@ -90,6 +99,16 @@ export class ChatInput implements Component<ChatInputUpdateEvent> {
     } else if (event.type === "set_disabled") {
       this.input.disabled = event.disabled;
       this.sendButton.disabled = event.disabled;
+    } else if (event.type === "set_model_options") {
+      this.modelSelect.replaceChildren(
+        ...event.options.map((model) => {
+          const option = document.createElement("option");
+          option.value = model.config.model;
+          option.textContent = model.label;
+          return option;
+        })
+      );
+      this.modelSelect.value = event.selectedModelId;
     }
   }
 

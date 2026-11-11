@@ -1,9 +1,10 @@
-/* global console, fetch, ReadableStream, TextDecoder */
+/* global console, fetch, ReadableStream, Response, TextDecoder */
 
 import { createParser } from "eventsource-parser";
 
 import type { ModelSpreadsheetResponse } from "./llm-manager";
 import { OpenrouterKeyStore } from "../../../auth/openrouter-auth/openrouter-api-key";
+import { OpenAIKeyStore } from "../../../auth/add-openai-key/openai-key-store";
 
 export type OpenRouterMessage = { role: string; content: string };
 
@@ -55,12 +56,15 @@ export type OpenRouterRequestBody = {
 
 export type OpenRouterResponseBody = {
   ok?: boolean;
+  status?: string;
   error?: { message?: string };
+  incomplete_details?: { reason?: string };
   output?: OpenRouterOutputItem[];
 };
 
 export type OpenRouterStreamEvent = {
   type?: string;
+  response?: OpenRouterResponseBody;
   delta?: string;
   item?: OpenRouterOutputItem;
   item_id?: string;
@@ -74,33 +78,24 @@ export type OpenRouterStreamResultEvent =
   | { type: "complete"; response: OpenRouterResponseBody };
 
 export class OpenRouterClient {
-  private readonly keyStore: OpenrouterKeyStore;
+  private readonly openrouterKeyStore: OpenrouterKeyStore;
+  private readonly openAiKeyStore: OpenAIKeyStore;
 
-  constructor(keyStore: OpenrouterKeyStore) {
-    this.keyStore = keyStore;
+  constructor(openrouterKeyStore: OpenrouterKeyStore, openAiKeyStore: OpenAIKeyStore) {
+    this.openrouterKeyStore = openrouterKeyStore;
+    this.openAiKeyStore = openAiKeyStore;
   }
 
   async request(requestBody: OpenRouterRequestBody): Promise<OpenRouterResponseBody> {
-    logOpenRouterRequest(requestBody);
     const requestStartTime = Date.now();
-    const response = await fetch("https://openrouter.ai/api/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.keyStore.get()}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
+    const response = await this.sendRequestToProvider(requestBody);
     const result = await response.json();
-    logOpenRouterResponse(result);
-    console.log("OpenRouter request duration (s):", (Date.now() - requestStartTime) / 1000);
-
-    if (response.status === 401) {
-      this.keyStore.clear();
-      throw new Error("OpenRouter rejected the API key.");
-    } else if (!response.ok) {
-      throw new Error(result.error?.message || "OpenRouter request failed.");
+    logInferenceResponse(result);
+    console.log("Inference request duration (s):", (Date.now() - requestStartTime) / 1000);
+    if (result.status === "failed") {
+      throw new Error(result.error?.message || "Inference request failed.");
+    } else if (result.status === "incomplete") {
+      throw new Error(result.incomplete_details?.reason || "Inference response was incomplete.");
     }
 
     return result;
@@ -110,45 +105,68 @@ export class OpenRouterClient {
     requestBody: OpenRouterRequestBody
   ): AsyncGenerator<OpenRouterStreamResultEvent> {
     const streamingRequestBody = { ...requestBody, stream: true };
-    logOpenRouterRequest(streamingRequestBody);
     const requestStartTime = Date.now();
-    const response = await fetch("https://openrouter.ai/api/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.keyStore.get()}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(streamingRequestBody),
-    });
-
-    if (response.status === 401) {
-      this.keyStore.clear();
-      throw new Error("OpenRouter rejected the API key.");
-    } else if (!response.ok) {
-      const result = await response.json();
-      throw new Error(result.error?.message || "OpenRouter request failed.");
-    }
+    const response = await this.sendRequestToProvider(streamingRequestBody);
 
     for await (const event of readOpenRouterStream(response.body!)) {
       if (event.type === "complete") {
-        logOpenRouterResponse(event.response);
-        console.log("OpenRouter request duration (s):", (Date.now() - requestStartTime) / 1000);
+        logInferenceResponse(event.response);
+        console.log("Inference request duration (s):", (Date.now() - requestStartTime) / 1000);
       }
       yield event;
     }
   }
+
+  private async sendRequestToProvider(requestBody: OpenRouterRequestBody): Promise<Response> {
+    let url: string;
+    let keyStore: OpenAIKeyStore | OpenrouterKeyStore;
+    let providerName: string;
+    if (this.openAiKeyStore.hasKey() && this.openrouterKeyStore.hasKey()) {
+      throw new Error("Both OpenAI and OpenRouter API keys are configured.");
+    } else if (this.openAiKeyStore.hasKey()) {
+      url = "https://api.openai.com/v1/responses";
+      keyStore = this.openAiKeyStore;
+      providerName = "OpenAI";
+    } else if (this.openrouterKeyStore.hasKey()) {
+      url = "https://openrouter.ai/api/v1/responses";
+      keyStore = this.openrouterKeyStore;
+      providerName = "OpenRouter";
+    } else {
+      throw new Error("Sign in before sending a request.");
+    }
+
+    logInferenceRequest(requestBody, providerName);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${keyStore.get()}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (response.status === 401) {
+      keyStore.clear();
+      throw new Error(`${providerName} rejected the API key.`);
+    } else if (!response.ok) {
+      const result = await response.json();
+      throw new Error(result.error?.message || `${providerName} request failed.`);
+    }
+
+    return response;
+  }
 }
 
-function logOpenRouterRequest(requestBody: OpenRouterRequestBody) {
+function logInferenceRequest(requestBody: OpenRouterRequestBody, providerName: string) {
   const { instructions, input, ...requestMetadata } = requestBody;
-  console.info("OpenRouter request:", requestMetadata);
-  console.dir({ openRouterRequestInput: { input, instructions } });
+  console.info("Inference request:", { apiProvider: providerName, ...requestMetadata });
+  console.dir({ inferenceRequestInput: { input, instructions } });
 }
 
-function logOpenRouterResponse(responseBody: OpenRouterResponseBody) {
+function logInferenceResponse(responseBody: OpenRouterResponseBody) {
   const { output, ...responseMetadata } = responseBody;
-  console.info("OpenRouter response:", responseMetadata);
-  console.dir({ openRouterResponseOutput: output });
+  console.info("Inference response:", responseMetadata);
+  console.dir({ inferenceResponseOutput: output });
 }
 
 async function* readOpenRouterStream(
@@ -158,6 +176,8 @@ async function* readOpenRouterStream(
   const decoder = new TextDecoder();
   let outputText = "";
   let functionCall: OpenRouterFunctionCall | undefined;
+  let completed = false;
+  let completedResponse: OpenRouterResponseBody | undefined;
   const outputTextEvents: string[] = [];
   const parser = createParser({
     onEvent(event) {
@@ -168,9 +188,20 @@ async function* readOpenRouterStream(
       if (streamEvent.error) {
         throw new Error(streamEvent.error.message || "OpenRouter request failed.");
       }
-      outputText += extractStreamOutputText(streamEvent);
+      if (streamEvent.type === "response.failed") {
+        throw new Error(streamEvent.response?.error?.message || "Inference request failed.");
+      } else if (streamEvent.type === "response.incomplete") {
+        throw new Error(
+          streamEvent.response?.incomplete_details?.reason || "Inference response was incomplete."
+        );
+      } else if (streamEvent.type === "response.completed") {
+        completed = true;
+        completedResponse = streamEvent.response;
+      }
+      const textDelta = extractStreamOutputText(streamEvent);
       functionCall = updateStreamFunctionCall(functionCall, streamEvent);
-      if (outputText) {
+      if (textDelta) {
+        outputText += textDelta;
         outputTextEvents.push(outputText);
       }
     },
@@ -188,6 +219,10 @@ async function* readOpenRouterStream(
     }
   }
 
+  if (!completed) {
+    throw new Error("Inference response ended before completion.");
+  }
+
   const output: OpenRouterOutputItem[] = [
     {
       content: [{ type: "output_text", text: outputText }],
@@ -199,7 +234,7 @@ async function* readOpenRouterStream(
 
   yield {
     type: "complete",
-    response: { output },
+    response: completedResponse?.output ? completedResponse : { output },
   };
 }
 

@@ -60,7 +60,12 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
       this.handleSignInOpenRouter3pAuth,
       this.handleSaveOpenRouterKey
     );
-    this.chatPage = new ChatPage(initialDom.chatMount, this.openrouterKeyStore);
+    this.chatPage = new ChatPage(
+      initialDom.chatMount,
+      this.openrouterKeyStore,
+      this.openAiKeyStore,
+      this.state.configuredProvider
+    );
   }
 
   getMount(): HTMLElement {
@@ -99,6 +104,7 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
         type: "set_identity",
         identity: { provider: "openai", keySuffix: event.apiKey.slice(-4) },
       });
+      this.chatPage.updateState({ type: "provider_changed", provider: "openai" });
       this.authPages.updateState({ type: "reset" });
       this.mount.replaceChildren(this.signedInContainer);
     } else if (event.type === "sign_out") {
@@ -135,6 +141,7 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
       type: "set_identity",
       identity: { provider: "openrouter", keySuffix: apiKey.slice(-4) },
     });
+    this.chatPage.updateState({ type: "provider_changed", provider: "openrouter" });
     this.authPages.updateState({ type: "reset" });
     this.mount.replaceChildren(this.signedInContainer);
   }
