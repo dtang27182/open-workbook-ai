@@ -30,7 +30,10 @@
     "hld-visualizer": "node ai-coding-toolkit/node_modules/vite/bin/vite.js ai-coding-toolkit/common/hld/visualizer",
     "diff-visualizer": "node ai-coding-toolkit/node_modules/vite/bin/vite.js ai-coding-toolkit/enrich-diff/visualizer",
     "adv-diff": "node ai-coding-toolkit/node_modules/vite/bin/vite.js ai-coding-toolkit/advanced-diff-viewer/visualizer",
-    "user-journey-dataflow-viewer": "node ai-coding-toolkit/node_modules/vite/bin/vite.js ai-coding-toolkit/user-journey-dataflow/visualizer"
+    "user-journey-dataflow-viewer": "node ai-coding-toolkit/node_modules/vite/bin/vite.js ai-coding-toolkit/user-journey-dataflow/visualizer",
+    "parse-ui-spec": "node ai-coding-toolkit/common/ui-spec/parser/parse-spec.ts",
+    "ui-spec-viewer": "node ai-coding-toolkit/node_modules/vite/bin/vite.js ai-coding-toolkit/common/ui-spec/viewer",
+    "ui-spec-viewer:build": "node ai-coding-toolkit/node_modules/vite/bin/vite.js build ai-coding-toolkit/common/ui-spec/viewer"
   },
   "dependencies": {
     "dompurify": "^3.4.12",
