@@ -59,6 +59,10 @@ const sheetValues = [
   ["Aldoxin", 1200],
 ];
 
+function openProviderPicker(mount: HTMLElement): void {
+  mount.querySelector<HTMLButtonElement>("#get-started")!.click();
+}
+
 test("Account Menu Closes Help Locally And Delegates Sign Out", () => {
   const mount = document.createElement("div");
   let signOutCalls = 0;
@@ -118,10 +122,11 @@ test("Menu Sign Out Closes Popover Before Clearing Keys And Retains Chat On Sign
   assert.equal(mount.querySelector("#chat-page"), null);
   assert.equal(mount.querySelector('[aria-label="Menu"]'), null);
   assert.notEqual(mount.querySelector("#auth-pages-mount"), null);
-  assert.notEqual(mount.querySelector("#choose-provider-mount"), null);
+  assert.notEqual(mount.querySelector("#welcome-page"), null);
   assert.equal(mount.querySelector("#openrouter-sign-in"), null);
   assert.deepEqual(effects, ["hide popover", "clear key"]);
 
+  openProviderPicker(mount);
   mount.querySelector<HTMLButtonElement>("#choose-openrouter")!.click();
   assert.equal(mount.querySelector<HTMLButtonElement>("#openrouter-sign-in")!.disabled, false);
   await taskpane.updateState({ type: "sign_in_3p_auth" });
@@ -139,6 +144,29 @@ test("Menu Sign Out Closes Popover Before Clearing Keys And Retains Chat On Sign
   assert.equal(window.localStorage.getItem("open-workbook-ai-openrouter-oauth-key"), "new-key");
 });
 
+test("Welcome Opens A Two-Provider Picker And Reset Returns To Welcome", () => {
+  const mount = document.createElement("div");
+  const authPages = new AuthPagesComponent(mount, () => {}, async () => {}, () => {});
+  const welcome = mount.querySelector("#welcome-page")!;
+  assert.match(welcome.textContent!, /Your AI assistant for Excel/);
+  assert.equal(mount.querySelector("#choose-provider-page"), null);
+
+  openProviderPicker(mount);
+  assert.equal(mount.querySelector("#welcome-page"), null);
+  assert.equal(mount.querySelector("#choose-provider-mount")!.parentElement, mount);
+  assert.match(mount.querySelector("#choose-provider-page")!.textContent!, /Choose an AI provider/);
+  assert.equal(mount.querySelectorAll("#choose-provider-page .provider-card").length, 2);
+  assert.notEqual(mount.querySelector("#choose-openrouter"), null);
+  assert.notEqual(mount.querySelector("#choose-openai"), null);
+  assert.equal(mount.textContent!.includes("Anthropic"), false);
+  assert.match(mount.querySelector(".provider-disclosure")!.textContent!, /active worksheet’s used range/);
+  assert.equal(mount.querySelector(".auth-provider-picker .auth-footer")!.textContent, "Prerelease");
+
+  authPages.updateState({ type: "reset" });
+  assert.equal(mount.querySelector("#welcome-page"), welcome);
+  assert.equal(mount.querySelector("#choose-provider-page"), null);
+});
+
 test("Provider Choice Shows OpenRouter Auth Before Sign In Shows Account Options", async (context) => {
   new OpenrouterKeyStore().clear();
   const mount = document.createElement("main");
@@ -150,9 +178,11 @@ test("Provider Choice Shows OpenRouter Auth Before Sign In Shows Account Options
   });
   const fetchMock = mockOpenRouterSignInForTest(context, "signed-in-key");
   assert.equal(mount.querySelector(".signed-in-view"), null);
-  assert.notEqual(mount.querySelector("#choose-provider-mount"), null);
+  assert.notEqual(mount.querySelector("#welcome-page"), null);
   assert.equal(mount.querySelector("#openrouter-auth-mount"), null);
   assert.equal(mount.querySelector("#openrouter-auth-page"), null);
+  openProviderPicker(mount);
+  assert.notEqual(mount.querySelector("#choose-provider-mount"), null);
   mount.querySelector<HTMLButtonElement>("#choose-openrouter")!.click();
   assert.equal(mount.querySelector("#choose-provider-mount"), null);
   assert.notEqual(mount.querySelector("#openrouter-auth-mount"), null);
@@ -179,6 +209,7 @@ test("OpenRouter Back Returns To The Same Picker And Resets Auth Presentation", 
     },
     () => {}
   );
+  openProviderPicker(mount);
   const picker = mount.querySelector("#choose-provider-mount")!;
   mount.querySelector<HTMLButtonElement>("#choose-openrouter")!.click();
   const authMount = mount.querySelector("#openrouter-auth-mount")!;
@@ -213,6 +244,7 @@ test("OpenRouter Key Entry Stays Within Its Provider Page And Back Clears The Dr
     async () => {},
     () => {}
   );
+  openProviderPicker(mount);
   mount.querySelector<HTMLButtonElement>("#choose-openrouter")!.click();
   const routerMount = mount.querySelector("#openrouter-auth-mount")!;
   mount.querySelector<HTMLButtonElement>("#openrouter-use-key")!.click();
@@ -233,7 +265,7 @@ test("OpenRouter Key Entry Stays Within Its Provider Page And Back Clears The Dr
   assert.notEqual(mount.querySelector("#openrouter-sign-in"), null);
   assert.equal(input.value, "");
   authPages.updateState({ type: "reset" });
-  assert.notEqual(mount.querySelector("#choose-provider-mount"), null);
+  assert.notEqual(mount.querySelector("#welcome-page"), null);
 });
 
 test("Saving An OpenRouter Key Uses The Existing Store Without Verification", (context) => {
@@ -249,6 +281,7 @@ test("Saving An OpenRouter Key Uses The Existing Store Without Verification", (c
   const fetchMock = context.mock.method(globalThis, "fetch", async () => {
     throw new Error("Saving a key must not call OpenRouter.");
   });
+  openProviderPicker(mount);
   mount.querySelector<HTMLButtonElement>("#choose-openrouter")!.click();
   mount.querySelector<HTMLButtonElement>("#openrouter-use-key")!.click();
   const input = mount.querySelector<HTMLInputElement>("#openrouter-api-key")!;
@@ -268,7 +301,7 @@ test("Saving An OpenRouter Key Uses The Existing Store Without Verification", (c
   mount.querySelector<HTMLElement>("[popover]")!.hidePopover = () => {};
   mount.querySelector<HTMLButtonElement>("#account-sign-out")!.click();
   assert.equal(window.localStorage.getItem("open-workbook-ai-openrouter-oauth-key"), null);
-  assert.notEqual(mount.querySelector("#choose-provider-mount"), null);
+  assert.notEqual(mount.querySelector("#welcome-page"), null);
 });
 
 test("Taskpane Rejects Startup When Both Provider Keys Exist", (context) => {
@@ -295,6 +328,7 @@ test("OpenAI Entry Toggles Visibility And Back Discards The Unsaved Key", (conte
   const mount = document.createElement("main");
   new TaskpaneComponent(mount);
   context.after(() => mount.remove());
+  openProviderPicker(mount);
   const pickerMount = mount.querySelector<HTMLElement>("#choose-provider-mount")!;
   assert.equal(mount.querySelector("#add-openai-key-mount"), null);
   mount.querySelector<HTMLButtonElement>("#choose-openai")!.click();
@@ -343,6 +377,7 @@ test("OpenAI Save Requires A Nonempty Trimmed Key Without Calling A Provider", (
     throw new Error("Saving an OpenAI key must not make a request.");
   });
   const authMount = mount.querySelector<HTMLElement>("#auth-pages-mount")!;
+  openProviderPicker(mount);
   mount.querySelector<HTMLButtonElement>("#choose-openai")!.click();
   const form = mount.querySelector<HTMLFormElement>("#openai-key-form")!;
   const input = mount.querySelector<HTMLInputElement>("#openai-api-key")!;
@@ -418,7 +453,7 @@ test("OpenAI Reload Restores Masked Identity And Sign Out Clears Memory And Stor
   );
   assert.equal(mount.contains(signedIn), false);
   assert.notEqual(mount.querySelector("#auth-pages-mount"), null);
-  assert.notEqual(mount.querySelector("#choose-provider-mount"), null);
+  assert.notEqual(mount.querySelector("#welcome-page"), null);
   assert.equal(signedIn.querySelector(".account-menu-caption")!.textContent, "");
 });
 

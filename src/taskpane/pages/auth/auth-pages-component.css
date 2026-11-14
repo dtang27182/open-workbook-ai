@@ -146,3 +146,57 @@
   font-size: 12px;
   text-decoration: none;
 }
+
+.auth-provider-picker {
+  padding: 24px 20px;
+}
+
+.auth-provider-picker .auth-mark {
+  margin: 0 0 20px;
+}
+
+.auth-provider-picker h2 {
+  margin-bottom: 8px;
+  font-size: 21px;
+}
+
+.auth-provider-picker .auth-description {
+  margin-bottom: 20px;
+  font-size: 15px;
+}
+
+.auth-provider-picker .provider-list {
+  gap: 10px;
+}
+
+.auth-provider-picker .provider-card {
+  padding: 10px 12px;
+}
+
+.auth-provider-picker .provider-mark {
+  width: 32px;
+  height: 32px;
+}
+
+.auth-provider-picker .provider-card-copy strong {
+  font-size: 15px;
+}
+
+.auth-provider-picker .provider-card-copy span {
+  font-size: 12.5px;
+}
+
+.provider-disclosure {
+  margin: 16px 0 0;
+  padding: 14px;
+  border: 1px solid var(--stroke);
+  border-radius: 7px;
+  background: var(--surface-alt);
+  color: var(--ink-secondary);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.auth-provider-picker .auth-footer {
+  font-size: 13.5px;
+}

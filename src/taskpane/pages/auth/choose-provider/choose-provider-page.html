@@ -1,25 +1,19 @@
-<section class="auth-view auth-banded auth-welcome" id="choose-provider-page">
-    <div class="auth-hero">
-        <span class="auth-logo-chip"><img class="auth-mark" src="/assets/icon-80.png" alt="" width="40" height="40" /></span>
-        <h2>Your AI assistant for Excel</h2>
-        <div class="provider-list">
-            <button id="choose-openrouter" class="btn auth-primary" type="button">Get started</button>
-            <button id="choose-openai" class="provider-card" type="button" hidden>
-                <span class="provider-mark" aria-hidden="true">OA</span>
-                <span class="provider-card-copy"><strong>OpenAI</strong><span>API key · GPT models</span></span>
-                <span class="provider-card-arrow" aria-hidden="true">›</span>
-            </button>
-        </div>
+<section class="auth-view auth-provider-picker" id="choose-provider-page">
+    <img class="auth-mark" src="/assets/icon-80.png" alt="" width="40" height="40" />
+    <h2>Choose an AI provider</h2>
+    <p class="auth-description">Sign in with a provider so this add-in can use models through your own account. Your key is stored on this device only.</p>
+    <div class="provider-list">
+        <button id="choose-openrouter" class="provider-card" type="button">
+            <span class="provider-mark" aria-hidden="true">OR</span>
+            <span class="provider-card-copy"><strong>OpenRouter</strong><span>Sign in · many model families</span></span>
+            <span class="provider-card-arrow" aria-hidden="true">›</span>
+        </button>
+        <button id="choose-openai" class="provider-card" type="button">
+            <span class="provider-mark" aria-hidden="true">OA</span>
+            <span class="provider-card-copy"><strong>OpenAI</strong><span>API key · GPT models</span></span>
+            <span class="provider-card-arrow" aria-hidden="true">›</span>
+        </button>
     </div>
-    <ul class="auth-details">
-        <li><strong>Understand your worksheet</strong><span>Ask questions about the active sheet’s values and formulas, such as what drives a total.</span></li>
-        <li><strong>Make changes with confidence</strong><span>Describe an edit in plain language, then review highlighted changes on a temporary copy before choosing Accept or Reject.</span></li>
-        <li><strong>Explore what-if scenarios</strong><span>Create a separate sheet to compare an alternative with your original. Excel calculates the results, so you can inspect the formulas behind them.</span></li>
-    </ul>
-    <div id="welcome-try-asking" class="auth-try" hidden>
-        <h3>Try asking</h3>
-        <p><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg><span>What drives the total revenue in row 6?</span></p>
-        <p><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg><span>Reduce Q4 revenue by 8% for each market.</span></p>
-        <p><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg><span>Make a what-if sheet where costs rise 5%.</span></p>
-    </div>
+    <p class="provider-disclosure">Requests send the active worksheet’s used range and your message to the provider you choose. Don’t use workbooks you aren’t permitted to share.</p>
+    <footer class="auth-footer">Prerelease</footer>
 </section>
