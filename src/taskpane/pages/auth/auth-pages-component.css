@@ -42,12 +42,12 @@
   font-weight: 600;
 }
 
-.openrouter-mark {
+.openrouter-mark, .openai-mark {
   background: #05090a;
   border-color: #05090a;
 }
 
-.openrouter-mark img {
+.openrouter-mark img, .openai-mark img {
   filter: brightness(0) invert(1);
 }
 
@@ -92,10 +92,6 @@
 .auth-back:disabled {
   color: var(--disabled);
   cursor: default;
-}
-
-.api-key-mark {
-  margin-bottom: 16px;
 }
 
 .api-key-form {
@@ -147,35 +143,17 @@
   text-decoration: none;
 }
 
-.auth-provider-picker {
-  padding: 24px 20px;
-}
-
-.auth-provider-picker .auth-mark {
-  margin: 0 0 20px;
-}
-
-.auth-provider-picker h2 {
-  margin-bottom: 8px;
-  font-size: 21px;
-}
-
-.auth-provider-picker .auth-description {
-  margin-bottom: 20px;
-  font-size: 15px;
-}
-
 .auth-provider-picker .provider-list {
+  margin-top: 20px;
   gap: 10px;
 }
 
 .auth-provider-picker .provider-card {
-  padding: 10px 12px;
+  border-radius: 10px;
 }
 
 .auth-provider-picker .provider-mark {
-  width: 32px;
-  height: 32px;
+  border-radius: 8px;
 }
 
 .auth-provider-picker .provider-card-copy strong {
@@ -183,18 +161,7 @@
 }
 
 .auth-provider-picker .provider-card-copy span {
-  font-size: 12.5px;
-}
-
-.provider-disclosure {
-  margin: 16px 0 0;
-  padding: 14px;
-  border: 1px solid var(--stroke);
-  border-radius: 7px;
-  background: var(--surface-alt);
-  color: var(--ink-secondary);
-  font-size: 13.5px;
-  line-height: 1.5;
+  font-size: 13px;
 }
 
 .auth-provider-picker .auth-footer {

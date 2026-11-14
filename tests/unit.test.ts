@@ -159,7 +159,7 @@ test("Welcome Opens A Two-Provider Picker And Reset Returns To Welcome", () => {
   assert.notEqual(mount.querySelector("#choose-openrouter"), null);
   assert.notEqual(mount.querySelector("#choose-openai"), null);
   assert.equal(mount.textContent!.includes("Anthropic"), false);
-  assert.match(mount.querySelector(".provider-disclosure")!.textContent!, /active worksheet’s used range/);
+  assert.match(mount.querySelector("#choose-provider-page .auth-details")!.textContent!, /active worksheet’s used range/);
   assert.equal(mount.querySelector(".auth-provider-picker .auth-footer")!.textContent, "Prerelease");
 
   authPages.updateState({ type: "reset" });

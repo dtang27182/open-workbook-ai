@@ -54,7 +54,7 @@
   color: var(--ink-tertiary);
 }
 
-#openrouter-auth-page .auth-back {
+.auth-banded .auth-back {
   align-self: flex-start;
   margin: -24px 0 12px;
   font-size: 15px;
@@ -122,15 +122,15 @@
   row-gap: 2px;
 }
 
-.auth-welcome .auth-details {
+.auth-welcome .auth-details, .auth-steps {
   counter-reset: feature;
 }
 
-.auth-welcome .auth-details li {
+.auth-welcome .auth-details li, .auth-steps li {
   counter-increment: feature;
 }
 
-.auth-welcome .auth-details li::before, .auth-details .auth-detail-icon {
+.auth-welcome .auth-details li::before, .auth-steps li::before, .auth-details .auth-detail-icon {
   display: flex;
   grid-row: span 2;
   align-items: center;
@@ -144,7 +144,7 @@
   font-weight: 600;
 }
 
-.auth-welcome .auth-details li::before {
+.auth-welcome .auth-details li::before, .auth-steps li::before {
   content: counter(feature);
 }
 
@@ -152,11 +152,10 @@
   margin-bottom: 16px;
 }
 
-.provider-mark.auth-hero-mark {
-  width: 56px;
-  height: 56px;
-  margin-bottom: 18px;
-  border-radius: 12px;
+.auth-logo-chip .provider-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
 }
 
 .auth-hero h2 {
@@ -206,6 +205,34 @@
 .auth-link-button:disabled {
   color: var(--disabled);
   cursor: default;
+}
+
+.auth-hero .api-key-form {
+  align-self: stretch;
+  margin-top: 22px;
+  text-align: left;
+}
+
+.auth-hero .api-key-form label {
+  font-size: 14px;
+}
+
+.auth-hero .api-key-field {
+  background: var(--surface);
+  border-radius: 6px;
+}
+
+.auth-hero .api-key-form .btn {
+  margin-top: 6px;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 16px;
+}
+
+.auth-hero .api-key-link {
+  margin: 12px 0 0;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .auth-hero .auth-note, .auth-hero .auth-error {
