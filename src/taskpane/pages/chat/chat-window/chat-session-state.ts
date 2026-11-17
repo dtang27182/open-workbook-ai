@@ -1,9 +1,5 @@
-/* global HTMLElement */
-
-import type { ChatInput } from "./chat-input/chat-input";
-import type { ChatWindowDomHandlers } from "./dom/chat-window-dom";
 import { RestoreManager } from "./restore-manager";
-import type { ChatTranscriptItem } from "./dom/transcript-helpers";
+import type { ChatTranscriptItem } from "./transcript";
 import type { LlmConversationHistory, LLMManager } from "./llm/llm-manager";
 import type { ExcelManager } from "./excel-manager";
 
@@ -29,10 +25,7 @@ export type ChatState = {
   nextWorkflowId: number;
 };
 
-export class ChatWindowState {
-  readonly mount: HTMLElement;
-  readonly chatInput: ChatInput;
-  readonly domHandlers: ChatWindowDomHandlers;
+export class ChatSessionState {
   readonly excelManager: ExcelManager;
   readonly llmManager: LLMManager;
   chatState: ChatState = {
@@ -44,16 +37,7 @@ export class ChatWindowState {
   };
   readonly restoreManager = new RestoreManager();
 
-  constructor(
-    mount: HTMLElement,
-    domHandlers: ChatWindowDomHandlers,
-    excelManager: ExcelManager,
-    llmManager: LLMManager,
-    chatInput: ChatInput
-  ) {
-    this.mount = mount;
-    this.chatInput = chatInput;
-    this.domHandlers = domHandlers;
+  constructor(excelManager: ExcelManager, llmManager: LLMManager) {
     this.excelManager = excelManager;
     this.llmManager = llmManager;
   }

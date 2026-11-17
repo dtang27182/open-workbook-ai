@@ -22,31 +22,11 @@ import {
   formulaGeneratorResponseSchema,
   type FormulaInferencePlan,
   formulaInferenceInstructions,
-  openAiPreprocessModelConfigs,
-  openRouterPreprocessModelConfigs,
   rateLimitFormulaInferenceRequest,
 } from "./preprocess-formula-inference";
-import { OpenrouterKeyStore } from "../../../auth/openrouter-auth/openrouter-api-key";
-import { OpenAIKeyStore } from "../../../auth/add-openai-key/openai-key-store";
+import { ProviderManager } from "../provider-manager";
 import { formatSheetAsMarkdown, formatSheetDataAsMarkdown } from "./sheet-markdown";
-import {
-  type MainModelConfig,
-  type MainModelId,
-  type MainModelOption,
-  type ModelProvider,
-  openAiMainModelOptions,
-  openRouterMainModelOptions,
-} from "./main-model-options";
-
-const mainModelOptionsByProvider = {
-  openai: openAiMainModelOptions,
-  openrouter: openRouterMainModelOptions,
-};
-
-const preprocessModelConfigsByProvider = {
-  openai: openAiPreprocessModelConfigs,
-  openrouter: openRouterPreprocessModelConfigs,
-};
+import type { MainModelConfig } from "./main-model-options";
 
 type LlmConversationSheetContext = Readonly<{
   range: Readonly<{
@@ -316,35 +296,11 @@ const scenarioComparisonResponseSchema = {
 
 export class LLMManager {
   private readonly inferenceClient: InferenceClient;
-  private activeMainModelOptions: readonly MainModelOption[] = openRouterMainModelOptions;
-  private activePreprocessModelConfigs: { detection: MainModelConfig; inference: MainModelConfig } =
-    openRouterPreprocessModelConfigs;
-  private mainModelConfig: MainModelConfig = openRouterMainModelOptions[0].config;
+  private readonly providerManager: ProviderManager;
 
-  constructor(openrouterKeyStore: OpenrouterKeyStore, openAiKeyStore: OpenAIKeyStore) {
-    this.inferenceClient = new InferenceClient(openrouterKeyStore, openAiKeyStore);
-  }
-
-  configureForProvider(provider: ModelProvider): {
-    options: readonly MainModelOption[];
-    selectedModelId: MainModelId;
-  } {
-    const currentSelectionKey = this.activeMainModelOptions.find(
-      (option) => option.config.model === this.mainModelConfig.model
-    )!.selectionKey;
-    this.activeMainModelOptions = mainModelOptionsByProvider[provider];
-    this.activePreprocessModelConfigs = preprocessModelConfigsByProvider[provider];
-    const selectedOption =
-      this.activeMainModelOptions.find((option) => option.selectionKey === currentSelectionKey) ||
-      this.activeMainModelOptions[0];
-    this.mainModelConfig = selectedOption.config;
-    return { options: this.activeMainModelOptions, selectedModelId: selectedOption.config.model };
-  }
-
-  setMainModel(modelId: MainModelId): void {
-    this.mainModelConfig = this.activeMainModelOptions.find(
-      (option) => option.config.model === modelId
-    )!.config;
+  constructor(providerManager: ProviderManager) {
+    this.providerManager = providerManager;
+    this.inferenceClient = new InferenceClient(providerManager);
   }
 
   async *runPreprocessPrompt(sheet: SheetSnapshot): AsyncGenerator<PreprocessPromptEvent> {
@@ -353,7 +309,7 @@ export class LLMManager {
     const sheetContext = buildSheetContext(sheet);
     const detectionSheetContext = buildCompactSheetContext(sheet);
     const detectionResponse = await this.inferenceClient.request({
-      ...this.activePreprocessModelConfigs.detection,
+      ...this.providerManager.getPreprocessModelConfigs().detection,
       instructions: formulaDetectionInstructions,
       input: [
         {
@@ -382,7 +338,7 @@ export class LLMManager {
       let resolveNextRegionResult: (() => void) | undefined;
       const regionResultsPromise = inferFormulaRegions(
         this.inferenceClient,
-        this.activePreprocessModelConfigs.inference,
+        this.providerManager.getPreprocessModelConfigs().inference,
         formulaInferencePlan,
         sheetContext,
         (regionResult) => {
@@ -437,7 +393,7 @@ export class LLMManager {
     const requestBody = buildMainQueryRequestBody(
       currentUserContent,
       llmConversationMessages,
-      this.mainModelConfig
+      this.providerManager.getModel().config
     );
     const compactedLlmConversationMessages = compactLlmConversationHistory(llmConversationMessages);
     const currentUserMessage: LlmConversationMessage = {
@@ -522,7 +478,7 @@ export class LLMManager {
     const updatedLlmConversationMessages = [...llmConversationMessages, functionCallOutput];
     const requestBody = buildClarificationResponseRequestBody(
       updatedLlmConversationMessages,
-      this.mainModelConfig
+      this.providerManager.getModel().config
     );
     let result: OpenRouterResponseBody | undefined;
     let hasStartedCreatingProposedChange = false;
@@ -622,7 +578,7 @@ export class LLMManager {
       };
     });
     const requestBody: OpenRouterRequestBody = {
-      ...this.mainModelConfig,
+      ...this.providerManager.getModel().config,
       instructions: `You add a comparison section to an Excel scenario worksheet and provide a user-facing analysis. The current user message content is JSON containing the original user request, exact worksheet names, the first available comparison cell, and selected recalculated ranges from the original and scenario worksheets.
 
 Return cellEdits containing only new comparison cells at or below comparisonStartCell on the scenario worksheet. Do not modify the existing scenario model. Add clear labels and compare the relevant original values, scenario values, and differences. Baseline-value formulas must explicitly reference the original worksheet, scenario-value formulas must explicitly reference the scenario worksheet, and difference formulas must explicitly reference both. Use the exact worksheet names supplied in the request and quote worksheet names correctly in Excel formulas. Do not reconstruct original values from the scenario worksheet. Each cell edit address must be an A1 address on the scenario worksheet. newFormula is assigned through Office.js Range.formulas, so it must be exactly the literal cell value or exactly one valid Excel formula.
@@ -697,7 +653,7 @@ Return analysis as concise GitHub-flavored Markdown that directly answers the us
         originalSheet,
         updatedSheet,
         llmConversationMessages,
-        this.mainModelConfig
+        this.providerManager.getModel().config
       )
     );
     return extractOpenRouterText(result);

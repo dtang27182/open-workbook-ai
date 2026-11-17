@@ -1,12 +1,9 @@
 /* global document, HTMLElement, HTMLFormElement, HTMLTextAreaElement, HTMLButtonElement, HTMLSelectElement, ResizeObserver, window */
 
+import type { ChatModelOption, ChatSessionSnapshot } from "../chat-session-snapshot";
 import { Component } from "../../../../component";
 import { cloneChatPageElement } from "../../chat-page-template";
-import {
-  type MainModelId,
-  type MainModelOption,
-  openRouterMainModelOptions,
-} from "../llm/main-model-options";
+import type { MainModelId } from "../llm/main-model-options";
 
 export type ChatInputUpdateEvent =
   | { type: "text_updated" }
@@ -15,8 +12,8 @@ export type ChatInputUpdateEvent =
   | { type: "set_disabled"; disabled: boolean }
   | {
       type: "set_model_options";
-      options: readonly MainModelOption[];
-      selectedModelId: MainModelId;
+      options: readonly ChatModelOption[];
+      selectedModelId: MainModelId | undefined;
     };
 
 export class ChatInput implements Component<ChatInputUpdateEvent> {
@@ -30,6 +27,7 @@ export class ChatInput implements Component<ChatInputUpdateEvent> {
 
   constructor(
     mount: HTMLElement,
+    modelSelection: Pick<ChatSessionSnapshot, "modelOptions" | "selectedModelId">,
     onSubmit: (message: string) => void,
     onModelSelected: (modelId: MainModelId) => void
   ) {
@@ -40,8 +38,8 @@ export class ChatInput implements Component<ChatInputUpdateEvent> {
     this.modelSelect = this.form.querySelector<HTMLSelectElement>("#chat-model")!;
     this.updateState({
       type: "set_model_options",
-      options: openRouterMainModelOptions,
-      selectedModelId: openRouterMainModelOptions[0].config.model,
+      options: modelSelection.modelOptions,
+      selectedModelId: modelSelection.selectedModelId,
     });
     this.modelSelect.onchange = () => onModelSelected(this.modelSelect.value as MainModelId);
     this.mount.replaceChildren(this.form);
@@ -103,12 +101,14 @@ export class ChatInput implements Component<ChatInputUpdateEvent> {
       this.modelSelect.replaceChildren(
         ...event.options.map((model) => {
           const option = document.createElement("option");
-          option.value = model.config.model;
+          option.value = model.modelId;
           option.textContent = model.label;
           return option;
         })
       );
-      this.modelSelect.value = event.selectedModelId;
+      if (event.selectedModelId !== undefined) {
+        this.modelSelect.value = event.selectedModelId;
+      }
     }
   }
 

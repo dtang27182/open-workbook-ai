@@ -1,6 +1,6 @@
 /* global structuredClone */
 
-import type { PendingEdit, ChatState } from "./chat-window-state";
+import type { PendingEdit, ChatState } from "./chat-session-state";
 import type { SheetSnapshot } from "./excel-manager";
 
 export type RestorePoint = {
@@ -37,6 +37,10 @@ export class RestoreManager {
 
   getRestorePoint(restorePointId: number): RestorePoint {
     return this.restorePoints.find(({ id }) => id === restorePointId)!;
+  }
+
+  getRestorePointSummaries(): { id: number; sheetName: string }[] {
+    return this.restorePoints.map((point) => ({ id: point.id, sheetName: point.sheet.name }));
   }
 
   finalizeRestore(restorePointId: number): void {

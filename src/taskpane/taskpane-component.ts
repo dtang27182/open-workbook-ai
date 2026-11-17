@@ -1,11 +1,10 @@
 /* global document, HTMLElement */
 
-import { AccountMenu, type AccountIdentity } from "./account-menu/account-menu";
+import { AccountMenu } from "./account-menu/account-menu";
 import { Component } from "./component";
+import { ChatSession } from "./pages/chat/chat-window/chat-session";
 import { ChatPage } from "./pages/chat/chat-page";
 import { AuthPagesComponent } from "./pages/auth/auth-pages-component";
-import { OpenAIKeyStore } from "./pages/auth/add-openai-key/openai-key-store";
-import { OpenrouterKeyStore } from "./pages/auth/openrouter-auth/openrouter-api-key";
 import { acquireOpenRouterApiKey } from "./pages/auth/openrouter-auth/openrouter-key-exchange";
 import taskpaneComponentHtml from "./taskpane-component.html?raw";
 
@@ -24,48 +23,35 @@ export type TaskpaneUpdateEvent =
 
 export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
   private readonly mount: HTMLElement;
-  private readonly openrouterKeyStore: OpenrouterKeyStore;
-  private readonly openAiKeyStore: OpenAIKeyStore;
   private readonly authPages: AuthPagesComponent;
   private readonly chatPage: ChatPage;
+  private readonly chatSession: ChatSession;
   private readonly signedInContainer: HTMLElement;
   private readonly accountMenu: AccountMenu;
   private state: TaskpaneState;
 
   constructor(mount: HTMLElement) {
     this.mount = mount;
-    this.openrouterKeyStore = new OpenrouterKeyStore();
-    this.openAiKeyStore = new OpenAIKeyStore();
-    if (!this.openrouterKeyStore.hasKey() && !this.openAiKeyStore.hasKey()) {
-      this.state = { activePage: "auth", configuredProvider: undefined };
-    } else if (this.openAiKeyStore.hasKey() && !this.openrouterKeyStore.hasKey()) {
-      this.state = { activePage: "chat", configuredProvider: "openai" };
-    } else if (this.openrouterKeyStore.hasKey() && !this.openAiKeyStore.hasKey()) {
-      this.state = { activePage: "chat", configuredProvider: "openrouter" };
-    } else if (this.openrouterKeyStore.hasKey() && this.openAiKeyStore.hasKey()) {
-      throw new Error("Both OpenAI and OpenRouter API keys are configured.");
-    }
+    this.chatSession = new ChatSession();
+    const providerStatus = this.chatSession.getProviderStatus();
+    this.state = {
+      activePage: providerStatus === undefined ? "auth" : "chat",
+      configuredProvider: providerStatus?.provider,
+    };
     const initialDom = this.createInitialDom();
     this.signedInContainer = initialDom.signedInContainer;
-    let identity: AccountIdentity | undefined;
-    if (this.state.configuredProvider === "openai") {
-      identity = { provider: "openai", keySuffix: this.openAiKeyStore.get().slice(-4) };
-    } else if (this.state.configuredProvider === "openrouter") {
-      identity = { provider: "openrouter", keySuffix: this.openrouterKeyStore.get().slice(-4) };
-    }
-    this.accountMenu = new AccountMenu(initialDom.accountMenuMount, this.handleSignOut, identity);
+    this.accountMenu = new AccountMenu(
+      initialDom.accountMenuMount,
+      this.handleSignOut,
+      providerStatus
+    );
     this.authPages = new AuthPagesComponent(
       initialDom.authPagesMount,
       this.handleSaveOpenAiKey,
       this.handleSignInOpenRouter3pAuth,
       this.handleSaveOpenRouterKey
     );
-    this.chatPage = new ChatPage(
-      initialDom.chatMount,
-      this.openrouterKeyStore,
-      this.openAiKeyStore,
-      this.state.configuredProvider
-    );
+    this.chatPage = new ChatPage(initialDom.chatMount, this.chatSession);
   }
 
   getMount(): HTMLElement {
@@ -97,26 +83,23 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
     } else if (event.type === "save_openrouter_key") {
       this.completeOpenRouterSignIn(event.apiKey);
     } else if (event.type === "sign_in_openai") {
-      this.openAiKeyStore.set(event.apiKey);
+      this.chatSession.signIn("openai", event.apiKey);
       this.state.configuredProvider = "openai";
       this.state.activePage = "chat";
       this.accountMenu.updateState({
         type: "set_identity",
         identity: { provider: "openai", keySuffix: event.apiKey.slice(-4) },
       });
-      this.chatPage.updateState({ type: "provider_changed", provider: "openai" });
+      this.chatPage.updateState({ type: "provider_changed" });
       this.authPages.updateState({ type: "reset" });
       this.mount.replaceChildren(this.signedInContainer);
     } else if (event.type === "sign_out") {
       this.accountMenu.updateState({ type: "close" });
-      if (this.state.configuredProvider === "openai") {
-        this.openAiKeyStore.clear();
-      } else if (this.state.configuredProvider === "openrouter") {
-        this.openrouterKeyStore.clear();
-      }
+      this.chatSession.signOut();
       this.accountMenu.updateState({ type: "set_identity", identity: undefined });
       this.authPages.updateState({ type: "reset" });
       this.state.configuredProvider = undefined;
+      this.chatPage.updateState({ type: "provider_changed" });
       this.state.activePage = "auth";
       this.mount.replaceChildren(this.authPages.getMount());
     }
@@ -134,14 +117,14 @@ export class TaskpaneComponent implements Component<TaskpaneUpdateEvent> {
   };
 
   private completeOpenRouterSignIn(apiKey: string): void {
-    this.openrouterKeyStore.set(apiKey);
+    this.chatSession.signIn("openrouter", apiKey);
     this.state.configuredProvider = "openrouter";
     this.state.activePage = "chat";
     this.accountMenu.updateState({
       type: "set_identity",
       identity: { provider: "openrouter", keySuffix: apiKey.slice(-4) },
     });
-    this.chatPage.updateState({ type: "provider_changed", provider: "openrouter" });
+    this.chatPage.updateState({ type: "provider_changed" });
     this.authPages.updateState({ type: "reset" });
     this.mount.replaceChildren(this.signedInContainer);
   }

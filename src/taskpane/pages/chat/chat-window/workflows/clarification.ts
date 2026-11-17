@@ -1,35 +1,35 @@
 import {
   type ChatMessageTranscriptItem,
-  appendMessageAndRender,
+  appendMessage,
   appendWorkingTranscriptItem,
   getWorkflowHumanMessage,
   removeWorkingTranscriptItem,
-  updateWorkingTranscriptItemAndRender,
-  upsertTranscriptMessageAndRender,
-} from "../dom/transcript-helpers";
+  updateWorkingTranscriptItem,
+  upsertTranscriptMessage,
+} from "../transcript";
 import type { LlmConversationHistory, SpreadsheetPromptCompletionEvent } from "../llm/llm-manager";
-import { renderChatTranscript } from "../dom/chat-window-dom";
-import { processModelResponse } from "../chat-window";
-import { ChatWindowState } from "../chat-window-state";
+import { processModelResponse } from "./model-response";
+import { ChatSessionState } from "../chat-session-state";
 
-export async function runClarificationWorkflow(
-  state: ChatWindowState,
+export async function* runClarificationWorkflow(
+  state: ChatSessionState,
   answer: string
-): Promise<void> {
+): AsyncGenerator<void> {
   const pendingToolCall = state.llmManager.getPendingClarificationToolCall(
     state.chatState.llmConversationMessages
   );
   const workflowId = pendingToolCall.workflowId;
   const originalSheet = await state.excelManager.readActiveSheet();
   const responseEntry = setupTransition(state, answer, workflowId);
-  const result = await performActions(
+  yield;
+  const result = yield* performActions(
     state,
     answer,
     workflowId,
     state.chatState.llmConversationMessages,
     responseEntry
   );
-  await processModelResponse(
+  yield* processModelResponse(
     state,
     getWorkflowHumanMessage(state.chatState.transcript, workflowId),
     workflowId,
@@ -40,20 +40,13 @@ export async function runClarificationWorkflow(
 }
 
 function setupTransition(
-  state: ChatWindowState,
+  state: ChatSessionState,
   answer: string,
   workflowId: number
 ): ChatMessageTranscriptItem {
-  appendMessageAndRender(
-    state.mount,
-    state.chatState.transcript,
-    state.domHandlers,
-    "human",
-    answer,
-    workflowId
-  );
+  appendMessage(state.chatState.transcript, "human", answer, workflowId);
   appendWorkingTranscriptItem(state.chatState.transcript, "Working...", workflowId);
-  renderChatTranscript(state.mount, state.chatState.transcript, state.domHandlers);
+
   return {
     kind: "message",
     source: "system",
@@ -62,13 +55,13 @@ function setupTransition(
   };
 }
 
-async function performActions(
-  state: ChatWindowState,
+async function* performActions(
+  state: ChatSessionState,
   answer: string,
   workflowId: number,
   llmConversationMessages: LlmConversationHistory,
   responseEntry: ChatMessageTranscriptItem
-): Promise<SpreadsheetPromptCompletionEvent> {
+): AsyncGenerator<void, SpreadsheetPromptCompletionEvent> {
   let completionEvent: SpreadsheetPromptCompletionEvent | undefined;
   for await (const event of state.llmManager.runClarificationResponsePrompt(
     answer,
@@ -76,38 +69,23 @@ async function performActions(
     llmConversationMessages
   )) {
     if (event.type === "partial_response") {
-      upsertTranscriptMessageAndRender(
-        state.mount,
+      upsertTranscriptMessage(state.chatState.transcript, responseEntry, { text: event.text });
+    } else if (event.type === "creating_proposed_change") {
+      updateWorkingTranscriptItem(
         state.chatState.transcript,
-        state.domHandlers,
-        responseEntry,
-        { text: event.text }
-      );
-    }
-
-    if (event.type === "creating_proposed_change") {
-      updateWorkingTranscriptItemAndRender(
-        state.mount,
-        state.chatState.transcript,
-        state.domHandlers,
         "Creating proposed change...",
         workflowId
       );
-    }
-
-    if (event.type === "creating_scenario_sheet") {
-      updateWorkingTranscriptItemAndRender(
-        state.mount,
+    } else if (event.type === "creating_scenario_sheet") {
+      updateWorkingTranscriptItem(
         state.chatState.transcript,
-        state.domHandlers,
         "Creating new sheet to model scenario...",
         workflowId
       );
-    }
-
-    if (event.type === "clarification_requested" || event.type === "complete") {
+    } else if (event.type === "clarification_requested" || event.type === "complete") {
       completionEvent = event;
     }
+    yield;
   }
   removeWorkingTranscriptItem(state.chatState.transcript, workflowId);
 

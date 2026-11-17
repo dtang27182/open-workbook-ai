@@ -1,15 +1,15 @@
-/* global document, HTMLButtonElement, HTMLElement, ResizeObserver, structuredClone */
+/* global document, HTMLButtonElement, HTMLElement */
 
 import { ChatInput } from "../chat-input/chat-input";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
-import type { ChatWorkflowStateVals } from "../chat-window-state";
+import type { ChatSessionSnapshot, ReadonlySnapshot } from "../chat-session-snapshot";
 import type {
   ChatFormulaInferenceTranscriptItem,
   ChatMessagePresentation,
   ChatMessageTranscriptItem,
   ChatTranscriptEntry,
-} from "./transcript-helpers";
+} from "../transcript";
 import { cloneChatPageElement } from "../../chat-page-template";
 import type { MainModelId } from "../llm/main-model-options";
 
@@ -22,7 +22,10 @@ export type ChatWindowDomHandlers = {
   onRestore: (restorePointId: number) => void;
 };
 
-export function createInitialDom(mount: HTMLElement, handlers: ChatWindowDomHandlers): ChatInput {
+export function createInitialDom(
+  mount: HTMLElement,
+  handlers: ChatWindowDomHandlers
+): { chatInputMount: HTMLElement; panel: HTMLElement } {
   const element = document.createElement("div");
   const providerDetails = cloneChatPageElement<HTMLElement>(".provider-link-details");
   const messages = cloneChatPageElement<HTMLElement>("#chat-messages");
@@ -38,32 +41,21 @@ export function createInitialDom(mount: HTMLElement, handlers: ChatWindowDomHand
   chatInputMount.className = "chat-input-mount";
   element.append(providerDetails, messages, chatInputMount, reviewFooter);
   mount.replaceChildren(element);
-  const chatInput = new ChatInput(chatInputMount, handlers.onSubmit, handlers.onModelSelected);
-  let previousHeight = 0;
-  const panelObserver = new ResizeObserver(([entry]) => {
-    if (entry.contentRect.height !== previousHeight) {
-      previousHeight = entry.contentRect.height;
-      chatInput.updateState({
-        type: "panel_resized",
-        maxHeight: entry.contentRect.height / 2,
-      });
-    }
-  });
-  panelObserver.observe(element);
-  return chatInput;
+  return { chatInputMount, panel: element };
 }
 
 export function renderChatTranscript(
   mount: HTMLElement,
-  entries: readonly ChatTranscriptEntry[],
-  handlers: ChatWindowDomHandlers
+  entries: ReadonlySnapshot<ChatTranscriptEntry[]>,
+  handlers: ChatWindowDomHandlers,
+  canRestore = true
 ): void {
   const messages = mount.querySelector<HTMLElement>("#chat-messages")!;
 
   messages.innerHTML = "";
-  structuredClone(entries).forEach((entry) => {
+  entries.forEach((entry) => {
     if (entry.kind === "restore") {
-      messages.appendChild(createRestoreDivider(entry.restorePointId, entry.disabled, handlers));
+      messages.appendChild(createRestoreDivider(entry.restorePointId, !canRestore, handlers));
     } else if (entry.kind === "message") {
       messages.appendChild(createChatMessage(entry));
     } else if (entry.kind === "formula_inference") {
@@ -75,41 +67,14 @@ export function renderChatTranscript(
   messages.scrollTop = messages.scrollHeight;
 }
 
-export function disableChatControls(
-  mount: HTMLElement,
-  entries: ChatTranscriptEntry[],
-  handlers: ChatWindowDomHandlers,
-  chatInput: ChatInput
-): void {
-  entries.forEach((entry) => {
-    if (entry.kind === "restore") {
-      entry.disabled = true;
-    }
-  });
-  chatInput.updateState({ type: "set_disabled", disabled: true });
-  mount.querySelector<HTMLElement>(".chat-input-mount")!.hidden = false;
-  mount.querySelector<HTMLElement>(".chat-review-footer")!.hidden = true;
-  renderChatTranscript(mount, entries, handlers);
-}
-
 export function configChatControls(
   mount: HTMLElement,
-  entries: ChatTranscriptEntry[],
-  state: ChatWorkflowStateVals,
-  handlers: ChatWindowDomHandlers,
+  snapshot: Pick<ChatSessionSnapshot, "canSubmit" | "canReview">,
   chatInput: ChatInput
 ): void {
-  entries.forEach((entry) => {
-    if (entry.kind === "restore") {
-      entry.disabled = false;
-    }
-  });
-  renderChatTranscript(mount, entries, handlers);
-  const isPendingEdit = state === "pending_edit" || state === "pending_edit_preprocessed";
-
-  chatInput.updateState({ type: "set_disabled", disabled: isPendingEdit });
-  mount.querySelector<HTMLElement>(".chat-input-mount")!.hidden = isPendingEdit;
-  mount.querySelector<HTMLElement>(".chat-review-footer")!.hidden = !isPendingEdit;
+  chatInput.updateState({ type: "set_disabled", disabled: !snapshot.canSubmit });
+  mount.querySelector<HTMLElement>(".chat-input-mount")!.hidden = snapshot.canReview;
+  mount.querySelector<HTMLElement>(".chat-review-footer")!.hidden = !snapshot.canReview;
 }
 
 export function updateReviewWarning(mount: HTMLElement, diffSheetName: string | undefined): void {
@@ -126,7 +91,7 @@ export function updateReviewWarning(mount: HTMLElement, diffSheetName: string | 
   }
 }
 
-function createChatMessage(entry: ChatMessageTranscriptItem): HTMLElement {
+function createChatMessage(entry: ReadonlySnapshot<ChatMessageTranscriptItem>): HTMLElement {
   let message: HTMLElement;
 
   if (entry.presentation === undefined) {
@@ -153,7 +118,9 @@ function createChatMessage(entry: ChatMessageTranscriptItem): HTMLElement {
   return message;
 }
 
-function createFormulaInferenceMessage(entry: ChatFormulaInferenceTranscriptItem): HTMLElement {
+function createFormulaInferenceMessage(
+  entry: ReadonlySnapshot<ChatFormulaInferenceTranscriptItem>
+): HTMLElement {
   const message = document.createElement("div");
   const label = document.createElement("div");
   const body = document.createElement("div");
@@ -218,7 +185,9 @@ function createFormulaInferenceMessage(entry: ChatFormulaInferenceTranscriptItem
   return message;
 }
 
-function createEditDecisionMessage(presentation: ChatMessagePresentation): HTMLElement {
+function createEditDecisionMessage(
+  presentation: ReadonlySnapshot<ChatMessagePresentation>
+): HTMLElement {
   const message = document.createElement("div");
   const indicator = document.createElement("span");
   const body = document.createElement("span");
@@ -241,7 +210,7 @@ function createEditDecisionMessage(presentation: ChatMessagePresentation): HTMLE
 }
 
 function createWorkingMessage(
-  entry: Extract<ChatTranscriptEntry, { kind: "working" }>
+  entry: ReadonlySnapshot<Extract<ChatTranscriptEntry, { kind: "working" }>>
 ): HTMLElement {
   const message = document.createElement("div");
   const label = document.createElement("div");

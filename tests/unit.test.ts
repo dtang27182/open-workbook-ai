@@ -1,3 +1,6 @@
+import { ProviderManager } from "../src/taskpane/pages/chat/chat-window/provider-manager";
+import { ChatSession } from "../src/taskpane/pages/chat/chat-window/chat-session";
+import type { ChatSessionSnapshot } from "../src/taskpane/pages/chat/chat-window/chat-session-snapshot";
 import assert from "node:assert/strict";
 import { ChatInput } from "../src/taskpane/pages/chat/chat-window/chat-input/chat-input";
 import test, { type TestContext } from "node:test";
@@ -9,6 +12,7 @@ import { AuthPagesComponent } from "../src/taskpane/pages/auth/auth-pages-compon
 
 import {
   type LlmConversationHistory,
+  type SpreadsheetPromptEvent,
   LLMManager,
 } from "../src/taskpane/pages/chat/chat-window/llm/llm-manager";
 import {
@@ -19,16 +23,15 @@ import {
   type SheetSnapshot,
   ExcelManager,
 } from "../src/taskpane/pages/chat/chat-window/excel-manager";
-import type { ChatState } from "../src/taskpane/pages/chat/chat-window/chat-window-state";
+import type { ChatState } from "../src/taskpane/pages/chat/chat-window/chat-session-state";
 import {
   type ChatWindowDomHandlers,
   configChatControls,
   createInitialDom,
-  disableChatControls,
   renderChatTranscript,
   updateReviewWarning,
 } from "../src/taskpane/pages/chat/chat-window/dom/chat-window-dom";
-import type { ChatTranscriptEntry } from "../src/taskpane/pages/chat/chat-window/dom/transcript-helpers";
+import type { ChatTranscriptEntry } from "../src/taskpane/pages/chat/chat-window/transcript";
 import type {
   FormulaInferencePlan,
   PreprocessPromptEvent,
@@ -48,6 +51,11 @@ import {
 } from "./chat-window-test-helpers";
 
 const openrouterKeyStore = new OpenrouterKeyStore();
+
+const chatInputModelSelection: Pick<ChatSessionSnapshot, "modelOptions" | "selectedModelId"> = {
+  modelOptions: [{ label: "GPT-6.1 Sol", modelId: "openai/gpt-6.1-sol:exacto" }],
+  selectedModelId: "openai/gpt-6.1-sol:exacto",
+};
 
 const sheetFormulas = [
   ["PRODUCT", "UNITS"],
@@ -519,6 +527,7 @@ test("Chat Input Submits Multiline Text Through Send And Plain Enter", (context)
   const messages: string[] = [];
   const chatInput = new ChatInput(
     document.createElement("div"),
+    chatInputModelSelection,
     (message) => messages.push(message),
     () => {}
   );
@@ -555,6 +564,7 @@ test("Chat Input Disabling Preserves The Draft And Clearing Reuses The Form", (c
   const messages: string[] = [];
   const chatInput = new ChatInput(
     document.createElement("div"),
+    chatInputModelSelection,
     (message) => messages.push(message),
     () => {}
   );
@@ -584,6 +594,292 @@ test("Chat Input Disabling Preserves The Draft And Clearing Reuses The Form", (c
   assert.equal(chatInput.getMount().querySelector("form"), form);
 });
 
+test("ChatSession Streams Detached Snapshots Without A DOM", async (context) => {
+  const originalDocument = globalThis.document;
+  globalThis.document = undefined;
+  context.after(() => {
+    globalThis.document = originalDocument;
+    openrouterKeyStore.clear();
+  });
+  const workbook = createWorkbook();
+  const providerManager = new ProviderManager(openrouterKeyStore, new OpenAIKeyStore());
+  providerManager.signIn("openrouter", "unit-test-key");
+  const session = new ChatSession(providerManager, workbook.excelApi);
+  context.mock.method(
+    LLMManager.prototype,
+    "runMainQueryPrompt",
+    async function* (): AsyncGenerator<SpreadsheetPromptEvent> {
+      yield { type: "partial_response", text: "First part" };
+      yield { type: "partial_response", text: "Complete answer" };
+      yield {
+        type: "complete",
+        reply: {
+          message: "Complete answer",
+          shouldEditSheet: false,
+          createNewSheet: false,
+          cellEdits: [],
+          comparisonRanges: [],
+        },
+        updatedLlmConversationMessages: [],
+      };
+    }
+  );
+  const initial = session.getSessionSnapshot();
+  const updates = await collectSessionUpdates(session.submitMessage("Analyze this sheet."));
+  const partial = updates.find((snapshot) =>
+    snapshot.transcript.some((entry) => entry.kind === "message" && entry.text === "First part")
+  )!;
+  assert.ok(partial);
+  assert.equal(partial.actionRunning, true);
+  assert.equal(partial.canSubmit, false);
+  assert.equal(partial.canRestore, false);
+  assert.equal(initial.transcript.length, 1);
+  assert.equal(updates.at(-1)!.actionRunning, false);
+  assert.equal(updates.at(-1)!.canSubmit, true);
+  assert.deepEqual(workbook.getSheet("Sheet1").formulas, sheetFormulas);
+  const savedPartial = structuredClone(partial);
+  session.resetChat();
+  assert.deepEqual(partial, savedPartial);
+  assert.equal(session.getSessionSnapshot().transcript.length, 1);
+  // Mutating a consumer's copy cannot change session-owned state.
+  const consumerCopy = session.getSessionSnapshot();
+  (consumerCopy.transcript as ChatTranscriptEntry[]).length = 0;
+  assert.equal(session.getSessionSnapshot().transcript.length, 1);
+});
+
+test("ChatSession Review And Restore Snapshots Follow Workbook Decisions", async () => {
+  for (const decision of ["accept", "reject"] as const) {
+    const workbook = createWorkbook();
+    const providerManager = new ProviderManager(openrouterKeyStore, new OpenAIKeyStore());
+    providerManager.signIn("openrouter", "unit-test-key");
+    const session = new ChatSession(providerManager, workbook.excelApi);
+    const mocks = installMocks((request) => {
+      if ((request.text as { format: { type: string } }).format.type === "text") {
+        return createOutputTextResponse("Updated analysis.");
+      } else {
+        return getOpenRouterResponseBody(request);
+      }
+    });
+    try {
+      await collectSessionUpdates(session.submitMessage("Lowercase the headers."));
+      const pending = session.getSessionSnapshot();
+      assert.equal(pending.canReview, true);
+      assert.equal(pending.reviewSheetName, pending.pendingEdit!.diffSheetName);
+      assert.deepEqual(workbook.getSheet("Sheet1").formulas, sheetFormulas);
+      const updates = await collectSessionUpdates(
+        decision === "accept" ? session.acceptPendingDiff() : session.rejectPendingDiff()
+      );
+      assert.equal(updates[0].canReview, false);
+      assert.equal(updates[0].reviewSheetName, pending.reviewSheetName);
+      assert.equal(workbook.hasSheet(pending.pendingEdit!.diffSheetName), false);
+      assert.equal(session.getSessionSnapshot().reviewSheetName, undefined);
+      if (decision === "accept") {
+        const analyzing = updates.find((snapshot) =>
+          snapshot.transcript.some(
+            (entry) => entry.kind === "working" && entry.text === "Analyzing accepted changes..."
+          )
+        )!;
+        assert.ok(analyzing);
+        assert.equal(analyzing.canRestore, false);
+        assert.equal(analyzing.reviewSheetName, undefined);
+        assert.equal(analyzing.restorePoints.length, 1);
+        assert.deepEqual(workbook.getSheet("Sheet1").formulas[0], ["product", "units"]);
+        const point = session.getSessionSnapshot().restorePoints[0];
+        assert.equal(point.sheetName, "Sheet1");
+        await collectSessionUpdates(session.submitMessage("Another edit."));
+        const laterDiff = session.getSessionSnapshot().pendingEdit!.diffSheetName;
+        await collectSessionUpdates(session.restoreToPoint(point.id));
+        assert.equal(workbook.hasSheet(laterDiff), false);
+        assert.deepEqual(workbook.getSheet("Sheet1").formulas, sheetFormulas);
+        assert.equal(session.getSessionSnapshot().restorePoints.length, 0);
+        assert.equal(session.getSessionSnapshot().transcript.length, 1);
+      } else if (decision === "reject") {
+        assert.deepEqual(workbook.getSheet("Sheet1").formulas, sheetFormulas);
+        assert.equal(session.getSessionSnapshot().restorePoints.length, 0);
+      }
+    } finally {
+      mocks.restore();
+    }
+  }
+});
+
+test("ChatSession Continues Clarifications And Creates Scenarios", async (context) => {
+  context.after(() => openrouterKeyStore.clear());
+  const workbook = createWorkbook();
+  const providerManager = new ProviderManager(openrouterKeyStore, new OpenAIKeyStore());
+  providerManager.signIn("openrouter", "unit-test-key");
+  const session = new ChatSession(providerManager, workbook.excelApi);
+  context.mock.method(
+    LLMManager.prototype,
+    "runMainQueryPrompt",
+    async function* (_message, workflowId): AsyncGenerator<SpreadsheetPromptEvent> {
+      yield {
+        type: "clarification_requested",
+        question: "Which units?",
+        updatedLlmConversationMessages: [
+          { role: "user", text: "Create a scenario.", workflowId },
+          {
+            type: "function_call",
+            id: "question",
+            callId: "question-call",
+            name: "ask_clarifying_question",
+            arguments: JSON.stringify({ question: "Which units?" }),
+            workflowId,
+          },
+        ],
+      };
+    }
+  );
+  context.mock.method(
+    LLMManager.prototype,
+    "runClarificationResponsePrompt",
+    async function* (answer): AsyncGenerator<SpreadsheetPromptEvent> {
+      assert.equal(answer, "Double the units.");
+      yield { type: "creating_scenario_sheet" };
+      yield {
+        type: "complete",
+        reply: {
+          message: "Created a doubled-units scenario.",
+          shouldEditSheet: true,
+          createNewSheet: true,
+          cellEdits: [{ address: "B2", newFormula: 2400 }],
+          comparisonRanges: [],
+        },
+        updatedLlmConversationMessages: [],
+      };
+    }
+  );
+  context.mock.method(LLMManager.prototype, "runScenarioComparisonPrompt", async () => ({
+    cellEdits: [{ address: "A4", newFormula: "Comparison" }],
+    analysis: "Units doubled.",
+  }));
+  await collectSessionUpdates(session.submitMessage("Create a scenario."));
+  assert.equal(session.getSessionSnapshot().workflowState, "awaiting_clarification");
+  assert.equal(session.getSessionSnapshot().canSubmit, true);
+  const updates = await collectSessionUpdates(session.submitMessage("Double the units."));
+  assert.ok(
+    updates.some((snapshot) =>
+      snapshot.transcript.some(
+        (entry) => entry.kind === "working" && entry.text.includes("Creating comparison")
+      )
+    )
+  );
+  const final = session.getSessionSnapshot();
+  assert.equal(final.workflowState, "answered");
+  assert.equal(final.pendingEdit, undefined);
+  assert.equal(final.restorePoints.length, 0);
+  assert.ok(
+    final.transcript.some((entry) => entry.kind === "message" && entry.text === "Units doubled.")
+  );
+  assert.deepEqual(workbook.getSheet("Sheet1").formulas, sheetFormulas);
+  const scenario = workbook.getSheet(workbook.getActiveSheetName());
+  assert.equal(scenario.formulas[1][1], 2400);
+  assert.equal(scenario.formulas[3][0], "Comparison");
+});
+
+test("ProviderManager Owns Sign-In, Model Selection, And Provider Request Settings", (context) => {
+  const routerStore = new OpenrouterKeyStore();
+  const openAiStore = new OpenAIKeyStore();
+  routerStore.clear();
+  openAiStore.clear();
+  const manager = new ProviderManager(routerStore, openAiStore);
+  context.after(() => {
+    routerStore.clear();
+    openAiStore.clear();
+  });
+
+  assert.equal(manager.getProvider(), undefined);
+  assert.deepEqual(manager.getModelOptions(), []);
+  assert.throws(() => manager.getModel(), /Sign in before selecting a model/);
+
+  manager.signIn("openrouter", "router-key");
+  assert.equal(manager.getProvider()?.keyStore, routerStore);
+  assert.equal(manager.getProvider()?.endpoint, "https://openrouter.ai/api/v1/responses");
+  assert.equal(manager.getModelOptions().length, 5);
+  assert.equal(manager.getModel().config.model, "openai/gpt-6.1-sol:exacto");
+  manager.setModel("openai/gpt-6-sol:exacto");
+
+  manager.signIn("openai", "openai-key");
+  assert.equal(routerStore.hasKey(), false);
+  assert.equal(manager.getProvider()?.keyStore, openAiStore);
+  assert.equal(manager.getProvider()?.endpoint, "https://api.openai.com/v1/responses");
+  assert.equal(manager.getModelOptions().length, 3);
+  assert.equal(manager.getModel().config.model, "gpt-6-sol");
+  assert.equal(manager.getPreprocessModelConfigs().detection.model, "gpt-5.6-sol");
+
+  manager.signOut();
+  assert.equal(openAiStore.hasKey(), false);
+  assert.equal(manager.getProvider(), undefined);
+  assert.deepEqual(manager.getModelOptions(), []);
+});
+
+test("ChatSession Returns Recoverable Error State And Keeps Credentials Out Of Snapshots", async (context) => {
+  const routerStore = new OpenrouterKeyStore();
+  const openAiStore = new OpenAIKeyStore();
+  const providerManager = new ProviderManager(routerStore, openAiStore);
+  const session = new ChatSession(providerManager, createWorkbook().excelApi);
+  context.after(() => {
+    routerStore.clear();
+    openAiStore.clear();
+  });
+  assert.equal(session.getProviderStatus(), undefined);
+  session.signIn("openrouter", "session-router-secret");
+  session.setModel("openai/gpt-6-sol:exacto");
+  assert.equal(routerStore.get(), "session-router-secret");
+  assert.deepEqual(session.getProviderStatus(), { provider: "openrouter", keySuffix: "cret" });
+  context.mock.method(
+    LLMManager.prototype,
+    "runMainQueryPrompt",
+    async function* (): AsyncGenerator<SpreadsheetPromptEvent> {
+      yield { type: "partial_response", text: "Started answering" };
+      throw new Error("Model unavailable");
+    }
+  );
+  context.mock.method(console, "debug", () => {});
+  const updates = await collectSessionUpdates(session.submitMessage("Analyze."));
+  const failed = updates.at(-1)!;
+  assert.equal(failed.workflowState, "errored");
+  assert.equal(failed.actionRunning, false);
+  assert.equal(failed.canSubmit, true);
+  assert.equal(
+    failed.transcript.some((entry) => entry.kind === "working"),
+    false
+  );
+  assert.ok(
+    failed.transcript.some(
+      (entry) =>
+        entry.kind === "message" && entry.text.includes("could not get an assistant response")
+    )
+  );
+  session.signOut();
+  assert.equal(session.getSessionSnapshot().provider, undefined);
+  assert.equal(session.getProviderStatus(), undefined);
+  assert.equal(routerStore.hasKey(), false);
+  assert.deepEqual(session.getSessionSnapshot().transcript, failed.transcript);
+  session.signIn("openai", "session-openai-secret");
+  const signedIn = session.getSessionSnapshot();
+  assert.equal(signedIn.provider, "openai");
+  assert.equal(signedIn.selectedModelId, "gpt-6-sol");
+  assert.equal(openAiStore.get(), "session-openai-secret");
+  assert.deepEqual(session.getProviderStatus(), { provider: "openai", keySuffix: "cret" });
+  assert.equal(JSON.stringify(signedIn).includes("session-openai-secret"), false);
+  assert.equal(JSON.stringify(updates).includes("session-router-secret"), false);
+  session.resetChat();
+  assert.equal(session.getSessionSnapshot().selectedModelId, "gpt-6-sol");
+  session.signOut();
+  assert.equal(openAiStore.hasKey(), false);
+});
+
+async function collectSessionUpdates(
+  updates: AsyncIterable<ChatSessionSnapshot>
+): Promise<ChatSessionSnapshot[]> {
+  const snapshots: ChatSessionSnapshot[] = [];
+  for await (const snapshot of updates) {
+    snapshots.push(snapshot);
+  }
+  return snapshots;
+}
+
 test("Native Model Select Retains Selection Through Review And Clear", async (context) => {
   const chatWindow = createChatWindowForTest(createWorkbook().excelApi, openrouterKeyStore);
   const mount = chatWindow.getMount();
@@ -607,15 +903,13 @@ test("Native Model Select Retains Selection Through Review And Clear", async (co
   select.dispatchEvent(new window.Event("change", { bubbles: true }));
   assert.equal(select.value, "anthropic/claude-opus-4.8:nitro");
 
-  const state = chatWindow["state"];
-  state.chatState.workflowState = "pending_edit";
-  configChatControls(mount, state.chatState.transcript, "pending_edit", state.domHandlers, state.chatInput);
-  assert.equal(state.chatInput.getMount().hidden, true);
+  configChatControls(mount, { canSubmit: false, canReview: true }, chatWindow["chatInput"]);
+  assert.equal(chatWindow["chatInput"].getMount().hidden, true);
   assert.equal(mount.querySelector<HTMLElement>(".chat-review-footer")!.hidden, false);
   assert.equal(select.value, "anthropic/claude-opus-4.8:nitro");
   await chatWindow.updateState({ type: "clear" });
   assert.equal(select.value, "anthropic/claude-opus-4.8:nitro");
-  assert.equal(state.chatInput.getMount().hidden, false);
+  assert.equal(chatWindow["chatInput"].getMount().hidden, false);
 
   const newChatWindow = createChatWindowForTest(createWorkbook().excelApi, openrouterKeyStore);
   assert.equal(
@@ -660,7 +954,7 @@ test("Selecting A Model In Chat Sends It With The Next Main Request", async () =
 test("Chat Input Caps And Shrinks Its Height Using Supplied Layout Measurements", () => {
   const mount = document.createElement("div");
   document.body.appendChild(mount);
-  const chatInput = new ChatInput(mount, () => {}, () => {});
+  const chatInput = new ChatInput(mount, chatInputModelSelection, () => {}, () => {});
   const input = mount.querySelector<HTMLTextAreaElement>("textarea")!;
   // jsdom supplies no layout; simulate measurements to check sizing decisions.
   input.style.setProperty("--chat-input-min-height", "34px");
@@ -789,7 +1083,7 @@ test("Review Footer Replaces The Composer And Preserves Control Bindings And Dra
     onReject: () => actions.push("reject"),
     onRestore: (id) => actions.push(`restore ${id}`),
   };
-  const chatInput = createInitialDom(mount, handlers);
+  const chatInput = new ChatInput(createInitialDom(mount, handlers).chatInputMount, chatInputModelSelection, handlers.onSubmit, handlers.onModelSelected);
   document.body.appendChild(mount);
   context.after(() => mount.remove());
   const form = mount.querySelector("form")!;
@@ -799,12 +1093,13 @@ test("Review Footer Replaces The Composer And Preserves Control Bindings And Dra
   const buttons = Array.from(footer.querySelectorAll<HTMLButtonElement>("button"));
   assert.equal(footer.hidden, true);
   const entries: ChatTranscriptEntry[] = [
-    { kind: "restore", restorePointId: 7, workflowId: 1, disabled: false },
+    { kind: "restore", restorePointId: 7, workflowId: 1 },
   ];
   input.value = "Keep this\nunsent draft";
   updateReviewWarning(mount, "Diff <2>");
   assert.equal(footer.hidden, true);
-  configChatControls(mount, entries, "pending_edit", handlers, chatInput);
+  configChatControls(mount, { canSubmit: false, canReview: true }, chatInput);
+  renderChatTranscript(mount, entries, handlers);
 
   assert.equal(chatInputMount.hidden, true);
   assert.equal(footer.hidden, false);
@@ -825,9 +1120,9 @@ test("Review Footer Replaces The Composer And Preserves Control Bindings And Dra
   mount.querySelector<HTMLButtonElement>(".chat-message-restore")!.click();
   assert.deepEqual(actions, ["accept", "reject", "restore 7"]);
 
-  disableChatControls(mount, entries, handlers, chatInput);
+  configChatControls(mount, { canSubmit: false, canReview: false }, chatInput);
   entries.push({ kind: "working", source: "system", text: "Processing...", workflowId: 2 });
-  renderChatTranscript(mount, entries, handlers);
+  renderChatTranscript(mount, entries, handlers, false);
   assert.equal(footer.hidden, true);
   assert.equal(chatInputMount.hidden, false);
   assert.equal(input.disabled, true);
@@ -850,8 +1145,9 @@ test("Review Footer Replaces The Composer And Preserves Control Bindings And Dra
     "errored",
     "answered",
   ] as const) {
-    configChatControls(mount, [], state, handlers, chatInput);
     const pending = state === "pending_edit" || state === "pending_edit_preprocessed";
+    configChatControls(mount, { canSubmit: !pending, canReview: pending }, chatInput);
+    renderChatTranscript(mount, [], handlers);
     assert.equal(footer.hidden, !pending);
     assert.equal(chatInputMount.hidden, pending);
     assert.equal(input.disabled, pending);
@@ -1069,7 +1365,9 @@ test("Preprocessing Keeps One Structured Plan Through Decisions And Later Restor
       return getOpenRouterResponseBody(request);
     });
     try {
-      await runPreprocessWorkflow(chatWindow["state"], "Lowercase the headers.", 1);
+      for await (const _update of runPreprocessWorkflow(chatWindow["session"]["state"], "Lowercase the headers.", 1)) {
+        await chatWindow.updateState({ type: "provider_changed" });
+      }
       assert.equal(getChatStateForTest(chatWindow).workflowState, "pending_edit_preprocessed");
       assert.equal(chatWindow.getMount().querySelectorAll(".chat-formula-inference").length, 1);
       assert.equal(mocks.requests.length, 0);
@@ -1429,7 +1727,9 @@ test("Sheet Markdown Preserves Values Formulas And Escaping", () => {
 });
 
 test("LLM Manager Preserves Main Query Streaming And Replacement History", async () => {
-  const manager = new LLMManager(openrouterKeyStore, new OpenAIKeyStore());
+  const providerManager = new ProviderManager(openrouterKeyStore, new OpenAIKeyStore());
+  providerManager.signIn("openrouter", "unit-test-key");
+  const manager = new LLMManager(providerManager);
   const mocks = installMocks(() =>
     createOutputTextResponse({
       shouldEditSheet: true,
@@ -1488,7 +1788,9 @@ test("LLM Manager Preserves Main Query Streaming And Replacement History", async
 });
 
 test("LLM Manager Continues A Pending Clarification", async () => {
-  const manager = new LLMManager(openrouterKeyStore, new OpenAIKeyStore());
+  const providerManager = new ProviderManager(openrouterKeyStore, new OpenAIKeyStore());
+  providerManager.signIn("openrouter", "unit-test-key");
+  const manager = new LLMManager(providerManager);
   const history: LlmConversationHistory = [
     { role: "user", text: "Update the forecast.", workflowId: 3 },
     {
@@ -1547,7 +1849,9 @@ test("LLM Manager Continues A Pending Clarification", async () => {
 });
 
 test("LLM Manager Preserves Preprocess Scenario And Update Analysis Operations", async () => {
-  const manager = new LLMManager(openrouterKeyStore, new OpenAIKeyStore());
+  const providerManager = new ProviderManager(openrouterKeyStore, new OpenAIKeyStore());
+  providerManager.signIn("openrouter", "unit-test-key");
+  const manager = new LLMManager(providerManager);
   const mocks = installMocks((requestBody) => {
     const format = requestBody.text as { format: { type: string; name?: string } };
     if (format.format.name === "formula_inference_plan") {
@@ -1608,7 +1912,9 @@ test("LLM Manager Preserves Preprocess Scenario And Update Analysis Operations",
 });
 
 test("Selected Model Configures Each Main Request Without Changing Preprocessing", async () => {
-  const manager = new LLMManager(openrouterKeyStore, new OpenAIKeyStore());
+  const providerManager = new ProviderManager(openrouterKeyStore, new OpenAIKeyStore());
+  providerManager.signIn("openrouter", "unit-test-key");
+  const manager = new LLMManager(providerManager);
   const sheet = createRestoreManagerSheet("Sheet1");
   const mocks = installMocks((requestBody) => {
     const format = requestBody.text as { format: { name?: string } };
@@ -1631,11 +1937,11 @@ test("Selected Model Configures Each Main Request Without Changing Preprocessing
   });
 
   try {
-    manager.setMainModel("anthropic/claude-opus-4.8:nitro");
+    providerManager.setModel("anthropic/claude-opus-4.8:nitro");
     for await (const _event of manager.runMainQueryPrompt("Explain.", 1, sheet, [])) {
       // Consume the streamed completion.
     }
-    manager.setMainModel("anthropic/claude-sonnet-5.5:nitro");
+    providerManager.setModel("anthropic/claude-sonnet-5.5:nitro");
     for await (const _event of manager.runClarificationResponsePrompt("FY2028", 1, [
       {
         type: "function_call",
@@ -1648,7 +1954,7 @@ test("Selected Model Configures Each Main Request Without Changing Preprocessing
     ])) {
       // Consume the streamed completion.
     }
-    manager.setMainModel("openai/gpt-6-sol:exacto");
+    providerManager.setModel("openai/gpt-6-sol:exacto");
     await manager.runScenarioComparisonPrompt(
       "Compare.",
       sheet,
@@ -1659,7 +1965,7 @@ test("Selected Model Configures Each Main Request Without Changing Preprocessing
     for await (const _event of manager.runPreprocessPrompt(sheet)) {
       // Consume preprocessing without a proposed edit.
     }
-    manager.setMainModel("openai/gpt-6.1-sol:exacto");
+    providerManager.setModel("openai/gpt-6.1-sol:exacto");
     await manager.runUpdateAnalysisPrompt("Analyze.", sheet, sheet, []);
 
     assert.deepEqual(
@@ -1702,9 +2008,9 @@ test("OpenRouter Clients Share Key Changes Only Through Their Supplied Stores", 
   const secondStore = new OpenrouterKeyStore();
   firstStore.set("first-key");
   secondStore.set("second-key");
-  const firstClient = new InferenceClient(firstStore, new OpenAIKeyStore());
-  const sharedClient = new InferenceClient(firstStore, new OpenAIKeyStore());
-  const secondClient = new InferenceClient(secondStore, new OpenAIKeyStore());
+  const firstClient = new InferenceClient(new ProviderManager(firstStore, new OpenAIKeyStore()));
+  const sharedClient = new InferenceClient(new ProviderManager(firstStore, new OpenAIKeyStore()));
+  const secondClient = new InferenceClient(new ProviderManager(secondStore, new OpenAIKeyStore()));
   const authorizations: string[] = [];
   t.mock.method(globalThis, "fetch", async (_input, init) => {
     authorizations.push(new Headers(init.headers).get("Authorization")!);
@@ -1743,7 +2049,7 @@ test("OpenRouter Request Errors Preserve Key Invalidation Behavior", async (t) =
   const affectedStore = new OpenrouterKeyStore();
   const otherStore = new OpenrouterKeyStore();
   otherStore.set("other-key");
-  const client = new InferenceClient(affectedStore, new OpenAIKeyStore());
+  const client = new InferenceClient(new ProviderManager(affectedStore, new OpenAIKeyStore()));
   let status = 401;
   t.mock.method(
     globalThis,
@@ -1769,7 +2075,7 @@ test("OpenRouter Request Errors Preserve Key Invalidation Behavior", async (t) =
 test("OpenRouter Streaming Assembles Text And Clarification Across Chunks", async (t) => {
   const keyStore = new OpenrouterKeyStore();
   keyStore.set("stream-key");
-  const client = new InferenceClient(keyStore, new OpenAIKeyStore());
+  const client = new InferenceClient(new ProviderManager(keyStore, new OpenAIKeyStore()));
   const toolCall = {
     type: "function_call",
     id: "question-item",
@@ -1837,7 +2143,7 @@ test("Inference Client Routes Each Request To The Authenticated Provider", async
     });
     return createOpenRouterResponse(createOutputTextResponse("Response"), body.stream === true);
   });
-  const client = new InferenceClient(openrouterStore, openAiStore);
+  const client = new InferenceClient(new ProviderManager(openrouterStore, openAiStore));
 
   await client.request({ ...createClientRequest(), model: "gpt-6-sol" });
   await collectEvents(client.requestStreamEvents({ ...createClientRequest(), model: "gpt-6-sol" }));
@@ -1894,7 +2200,7 @@ test("OpenAI Rejection Clears Its Key And Incomplete Streams Do Not Complete", a
     "fetch",
     async () => new Response(JSON.stringify({ error: { message: "Rejected." } }), { status: 401 })
   );
-  const client = new InferenceClient(openrouterStore, openAiStore);
+  const client = new InferenceClient(new ProviderManager(openrouterStore, openAiStore));
   for (const streaming of [false, true]) {
     openAiStore.set("rejected-openai-key");
     await assert.rejects(
@@ -1976,8 +2282,8 @@ test("OpenAI Preprocessing Uses Native Detection And Region Models On Retry", as
       );
     }
   });
-  const manager = new LLMManager(openrouterStore, openAiStore);
-  manager.configureForProvider("openai");
+  const providerManager = new ProviderManager(openrouterStore, openAiStore);
+  const manager = new LLMManager(providerManager);
   const events = [];
   for await (const event of manager.runPreprocessPrompt(createRestoreManagerSheet("Sheet1"))) {
     events.push(event.type);
@@ -2024,8 +2330,8 @@ test("OpenAI Clarification Continues Without Replaying Reasoning Items", async (
       { headers: { "Content-Type": "text/event-stream" } }
     );
   });
-  const manager = new LLMManager(openrouterStore, openAiStore);
-  manager.configureForProvider("openai");
+  const providerManager = new ProviderManager(openrouterStore, openAiStore);
+  const manager = new LLMManager(providerManager);
   const mainEvents = [];
   for await (const event of manager.runMainQueryPrompt(
     "Update the forecast.",
@@ -2081,9 +2387,9 @@ test("OpenAI Comparison And Post-Edit Analysis Use The Selected Native Model", a
       )
     );
   });
-  const manager = new LLMManager(openrouterStore, openAiStore);
-  manager.configureForProvider("openai");
-  manager.setMainModel("gpt-6-sol");
+  const providerManager = new ProviderManager(openrouterStore, openAiStore);
+  const manager = new LLMManager(providerManager);
+  providerManager.setModel("gpt-6-sol");
   const sheet = createRestoreManagerSheet("Sheet1");
 
   await manager.runScenarioComparisonPrompt(

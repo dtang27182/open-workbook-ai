@@ -3,8 +3,7 @@
 import { createParser } from "eventsource-parser";
 
 import type { ModelSpreadsheetResponse } from "./llm-manager";
-import { OpenrouterKeyStore } from "../../../auth/openrouter-auth/openrouter-api-key";
-import { OpenAIKeyStore } from "../../../auth/add-openai-key/openai-key-store";
+import { ProviderManager } from "../provider-manager";
 
 export type OpenRouterMessage = { role: string; content: string };
 
@@ -78,12 +77,10 @@ export type OpenRouterStreamResultEvent =
   | { type: "complete"; response: OpenRouterResponseBody };
 
 export class InferenceClient {
-  private readonly openrouterKeyStore: OpenrouterKeyStore;
-  private readonly openAiKeyStore: OpenAIKeyStore;
+  private readonly providerManager: ProviderManager;
 
-  constructor(openrouterKeyStore: OpenrouterKeyStore, openAiKeyStore: OpenAIKeyStore) {
-    this.openrouterKeyStore = openrouterKeyStore;
-    this.openAiKeyStore = openAiKeyStore;
+  constructor(providerManager: ProviderManager) {
+    this.providerManager = providerManager;
   }
 
   async request(requestBody: OpenRouterRequestBody): Promise<OpenRouterResponseBody> {
@@ -118,39 +115,26 @@ export class InferenceClient {
   }
 
   private async sendRequestToProvider(requestBody: OpenRouterRequestBody): Promise<Response> {
-    let url: string;
-    let keyStore: OpenAIKeyStore | OpenrouterKeyStore;
-    let providerName: string;
-    if (this.openAiKeyStore.hasKey() && this.openrouterKeyStore.hasKey()) {
-      throw new Error("Both OpenAI and OpenRouter API keys are configured.");
-    } else if (this.openAiKeyStore.hasKey()) {
-      url = "https://api.openai.com/v1/responses";
-      keyStore = this.openAiKeyStore;
-      providerName = "OpenAI";
-    } else if (this.openrouterKeyStore.hasKey()) {
-      url = "https://openrouter.ai/api/v1/responses";
-      keyStore = this.openrouterKeyStore;
-      providerName = "OpenRouter";
-    } else {
+    const active = this.providerManager.getProvider();
+    if (active === undefined) {
       throw new Error("Sign in before sending a request.");
     }
-
-    logInferenceRequest(requestBody, providerName);
-    const response = await fetch(url, {
+    logInferenceRequest(requestBody, active.displayName);
+    const response = await fetch(active.endpoint, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${keyStore.get()}`,
+        Authorization: `Bearer ${active.keyStore.get()}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(requestBody),
     });
 
     if (response.status === 401) {
-      keyStore.clear();
-      throw new Error(`${providerName} rejected the API key.`);
+      this.providerManager.signOut();
+      throw new Error(`${active.displayName} rejected the API key.`);
     } else if (!response.ok) {
       const result = await response.json();
-      throw new Error(result.error?.message || `${providerName} request failed.`);
+      throw new Error(result.error?.message || `${active.displayName} request failed.`);
     }
 
     return response;

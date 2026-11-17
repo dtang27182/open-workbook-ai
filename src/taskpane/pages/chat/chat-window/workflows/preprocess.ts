@@ -1,38 +1,30 @@
 import type { CellEdit, SheetSnapshot } from "../excel-manager";
 import { formatFormulaInferenceRegionResult } from "../llm/preprocess-formula-inference";
-import { renderChatTranscript, updateReviewWarning } from "../dom/chat-window-dom";
 import {
-  appendFormulaInferencePlanAndRender,
-  appendMessageAndRender,
+  appendFormulaInferencePlan,
+  appendMessage,
   appendWorkingTranscriptItem,
   getWorkflowHumanMessage,
   removeWorkingTranscriptItem,
-} from "../dom/transcript-helpers";
-import { ChatWindowState } from "../chat-window-state";
+} from "../transcript";
+import { ChatSessionState } from "../chat-session-state";
 import { runSubmitMessageWorkflow } from "./submit-message";
 
-export async function runPreprocessWorkflow(
-  state: ChatWindowState,
+export async function* runPreprocessWorkflow(
+  state: ChatSessionState,
   message: string,
   workflowId: number
-): Promise<void> {
+): AsyncGenerator<void> {
   const originalSheet = await state.excelManager.readActiveSheet();
   setupTransition(state, message, workflowId, originalSheet);
+  yield;
   let cellEdits: CellEdit[] | undefined;
   for await (const event of state.llmManager.runPreprocessPrompt(originalSheet)) {
     if (event.type === "detection_complete") {
-      appendFormulaInferencePlanAndRender(
-        state.mount,
-        state.chatState.transcript,
-        state.domHandlers,
-        event.plan,
-        workflowId
-      );
+      appendFormulaInferencePlan(state.chatState.transcript, event.plan, workflowId);
     } else if (event.type === "region_complete") {
-      appendMessageAndRender(
-        state.mount,
+      appendMessage(
         state.chatState.transcript,
-        state.domHandlers,
         "system",
         formatFormulaInferenceRegionResult(event.region, event.cellEditCount),
         workflowId
@@ -40,46 +32,38 @@ export async function runPreprocessWorkflow(
     } else if (event.type === "complete") {
       cellEdits = event.cellEdits;
     }
+    yield;
   }
   removeWorkingTranscriptItem(state.chatState.transcript, workflowId);
-  await finalizeTransition(state, workflowId, originalSheet, cellEdits!);
+  yield* finalizeTransition(state, workflowId, originalSheet, cellEdits!);
 }
 
 function setupTransition(
-  state: ChatWindowState,
+  state: ChatSessionState,
   message: string,
   workflowId: number,
   originalSheet: SheetSnapshot
 ): void {
   state.restoreManager.createPotentialRestorePoint(workflowId, state.chatState, originalSheet);
-  appendMessageAndRender(
-    state.mount,
-    state.chatState.transcript,
-    state.domHandlers,
-    "human",
-    message,
-    workflowId
-  );
+  appendMessage(state.chatState.transcript, "human", message, workflowId);
   appendWorkingTranscriptItem(state.chatState.transcript, "Analyzing worksheet..", workflowId);
   state.chatState.preprocessedSheetNames.push(originalSheet.name);
-  renderChatTranscript(state.mount, state.chatState.transcript, state.domHandlers);
 }
 
-async function finalizeTransition(
-  state: ChatWindowState,
+async function* finalizeTransition(
+  state: ChatSessionState,
   workflowId: number,
   originalSheet: SheetSnapshot,
   cellEdits: CellEdit[]
-): Promise<void> {
+): AsyncGenerator<void> {
   if (cellEdits.length > 0) {
-    appendMessageAndRender(
-      state.mount,
+    appendMessage(
       state.chatState.transcript,
-      state.domHandlers,
       "system",
       "**Completed formula inference. Please review the inferred formulas (highlighted)**",
       workflowId
     );
+    yield;
     const diff = await state.excelManager.createNextDiffSheet(originalSheet, cellEdits);
     state.chatState.pendingEdit = {
       sourceSheetName: originalSheet.name,
@@ -87,9 +71,10 @@ async function finalizeTransition(
       workflowId,
     };
     state.chatState.workflowState = "pending_edit_preprocessed";
-    updateReviewWarning(state.mount, state.chatState.pendingEdit.diffSheetName);
+    yield;
   } else {
-    await runSubmitMessageWorkflow(
+    yield;
+    yield* runSubmitMessageWorkflow(
       state,
       getWorkflowHumanMessage(state.chatState.transcript, workflowId),
       workflowId,

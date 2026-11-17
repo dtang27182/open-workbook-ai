@@ -59,14 +59,14 @@ A component constructor always receives its mount element, followed by any real 
 
 For a parent component, construction also creates the mount elements for its children and then constructs each child with its mount. Regular `updateState()` calls use the stored mounts and reuse existing child instances.
 
-For example, `ChatPage` creates its child mounts in an initialization helper, passes the sign-out event handler to `ChatHeader` for binding to its sign-out control, and supplies the key store to `ChatWindow`:
+For example, `ChatPage` creates its child mounts in an initialization helper, constructs `ChatHeader`, and supplies the shared session service to `ChatWindow`:
 
 ```ts
-constructor(mount: HTMLElement, onSignOut: () => void, keyStore: OpenrouterKeyStore) {
+constructor(mount: HTMLElement, session: ChatSession) {
   this.mount = mount;
   const initialDom = this.createInitialDom();
-  this.chatHeader = new ChatHeader(initialDom.chatHeaderMount, onSignOut);
-  this.chatWindow = new ChatWindow(initialDom.chatWindowMount, keyStore);
+  this.chatHeader = new ChatHeader(initialDom.chatHeaderMount);
+  this.chatWindow = new ChatWindow(initialDom.chatWindowMount, session);
 }
 ```
 
@@ -94,7 +94,7 @@ Functions passed from parents to children for component interaction must be ance
 
 When invoked, the handler calls its owning component's `updateState()` with the corresponding update event. State access and coordination with children follow the rules in [Component Hierarchy and Coordination](#component-hierarchy-and-coordination).
 
-For example, the submit event handler defined in the `ChatWindow` constructor calls its own `updateState()` because submitting a message affects state owned by `ChatWindow`:
+For example, the submit event handler defined in the `ChatWindow` constructor calls its own `updateState()` because submitting a message changes the session and the UI displayed by `ChatWindow`:
 
 ```ts
 onSubmit: (message) => {

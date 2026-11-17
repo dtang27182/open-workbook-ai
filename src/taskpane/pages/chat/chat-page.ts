@@ -3,32 +3,20 @@
 import { Component } from "../../component";
 import { ChatHeader } from "./chat-header";
 import { ChatWindow } from "./chat-window/chat-window";
-import { OpenrouterKeyStore } from "../auth/openrouter-auth/openrouter-api-key";
-import { OpenAIKeyStore } from "../auth/add-openai-key/openai-key-store";
-import type { ModelProvider } from "./chat-window/llm/main-model-options";
+import type { ChatSession } from "./chat-window/chat-session";
 
-export type ChatPageUpdateEvent = { type: "provider_changed"; provider: ModelProvider };
+export type ChatPageUpdateEvent = { type: "provider_changed" };
 
 export class ChatPage implements Component<ChatPageUpdateEvent> {
   private readonly mount: HTMLElement;
   private readonly chatHeader: ChatHeader;
   private readonly chatWindow: ChatWindow;
 
-  constructor(
-    mount: HTMLElement,
-    openrouterKeyStore: OpenrouterKeyStore,
-    openAiKeyStore: OpenAIKeyStore,
-    configuredProvider: ModelProvider | undefined
-  ) {
+  constructor(mount: HTMLElement, session: ChatSession) {
     this.mount = mount;
     const initialDom = this.createInitialDom();
     this.chatHeader = new ChatHeader(initialDom.chatHeaderMount);
-    this.chatWindow = new ChatWindow(
-      initialDom.chatWindowMount,
-      openrouterKeyStore,
-      openAiKeyStore,
-      configuredProvider
-    );
+    this.chatWindow = new ChatWindow(initialDom.chatWindowMount, session);
   }
 
   getMount(): HTMLElement {

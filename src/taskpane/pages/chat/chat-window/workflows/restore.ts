@@ -1,8 +1,7 @@
-import { updateReviewWarning } from "../dom/chat-window-dom";
-import { ChatWindowState } from "../chat-window-state";
+import { ChatSessionState } from "../chat-session-state";
 
 export async function runRestoreWorkflow(
-  state: ChatWindowState,
+  state: ChatSessionState,
   restorePointId: number
 ): Promise<void> {
   const restorePoint = state.restoreManager.getRestorePoint(restorePointId);
@@ -15,12 +14,5 @@ export async function runRestoreWorkflow(
 
   await state.excelManager.writeSheetFormulas(restorePoint.sheet);
   state.chatState = restorePoint.chatState;
-  updateReviewWarning(
-    state.mount,
-    state.chatState.workflowState === "pending_edit" ||
-      state.chatState.workflowState === "pending_edit_preprocessed"
-      ? state.chatState.pendingEdit!.diffSheetName
-      : undefined
-  );
   state.restoreManager.finalizeRestore(restorePointId);
 }

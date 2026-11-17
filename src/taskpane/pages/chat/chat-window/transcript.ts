@@ -1,8 +1,6 @@
-/* global HTMLElement */
-
-import type { RestorePoint } from "../restore-manager";
-import type { FormulaInferencePlan } from "../llm/preprocess-formula-inference";
-import { ChatWindowDomHandlers, renderChatTranscript } from "./chat-window-dom";
+import type { ChatState } from "./chat-session-state";
+import type { RestorePoint } from "./restore-manager";
+import type { FormulaInferencePlan } from "./llm/preprocess-formula-inference";
 
 export type ChatTranscriptSource = "human" | "system";
 
@@ -31,7 +29,6 @@ export type ChatTranscriptItem =
       kind: "restore";
       restorePointId: number;
       workflowId: number;
-      disabled: boolean;
     }
   | {
       kind: "working";
@@ -46,10 +43,8 @@ export type ChatMessageTranscriptItem = Extract<ChatTranscriptItem, { kind: "mes
 
 export type ChatWorkingTranscriptItem = Extract<ChatTranscriptItem, { kind: "working" }>;
 
-export function appendMessageAndRender(
-  mount: HTMLElement,
+export function appendMessage(
   transcript: ChatTranscriptEntry[],
-  handlers: ChatWindowDomHandlers,
   source: "human" | "system",
   text: string,
   workflowId: number,
@@ -63,25 +58,19 @@ export function appendMessageAndRender(
     presentation,
   };
   transcript.push(entry);
-  renderChatTranscript(mount, transcript, handlers);
   return entry;
 }
 
-export function appendFormulaInferencePlanAndRender(
-  mount: HTMLElement,
+export function appendFormulaInferencePlan(
   transcript: ChatTranscriptEntry[],
-  handlers: ChatWindowDomHandlers,
   plan: FormulaInferencePlan,
   workflowId: number
 ): void {
   transcript.push({ kind: "formula_inference", plan, workflowId });
-  renderChatTranscript(mount, transcript, handlers);
 }
 
-export function upsertTranscriptMessageAndRender(
-  mount: HTMLElement,
+export function upsertTranscriptMessage(
   transcript: ChatTranscriptEntry[],
-  handlers: ChatWindowDomHandlers,
   entry: ChatMessageTranscriptItem,
   update: Partial<Pick<ChatMessageTranscriptItem, "text">>
 ): void {
@@ -89,13 +78,10 @@ export function upsertTranscriptMessageAndRender(
     transcript.push(entry);
   }
   Object.assign(entry, update);
-  renderChatTranscript(mount, transcript, handlers);
 }
 
-export function insertRestoreTranscriptItemAndRender(
-  mount: HTMLElement,
+export function insertRestoreTranscriptItem(
   transcript: ChatTranscriptEntry[],
-  handlers: ChatWindowDomHandlers,
   restorePoint: RestorePoint,
   workflowId: number
 ): void {
@@ -103,9 +89,7 @@ export function insertRestoreTranscriptItemAndRender(
     kind: "restore",
     restorePointId: restorePoint.id,
     workflowId,
-    disabled: true,
   });
-  renderChatTranscript(mount, transcript, handlers);
 }
 
 export function appendWorkingTranscriptItem(
@@ -132,10 +116,8 @@ export function removeWorkingTranscriptItem(
   );
 }
 
-export function updateWorkingTranscriptItemAndRender(
-  mount: HTMLElement,
+export function updateWorkingTranscriptItem(
   transcript: ChatTranscriptEntry[],
-  handlers: ChatWindowDomHandlers,
   text: string,
   workflowId: number
 ): void {
@@ -145,7 +127,6 @@ export function updateWorkingTranscriptItemAndRender(
   const [entry] = transcript.splice(entryIndex, 1) as ChatWorkingTranscriptItem[];
   entry.text = text;
   transcript.push(entry);
-  renderChatTranscript(mount, transcript, handlers);
 }
 
 export function getWorkflowHumanMessage(
@@ -170,4 +151,26 @@ function hasTranscriptMessage(
       transcriptEntry.workflowId === entry.workflowId &&
       transcriptEntry === entry
   );
+}
+
+export function appendUserDecisionLlmMessage(
+  chatState: ChatState,
+  text: string,
+  workflowId: number
+): void {
+  chatState.llmConversationMessages = [
+    ...chatState.llmConversationMessages,
+    { role: "user", text, workflowId },
+  ];
+}
+
+export function appendAssistantLlmMessage(
+  chatState: ChatState,
+  text: string,
+  workflowId: number
+): void {
+  chatState.llmConversationMessages = [
+    ...chatState.llmConversationMessages,
+    { role: "assistant", text, workflowId },
+  ];
 }
