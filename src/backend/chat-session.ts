@@ -18,6 +18,8 @@ import { runRejectDiffWorkflow } from "./workflows/reject-diff";
 import { runRestoreWorkflow } from "./workflows/restore";
 import { runSubmitMessageWorkflow } from "./workflows/submit-message";
 
+export { acquireOpenRouterApiKey } from "./openrouter-3p-auth/openrouter-key-exchange";
+
 export type ModelProvider = "openai" | "openrouter";
 export type MainModelId = MainModelOption["config"]["model"];
 

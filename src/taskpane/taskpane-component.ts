@@ -2,10 +2,9 @@
 
 import { AccountMenu } from "./account-menu/account-menu";
 import { Component } from "./component";
-import { ChatSession } from "../backend/chat-session";
+import { ChatSession, acquireOpenRouterApiKey } from "../backend/chat-session";
 import { ChatPage } from "./pages/chat/chat-page";
 import { AuthPagesComponent } from "./pages/auth/auth-pages-component";
-import { acquireOpenRouterApiKey } from "./pages/auth/openrouter-auth/openrouter-key-exchange";
 import taskpaneComponentHtml from "./taskpane-component.html?raw";
 
 export type TaskpanePageName = "auth" | "chat";
