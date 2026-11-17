@@ -1,9 +1,12 @@
 /* global document, HTMLElement, HTMLFormElement, HTMLTextAreaElement, HTMLButtonElement, HTMLSelectElement, ResizeObserver, window */
 
-import type { ChatModelOption, ChatSessionSnapshot } from "../chat-session-snapshot";
+import type {
+  ChatModelOption,
+  ChatSessionSnapshot,
+  MainModelId,
+} from "../../../../../backend/chat-session";
 import { Component } from "../../../../component";
 import { cloneChatPageElement } from "../../chat-page-template";
-import type { MainModelId } from "../llm/main-model-options";
 
 export type ChatInputUpdateEvent =
   | { type: "text_updated" }

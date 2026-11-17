@@ -6,7 +6,7 @@ import {
   appendWorkingTranscriptItem,
   getWorkflowHumanMessage,
   removeWorkingTranscriptItem,
-} from "../transcript";
+} from "../transcript-helpers";
 import { ChatSessionState } from "../chat-session-state";
 import { runSubmitMessageWorkflow } from "./submit-message";
 

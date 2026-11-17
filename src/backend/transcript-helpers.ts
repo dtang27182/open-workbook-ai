@@ -1,47 +1,12 @@
 import type { ChatState } from "./chat-session-state";
 import type { RestorePoint } from "./restore-manager";
 import type { FormulaInferencePlan } from "./llm/preprocess-formula-inference";
-
-export type ChatTranscriptSource = "human" | "system";
-
-export type ChatFormulaInferenceTranscriptItem = {
-  kind: "formula_inference";
-  plan: FormulaInferencePlan;
-  workflowId: number;
-};
-
-export type ChatMessagePresentation = {
-  kind: "edit_decision";
-  decision: "accepted" | "rejected";
-  sourceSheetName: string;
-};
-
-export type ChatTranscriptItem =
-  | ChatFormulaInferenceTranscriptItem
-  | {
-      kind: "message";
-      source: ChatTranscriptSource;
-      text: string;
-      workflowId: number;
-      presentation?: ChatMessagePresentation;
-    }
-  | {
-      kind: "restore";
-      restorePointId: number;
-      workflowId: number;
-    }
-  | {
-      kind: "working";
-      source: "system";
-      text: string;
-      workflowId: number;
-    };
-
-export type ChatTranscriptEntry = ChatTranscriptItem;
-
-export type ChatMessageTranscriptItem = Extract<ChatTranscriptItem, { kind: "message" }>;
-
-export type ChatWorkingTranscriptItem = Extract<ChatTranscriptItem, { kind: "working" }>;
+import type {
+  ChatMessagePresentation,
+  ChatMessageTranscriptItem,
+  ChatTranscriptEntry,
+  ChatWorkingTranscriptItem,
+} from "./chat-session";
 
 export function appendMessage(
   transcript: ChatTranscriptEntry[],

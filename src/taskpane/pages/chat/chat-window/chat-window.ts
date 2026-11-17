@@ -1,10 +1,12 @@
 /* global HTMLElement, ResizeObserver */
 
 import { Component } from "../../../component";
-import type { ChatSession } from "./chat-session";
-import type { ChatSessionSnapshot } from "./chat-session-snapshot";
+import type {
+  ChatSession,
+  ChatSessionSnapshot,
+  MainModelId,
+} from "../../../../backend/chat-session";
 import { ChatInput } from "./chat-input/chat-input";
-import type { MainModelId } from "./llm/main-model-options";
 import {
   type ChatWindowDomHandlers,
   createInitialDom,

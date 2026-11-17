@@ -1,9 +1,8 @@
-import { OpenrouterKeyStore } from "../../auth/openrouter-auth/openrouter-api-key";
-import { OpenAIKeyStore } from "../../auth/add-openai-key/openai-key-store";
+import { OpenrouterKeyStore } from "./auth/openrouter-api-key";
+import { OpenAIKeyStore } from "./auth/openai-key-store";
+import type { MainModelId, ModelProvider } from "./chat-session";
 import {
-  type MainModelId,
   type MainModelOption,
-  type ModelProvider,
   openAiMainModelOptions,
   openRouterMainModelOptions,
 } from "./llm/main-model-options";

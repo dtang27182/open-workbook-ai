@@ -1,7 +1,5 @@
 import type { OpenRouterRequestBody } from "./inference-client";
 
-export type ModelProvider = "openai" | "openrouter";
-
 export const openRouterMainModelOptions = [
   {
     label: "GPT-6.1 Sol",
@@ -69,5 +67,4 @@ export const openAiMainModelOptions = [
 export type MainModelOption =
   | (typeof openRouterMainModelOptions)[number]
   | (typeof openAiMainModelOptions)[number];
-export type MainModelId = MainModelOption["config"]["model"];
 export type MainModelConfig = Pick<OpenRouterRequestBody, "model" | "provider" | "reasoning">;

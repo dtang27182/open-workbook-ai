@@ -1,5 +1,5 @@
 import { RestoreManager } from "./restore-manager";
-import type { ChatTranscriptItem } from "./transcript";
+import type { ChatTranscriptItem } from "./chat-session";
 import type { LlmConversationHistory, LLMManager } from "./llm/llm-manager";
 import type { ExcelManager } from "./excel-manager";
 

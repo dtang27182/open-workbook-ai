@@ -1,12 +1,10 @@
-import { ProviderManager } from "../src/taskpane/pages/chat/chat-window/provider-manager";
-import { ChatSession } from "../src/taskpane/pages/chat/chat-window/chat-session";
+import { ProviderManager } from "../src/backend/provider-manager";
+import { ChatSession, type ChatMessageTranscriptItem, type ModelProvider } from "../src/backend/chat-session";
 import { ChatWindow } from "../src/taskpane/pages/chat/chat-window/chat-window";
-import type { ExcelApi } from "../src/taskpane/pages/chat/chat-window/excel-manager";
-import type { ChatState } from "../src/taskpane/pages/chat/chat-window/chat-session-state";
-import type { ChatMessageTranscriptItem } from "../src/taskpane/pages/chat/chat-window/transcript";
-import { OpenrouterKeyStore } from "../src/taskpane/pages/auth/openrouter-auth/openrouter-api-key";
-import { OpenAIKeyStore } from "../src/taskpane/pages/auth/add-openai-key/openai-key-store";
-import type { ModelProvider } from "../src/taskpane/pages/chat/chat-window/llm/main-model-options";
+import type { ExcelApi } from "../src/backend/excel-manager";
+import type { ChatState } from "../src/backend/chat-session-state";
+import { OpenrouterKeyStore } from "../src/backend/auth/openrouter-api-key";
+import { OpenAIKeyStore } from "../src/backend/auth/openai-key-store";
 
 export function createChatWindowForTest(
   excelApi: ExcelApi,

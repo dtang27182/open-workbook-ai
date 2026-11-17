@@ -9,8 +9,8 @@ import {
   getWorkflowHumanMessage,
   insertRestoreTranscriptItem,
   removeWorkingTranscriptItem,
-} from "../transcript";
-import { appendAssistantLlmMessage, appendUserDecisionLlmMessage } from "../transcript";
+} from "../transcript-helpers";
+import { appendAssistantLlmMessage, appendUserDecisionLlmMessage } from "../transcript-helpers";
 import { runSubmitMessageWorkflow } from "./submit-message";
 
 export async function* runAcceptDiffWorkflow(state: ChatSessionState): AsyncGenerator<void> {

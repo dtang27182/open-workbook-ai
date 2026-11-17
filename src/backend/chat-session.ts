@@ -1,18 +1,88 @@
 /* global console, structuredClone */
 
-import { ChatSessionState } from "./chat-session-state";
-import type { ChatSessionSnapshot } from "./chat-session-snapshot";
+import {
+  ChatSessionState,
+  type ChatWorkflowStateVals,
+  type PendingEdit,
+} from "./chat-session-state";
 import { ProviderManager } from "./provider-manager";
 import { ExcelManager, type ExcelApi } from "./excel-manager";
 import { LLMManager } from "./llm/llm-manager";
-import type { MainModelId, ModelProvider } from "./llm/main-model-options";
-import { appendMessage } from "./transcript";
+import type { MainModelOption } from "./llm/main-model-options";
+import type { FormulaInferencePlan } from "./llm/preprocess-formula-inference";
+import { appendMessage } from "./transcript-helpers";
 import { runAcceptDiffWorkflow } from "./workflows/accept-diff";
 import { runClarificationWorkflow } from "./workflows/clarification";
 import { runPreprocessWorkflow } from "./workflows/preprocess";
 import { runRejectDiffWorkflow } from "./workflows/reject-diff";
 import { runRestoreWorkflow } from "./workflows/restore";
 import { runSubmitMessageWorkflow } from "./workflows/submit-message";
+
+export type ModelProvider = "openai" | "openrouter";
+export type MainModelId = MainModelOption["config"]["model"];
+
+export type ChatTranscriptSource = "human" | "system";
+
+export type ChatFormulaInferenceTranscriptItem = {
+  kind: "formula_inference";
+  plan: FormulaInferencePlan;
+  workflowId: number;
+};
+
+export type ChatMessagePresentation = {
+  kind: "edit_decision";
+  decision: "accepted" | "rejected";
+  sourceSheetName: string;
+};
+
+export type ChatTranscriptItem =
+  | ChatFormulaInferenceTranscriptItem
+  | {
+      kind: "message";
+      source: ChatTranscriptSource;
+      text: string;
+      workflowId: number;
+      presentation?: ChatMessagePresentation;
+    }
+  | {
+      kind: "restore";
+      restorePointId: number;
+      workflowId: number;
+    }
+  | {
+      kind: "working";
+      source: "system";
+      text: string;
+      workflowId: number;
+    };
+
+export type ChatTranscriptEntry = ChatTranscriptItem;
+
+export type ChatMessageTranscriptItem = Extract<ChatTranscriptItem, { kind: "message" }>;
+
+export type ChatWorkingTranscriptItem = Extract<ChatTranscriptItem, { kind: "working" }>;
+
+export type ReadonlySnapshot<T> = { readonly [K in keyof T]: ReadonlySnapshot<T[K]> };
+
+export type ChatModelOption = {
+  readonly label: string;
+  readonly modelId: MainModelId;
+};
+
+export type ChatSessionSnapshot = ReadonlySnapshot<{
+  transcript: ChatTranscriptItem[];
+  workflowState: ChatWorkflowStateVals;
+  actionRunning: boolean;
+  canSubmit: boolean;
+  canReview: boolean;
+  canRestore: boolean;
+  pendingEdit?: PendingEdit;
+  reviewSheetName?: string;
+  restorePoints: { id: number; sheetName: string }[];
+  provider: ModelProvider | undefined;
+  modelOptions: ChatModelOption[];
+  selectedModelId: MainModelId | undefined;
+}>;
 
 const preprocessingEnabled = false;
 

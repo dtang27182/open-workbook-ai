@@ -3,15 +3,16 @@
 import { ChatInput } from "../chat-input/chat-input";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
-import type { ChatSessionSnapshot, ReadonlySnapshot } from "../chat-session-snapshot";
 import type {
   ChatFormulaInferenceTranscriptItem,
   ChatMessagePresentation,
   ChatMessageTranscriptItem,
+  ChatSessionSnapshot,
   ChatTranscriptEntry,
-} from "../transcript";
+  MainModelId,
+  ReadonlySnapshot,
+} from "../../../../../backend/chat-session";
 import { cloneChatPageElement } from "../../chat-page-template";
-import type { MainModelId } from "../llm/main-model-options";
 
 export type ChatWindowDomHandlers = {
   onClear: () => void;

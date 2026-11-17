@@ -1,50 +1,63 @@
+import type { ChatMessageTranscriptItem } from "../chat-session";
 import {
-  type ChatMessageTranscriptItem,
   appendMessage,
   appendWorkingTranscriptItem,
-  getWorkflowHumanMessage,
   removeWorkingTranscriptItem,
   updateWorkingTranscriptItem,
   upsertTranscriptMessage,
-} from "../transcript";
+} from "../transcript-helpers";
 import type { LlmConversationHistory, SpreadsheetPromptCompletionEvent } from "../llm/llm-manager";
+import type { SheetSnapshot } from "../excel-manager";
 import { processModelResponse } from "./model-response";
 import { ChatSessionState } from "../chat-session-state";
 
-export async function* runClarificationWorkflow(
+export async function* runSubmitMessageWorkflow(
   state: ChatSessionState,
-  answer: string
+  message: string,
+  workflowId: number,
+  showHumanMessage = true
 ): AsyncGenerator<void> {
-  const pendingToolCall = state.llmManager.getPendingClarificationToolCall(
-    state.chatState.llmConversationMessages
+  const { originalSheet, llmConversationMessages } = await gatherInputs(state);
+  const responseEntry = setupTransition(
+    state,
+    message,
+    workflowId,
+    showHumanMessage,
+    originalSheet
   );
-  const workflowId = pendingToolCall.workflowId;
-  const originalSheet = await state.excelManager.readActiveSheet();
-  const responseEntry = setupTransition(state, answer, workflowId);
   yield;
   const result = yield* performActions(
     state,
-    answer,
-    workflowId,
-    state.chatState.llmConversationMessages,
-    responseEntry
-  );
-  yield* processModelResponse(
-    state,
-    getWorkflowHumanMessage(state.chatState.transcript, workflowId),
+    message,
     workflowId,
     originalSheet,
-    responseEntry,
-    result
+    llmConversationMessages,
+    responseEntry
   );
+  yield* processModelResponse(state, message, workflowId, originalSheet, responseEntry, result);
+}
+
+async function gatherInputs(state: ChatSessionState): Promise<{
+  originalSheet: SheetSnapshot;
+  llmConversationMessages: LlmConversationHistory;
+}> {
+  return {
+    originalSheet: await state.excelManager.readActiveSheet(),
+    llmConversationMessages: state.chatState.llmConversationMessages,
+  };
 }
 
 function setupTransition(
   state: ChatSessionState,
-  answer: string,
-  workflowId: number
+  message: string,
+  workflowId: number,
+  showHumanMessage: boolean,
+  originalSheet: SheetSnapshot
 ): ChatMessageTranscriptItem {
-  appendMessage(state.chatState.transcript, "human", answer, workflowId);
+  state.restoreManager.createPotentialRestorePoint(workflowId, state.chatState, originalSheet);
+  if (showHumanMessage) {
+    appendMessage(state.chatState.transcript, "human", message, workflowId);
+  }
   appendWorkingTranscriptItem(state.chatState.transcript, "Working...", workflowId);
 
   return {
@@ -57,15 +70,17 @@ function setupTransition(
 
 async function* performActions(
   state: ChatSessionState,
-  answer: string,
+  message: string,
   workflowId: number,
+  originalSheet: SheetSnapshot,
   llmConversationMessages: LlmConversationHistory,
   responseEntry: ChatMessageTranscriptItem
 ): AsyncGenerator<void, SpreadsheetPromptCompletionEvent> {
   let completionEvent: SpreadsheetPromptCompletionEvent | undefined;
-  for await (const event of state.llmManager.runClarificationResponsePrompt(
-    answer,
+  for await (const event of state.llmManager.runMainQueryPrompt(
+    message,
     workflowId,
+    originalSheet,
     llmConversationMessages
   )) {
     if (event.type === "partial_response") {

@@ -1,3 +1,4 @@
+import type { ChatMessageTranscriptItem } from "../chat-session";
 import type { CellEdit, SheetSnapshot } from "../excel-manager";
 import type { ChatSessionState } from "../chat-session-state";
 import type {
@@ -6,13 +7,12 @@ import type {
   SpreadsheetPromptCompletionEvent,
 } from "../llm/llm-manager";
 import {
-  type ChatMessageTranscriptItem,
   appendMessage,
   appendWorkingTranscriptItem,
   removeWorkingTranscriptItem,
   upsertTranscriptMessage,
   appendAssistantLlmMessage,
-} from "../transcript";
+} from "../transcript-helpers";
 
 export async function* processModelResponse(
   state: ChatSessionState,
