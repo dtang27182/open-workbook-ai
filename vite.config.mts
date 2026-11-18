@@ -1,5 +1,5 @@
-import { cp, readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { copyFile, cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import * as devCerts from "office-addin-dev-certs";
@@ -8,10 +8,12 @@ import { defineConfig, type Plugin } from "vite";
 const ROOT_DIRECTORY = fileURLToPath(new URL("./", import.meta.url));
 const DEVELOPMENT_URL = "https://localhost:3000/";
 const PRODUCTION_URL = "https://open-workbook-ai-addin.pages.dev/";
+const TASKPANE_PATH = "src/frontend/taskpane/taskpane.html";
+const MANIFEST_TASKPANE_PATH = "src/taskpane/taskpane.html";
 
 const HTML_ENTRIES = {
-  taskpane: resolve(ROOT_DIRECTORY, "src/taskpane/taskpane.html"),
-  openrouterAuthDialog: resolve(ROOT_DIRECTORY, "src/auth-dialog/openrouter-auth-dialog.html"),
+  taskpane: resolve(ROOT_DIRECTORY, TASKPANE_PATH),
+  openrouterAuthDialog: resolve(ROOT_DIRECTORY, "src/frontend/auth-dialog/openrouter-auth-dialog.html"),
 };
 
 export default defineConfig(async ({ command, mode }) => ({
@@ -23,7 +25,7 @@ export default defineConfig(async ({ command, mode }) => ({
       input: HTML_ENTRIES,
     },
   },
-  plugins: [copyOfficeFiles(mode === "development")],
+  plugins: [manifestTaskpaneRoute(), copyOfficeFiles(mode === "development")],
   server: {
     headers: {
       "Access-Control-Allow-Origin": "*",
@@ -33,6 +35,29 @@ export default defineConfig(async ({ command, mode }) => ({
     strictPort: true,
   },
 }));
+
+function manifestTaskpaneRoute(): Plugin {
+  return {
+    name: "manifest-taskpane-route",
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        if (request.url?.split("?", 1)[0] === `/${MANIFEST_TASKPANE_PATH}`) {
+          response.writeHead(307, {
+            Location: request.url.replace(`/${MANIFEST_TASKPANE_PATH}`, `/${TASKPANE_PATH}`),
+          });
+          response.end();
+        } else {
+          next();
+        }
+      });
+    },
+    async writeBundle() {
+      const manifestTaskpane = resolve(ROOT_DIRECTORY, "dist", MANIFEST_TASKPANE_PATH);
+      await mkdir(dirname(manifestTaskpane), { recursive: true });
+      await copyFile(resolve(ROOT_DIRECTORY, "dist", TASKPANE_PATH), manifestTaskpane);
+    },
+  };
+}
 
 function copyOfficeFiles(development: boolean): Plugin {
   return {

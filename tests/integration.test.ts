@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { AsyncLocalStorage } from "node:async_hooks";
 import test, { after, before, TestContext } from "node:test";
 
-import type { ChatWindow } from "../src/taskpane/pages/chat/chat-window/chat-window";
-import type { ChatTranscriptEntry } from "../src/backend/chat-session";
-import { OpenrouterKeyStore } from "../src/backend/auth/openrouter-api-key";
+import type { ChatWindow } from "../src/frontend/taskpane/pages/chat/chat-window/chat-window";
+import type { ChatTranscriptEntry } from "../src/backend/chat-session/chat-session";
+import { OpenrouterKeyStore } from "../src/backend/chat-session/auth/openrouter-api-key";
 import {
   createChatWindowForTest,
   getChatStateForTest,

@@ -34,7 +34,10 @@ async function requestAuthorizationCode(challenge: string): Promise<string> {
 }
 
 function createAuthorizationDialogUrl(challenge: string): string {
-  const dialogUrl = new URL("/src/auth-dialog/openrouter-auth-dialog.html", window.location.href);
+  const dialogUrl = new URL(
+    "/src/frontend/auth-dialog/openrouter-auth-dialog.html",
+    window.location.href
+  );
   dialogUrl.searchParams.set("code_challenge", challenge);
   return dialogUrl.toString();
 }

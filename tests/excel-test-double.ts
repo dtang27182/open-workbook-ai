@@ -1,4 +1,4 @@
-import type { ExcelApi } from "../src/backend/excel-manager";
+import type { ExcelApi } from "../src/backend/chat-session/excel-manager";
 
 export type ExcelTestWorkbookInput = {
   activeSheetName: string;

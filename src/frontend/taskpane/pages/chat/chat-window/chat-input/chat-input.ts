@@ -4,7 +4,7 @@ import type {
   ChatModelOption,
   ChatSessionSnapshot,
   MainModelId,
-} from "../../../../../backend/chat-session";
+} from "../../../../../../backend/chat-session/chat-session";
 import { Component } from "../../../../component";
 import { cloneChatPageElement } from "../../chat-page-template";
 

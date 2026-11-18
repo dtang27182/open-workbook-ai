@@ -114,7 +114,9 @@ To use the add-in with your worksheets, follow [Get Started in Excel](#get-start
 
 Sideloading registers the add-in with Excel by uploading its manifest. The `manifest.xml`
 in the repository's top-level directory tells Excel to load the add-in entry point at
-`https://localhost:3000/src/taskpane/taskpane.html`.
+`https://localhost:3000/src/taskpane/taskpane.html`. Vite redirects this URL to the task pane
+in `src/frontend` during development. Production builds also serve the task pane at the
+manifest's original path.
 
 Excel then loads the add-in's HTML, JavaScript, and CSS from the development server on
 your computer. The add-in runs entirely client-side in your browser, using the Excel API

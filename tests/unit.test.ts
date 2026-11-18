@@ -1,46 +1,46 @@
-import { ProviderManager } from "../src/backend/provider-manager";
-import { ChatSession, type ChatSessionSnapshot, type ChatTranscriptEntry } from "../src/backend/chat-session";
+import { ProviderManager } from "../src/backend/chat-session/provider-manager";
+import { ChatSession, type ChatSessionSnapshot, type ChatTranscriptEntry } from "../src/backend/chat-session/chat-session";
 import assert from "node:assert/strict";
-import { ChatInput } from "../src/taskpane/pages/chat/chat-window/chat-input/chat-input";
+import { ChatInput } from "../src/frontend/taskpane/pages/chat/chat-window/chat-input/chat-input";
 import test, { type TestContext } from "node:test";
-import { AccountMenu } from "../src/taskpane/account-menu/account-menu";
-import { TaskpaneComponent } from "../src/taskpane/taskpane-component";
-import { OpenRouterAuthPage } from "../src/taskpane/pages/auth/openrouter-auth/openrouter-auth-page";
-import { OpenAIKeyStore } from "../src/backend/auth/openai-key-store";
-import { AuthPagesComponent } from "../src/taskpane/pages/auth/auth-pages-component";
+import { AccountMenu } from "../src/frontend/taskpane/account-menu/account-menu";
+import { TaskpaneComponent } from "../src/frontend/taskpane/taskpane-component";
+import { OpenRouterAuthPage } from "../src/frontend/taskpane/pages/auth/openrouter-auth/openrouter-auth-page";
+import { OpenAIKeyStore } from "../src/backend/chat-session/auth/openai-key-store";
+import { AuthPagesComponent } from "../src/frontend/taskpane/pages/auth/auth-pages-component";
 
 import {
   type LlmConversationHistory,
   type SpreadsheetPromptEvent,
   LLMManager,
-} from "../src/backend/llm/llm-manager";
+} from "../src/backend/chat-session/llm/llm-manager";
 import {
   type OpenRouterRequestBody,
   InferenceClient,
-} from "../src/backend/llm/inference-client";
+} from "../src/backend/chat-session/llm/inference-client";
 import {
   type SheetSnapshot,
   ExcelManager,
-} from "../src/backend/excel-manager";
-import type { ChatState } from "../src/backend/chat-session-state";
+} from "../src/backend/chat-session/excel-manager";
+import type { ChatState } from "../src/backend/chat-session/chat-session-state";
 import {
   type ChatWindowDomHandlers,
   configChatControls,
   createInitialDom,
   renderChatTranscript,
   updateReviewWarning,
-} from "../src/taskpane/pages/chat/chat-window/dom/chat-window-dom";
+} from "../src/frontend/taskpane/pages/chat/chat-window/dom/chat-window-dom";
 import type {
   FormulaInferencePlan,
   PreprocessPromptEvent,
-} from "../src/backend/llm/preprocess-formula-inference";
-import { OpenrouterKeyStore } from "../src/backend/auth/openrouter-api-key";
-import { RestoreManager } from "../src/backend/restore-manager";
-import { runPreprocessWorkflow } from "../src/backend/workflows/preprocess";
+} from "../src/backend/chat-session/llm/preprocess-formula-inference";
+import { OpenrouterKeyStore } from "../src/backend/chat-session/auth/openrouter-api-key";
+import { RestoreManager } from "../src/backend/chat-session/restore-manager";
+import { runPreprocessWorkflow } from "../src/backend/chat-session/workflows/preprocess";
 import {
   formatSheetAsMarkdown,
   formatSheetDataAsMarkdown,
-} from "../src/backend/llm/sheet-markdown";
+} from "../src/backend/chat-session/llm/sheet-markdown";
 import { createExcelTestWorkbook } from "./excel-test-double";
 import {
   createChatWindowForTest,

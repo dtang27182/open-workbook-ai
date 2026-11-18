@@ -11,7 +11,7 @@ import type {
   ChatTranscriptEntry,
   MainModelId,
   ReadonlySnapshot,
-} from "../../../../../backend/chat-session";
+} from "../../../../../../backend/chat-session/chat-session";
 import { cloneChatPageElement } from "../../chat-page-template";
 
 export type ChatWindowDomHandlers = {

@@ -3,7 +3,7 @@
 import { Component } from "../../component";
 import { ChatHeader } from "./chat-header";
 import { ChatWindow } from "./chat-window/chat-window";
-import type { ChatSession } from "../../../backend/chat-session";
+import type { ChatSession } from "../../../../backend/chat-session/chat-session";
 
 export type ChatPageUpdateEvent = { type: "provider_changed" };
 

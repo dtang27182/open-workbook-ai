@@ -5,7 +5,7 @@ import type {
   ChatSession,
   ChatSessionSnapshot,
   MainModelId,
-} from "../../../../backend/chat-session";
+} from "../../../../../backend/chat-session/chat-session";
 import { ChatInput } from "./chat-input/chat-input";
 import {
   type ChatWindowDomHandlers,
